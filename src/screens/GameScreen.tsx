@@ -10,7 +10,7 @@
  * All timer logic lives here (side-effect); the reducer stays pure. Animations
  * use the built-in Animated API only.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -30,7 +30,12 @@ import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../ty
 import type { GameStackParamList } from '../types/navigation';
 
 type Nav = NativeStackNavigationProp<GameStackParamList, 'Game'>;
-type LocalPhase = 'placing' | 'stealWindow' | 'stealSelect' | 'stealPlace';
+type LocalPhase =
+  | 'placing'
+  | 'noStealNotice'
+  | 'stealWindow'
+  | 'stealSelect'
+  | 'stealPlace';
 
 const STEAL_WINDOW_MS = 5000;
 const STEAL_GRACE_MS = 700;
@@ -176,6 +181,16 @@ export default function GameScreen() {
   const eligibleStealers = others.filter((p) => p.chips >= 1);
   const stealer = stealerId ? state.players.find((p) => p.id === stealerId) ?? null : null;
 
+  // A playful line for the "both guessed wrong" reveal, stable per placement.
+  const bothWrongMessage = useMemo(() => {
+    const variants = [
+      'Tja, das war wohl nix für beide! 🙈',
+      'Daneben! Beide haben sich verzockt. 🎲',
+      'Doppelt vorbei – die Karte fliegt raus! 😅',
+    ];
+    return variants[Math.floor(Math.random() * variants.length)];
+  }, [lastPlacement]);
+
   // Start playback when a fresh card arrives (drawn during handoff).
   useEffect(() => {
     if (!state.currentCard || isRevealed) return;
@@ -239,6 +254,15 @@ export default function GameScreen() {
     }).start();
   }, [lastPlacement, brandtAnim]);
 
+  // Brief "no Hitster possible" notice, then reveal as normal.
+  useEffect(() => {
+    if (localPhase !== 'noStealNotice' || pendingIndex === null) return;
+    const t = setTimeout(() => {
+      dispatch({ type: 'PLACE_CARD', payload: { insertIndex: pendingIndex } });
+    }, 1300);
+    return () => clearTimeout(t);
+  }, [localPhase, pendingIndex, dispatch]);
+
   // The 5s steal window timer (auto-reveal after grace). Side-effect, cleaned up.
   useEffect(() => {
     if (localPhase !== 'stealWindow' || pendingIndex === null) return;
@@ -268,12 +292,18 @@ export default function GameScreen() {
 
   // --- Handlers ---
   const onPlace = (insertIndex: number) => {
-    if (!chipsEnabled || eligibleStealers.length === 0) {
-      // No chip layer (or nobody can steal) -> place immediately as before.
+    if (!chipsEnabled) {
+      // No chip layer -> place immediately as before.
       dispatch({ type: 'PLACE_CARD', payload: { insertIndex } });
       return;
     }
     setPendingIndex(insertIndex);
+    if (eligibleStealers.length === 0) {
+      // Nobody can steal -> skip the 5s window, but show a brief notice first so
+      // it's clear WHY there's no Hitster window (deliberate, not a missing step).
+      setLocalPhase('noStealNotice');
+      return;
+    }
     setLocalPhase('stealWindow');
   };
 
@@ -326,12 +356,14 @@ export default function GameScreen() {
   let feedbackMsg = '';
   if (lastPlacement) {
     if (steal) {
+      // steal.result === 'correct' is shown via the Brandt celebration block,
+      // not this bar. Here we only handle the two "steal missed" outcomes.
       feedbackMsg =
         steal.result === 'correct'
           ? `🎯 ${stealerName} hat geklaut — richtig eingeordnet!`
           : lastPlacement.result === 'correct'
-            ? `Steal daneben — ${player.name} behält die Karte`
-            : 'Steal daneben — Karte abgeworfen';
+            ? `${player.name} hatte recht! Die Karte bleibt.`
+            : bothWrongMessage;
     } else {
       feedbackMsg = kept ? '✓  RICHTIG — Karte bleibt' : '✕  FALSCH — Karte abgeworfen';
     }
@@ -505,6 +537,13 @@ export default function GameScreen() {
           </Pressable>
           <Text style={styles.hint}>Sonst wird gleich automatisch aufgedeckt…</Text>
         </View>
+      )}
+
+      {/* ---------- NO-STEAL NOTICE (skip window, brief hint) ---------- */}
+      {!isRevealed && localPhase === 'noStealNotice' && (
+        <Text style={styles.noStealHint}>
+          Kein Hitster möglich – niemand hat einen Nickel 🪙
+        </Text>
       )}
 
       {/* ---------- STEAL SELECT ---------- */}
@@ -738,6 +777,14 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   hitsterText: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 1 },
+  noStealHint: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
+  },
 
   // Steal select
   selectRow: {
