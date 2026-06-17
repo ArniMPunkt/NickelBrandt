@@ -17,6 +17,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
+import { SettingsGear } from '../components/SettingsModal';
 import { COLORS } from '../theme/colors';
 
 // Spotify brand green (explicitly requested for the Spotify identity here).
@@ -82,6 +83,7 @@ export default function SpotifyConnectScreen() {
   };
 
   return (
+   <View style={styles.root}>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 32 }]}
@@ -154,10 +156,13 @@ export default function SpotifyConnectScreen() {
         </Pressable>
       )}
     </ScrollView>
+    <SettingsGear />
+   </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.background },
   screen: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 24, gap: 16, alignItems: 'center' },
 

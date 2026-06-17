@@ -1,25 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx --yes create-expo-app@latest . --template blank-typescript --no-install)",
-      "Read(//c/Users/arnem/**)",
-      "Bash(rm -rf nb-temp)",
-      "Bash(npx --yes create-expo-app@latest nb-temp --template blank-typescript --no-install)",
-      "Bash(npm install *)",
-      "Bash(npx --yes expo install --fix)",
-      "Bash(npx --yes expo install react-native-spotify-remote)",
-      "Bash(sed -n '1,80p' node_modules/react-native-spotify-remote/android/external/SpotifySDK/auth-lib/README.md)",
-      "Bash(find node_modules/react-native-spotify-remote/android -name \"*.aar\")",
-      "Bash(npx --yes expo config --type prebuild --json)",
-      "Bash(echo \"EXIT: $?\")",
-      "Read(//tmp/**)",
-      "Bash(node -e \"const c=require\\('/tmp/cfg.json'\\); console.log\\('name', c.name\\); console.log\\('android.package', c.android&&c.android.package\\); console.log\\('ios.bundleId', c.ios&&c.ios.bundleIdentifier\\); console.log\\('newArchEnabled', c.newArchEnabled\\); console.log\\('scheme', c.scheme\\);\")",
-      "Bash(npx patch-package *)",
-      "Bash(rm -rf /tmp/nb-export; echo done)",
-      "Bash(sed -n '1,40p' node_modules/react-native-spotify-remote/dist/SpotifyRemote.js)",
-      "Bash(sed -n '1,40p' node_modules/react-native-spotify-remote/dist/SpotifyAuth.js)",
-      "Bash(node -c node_modules/react-native-spotify-remote/dist/SpotifyAuth.js)",
-      "Bash(node -c node_modules/react-native-spotify-remote/dist/SpotifyRemote.js)"
+      "Bash",
+      "Read",
+      "Write",
+      "Edit"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf C:*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fd*)",
+      "Bash(* --no-verify*)",
+      "Read(//c/Users/arnem/.ssh/**)",
+      "Read(//c/Users/arnem/.aws/**)",
+      "Read(**/.env)",
+      "Read(**/*.keystore)",
+      "Read(**/*.jks)",
+      "Write(//c/Users/arnem/.ssh/**)",
+      "Write(**/.git/**)"
     ],
     "additionalDirectories": [
       "\\tmp"

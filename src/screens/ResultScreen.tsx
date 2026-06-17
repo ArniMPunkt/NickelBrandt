@@ -101,6 +101,18 @@ export default function ResultScreen() {
     [...state.players].sort((a, b) => b.score - a.score)[0] ??
     null;
 
+  // Scale-in / bounce for the winner name on mount.
+  const nameAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(nameAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+  }, [nameAnim]);
+  const nameScale = nameAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] });
+
   const newGame = async () => {
     await Spotify.pause().catch(() => {});
     dispatch({ type: 'RESET' });
@@ -118,9 +130,13 @@ export default function ResultScreen() {
         <Text style={styles.label}>
           {state.winner ? 'GEWINNER' : 'SPITZENREITER'}
         </Text>
-        <Text style={styles.winner} numberOfLines={2} adjustsFontSizeToFit>
+        <Animated.Text
+          style={[styles.winner, { opacity: nameAnim, transform: [{ scale: nameScale }] }]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+        >
           {leader ? leader.name : '-'}
-        </Text>
+        </Animated.Text>
         {leader && (
           <Text style={styles.winnerScore}>
             {leader.score} Karten korrekt platziert
@@ -141,7 +157,12 @@ export default function ResultScreen() {
                 {isWinner ? '👑 ' : ''}
                 {p.name}
               </Text>
-              <Text style={styles.playerScore}>{p.score} Pkt.</Text>
+              <View style={styles.playerStats}>
+                {p.brandtsCount > 0 && (
+                  <Text style={styles.brandtBadge}>🔥 x{p.brandtsCount}</Text>
+                )}
+                <Text style={styles.playerScore}>{p.score} Pkt.</Text>
+              </View>
             </View>
             <Text style={styles.timeline}>
               {p.timeline.map((c) => c.year).join('   ·   ')}
@@ -231,6 +252,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   playerName: { color: COLORS.text, fontWeight: '900', fontSize: 18, flexShrink: 1 },
+  playerStats: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brandtBadge: { color: COLORS.accent, fontWeight: '900', fontSize: 14 },
   playerScore: { color: COLORS.primary, fontWeight: '900', fontSize: 15 },
   timeline: { color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
 

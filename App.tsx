@@ -15,7 +15,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GameProvider } from './src/context/GameContext';
+import { SettingsProvider } from './src/context/SettingsContext';
 import SetupScreen from './src/screens/SetupScreen';
+import IntroScreen from './src/screens/IntroScreen';
 import HandoffScreen from './src/screens/HandoffScreen';
 import GameScreen from './src/screens/GameScreen';
 import ResultScreen from './src/screens/ResultScreen';
@@ -39,6 +41,7 @@ function GameStack() {
       }}
     >
       <GameStackNav.Screen name="Setup" component={SetupScreen} />
+      <GameStackNav.Screen name="Intro" component={IntroScreen} />
       <GameStackNav.Screen name="Handoff" component={HandoffScreen} />
       <GameStackNav.Screen name="Game" component={GameScreen} />
       <GameStackNav.Screen name="Result" component={ResultScreen} />
@@ -79,6 +82,7 @@ function SpotifyTabIcon({ focused }: { focused: boolean }) {
 export default function App() {
   return (
     <SafeAreaProvider>
+      <SettingsProvider>
       <GameProvider>
         <NavigationContainer>
           <Tab.Navigator
@@ -110,6 +114,7 @@ export default function App() {
           </Tab.Navigator>
         </NavigationContainer>
       </GameProvider>
+      </SettingsProvider>
       <StatusBar style="light" />
     </SafeAreaProvider>
   );

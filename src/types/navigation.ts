@@ -4,6 +4,7 @@
  */
 export type GameStackParamList = {
   Setup: undefined;
+  Intro: undefined;
   Handoff: undefined;
   Game: undefined;
   Result: undefined;

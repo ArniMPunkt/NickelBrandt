@@ -5,12 +5,29 @@
  * via the spotify service around the dispatch calls.
  */
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
-import type {
-  GameCard,
-  GameSettings,
-  GameState,
-  Player,
+import {
+  MAX_CHIPS,
+  type GameCard,
+  type GameSettings,
+  type GameState,
+  type Player,
 } from '../types/game';
+
+/** Insert a card into a sorted timeline at the given slot (pure). */
+function insertAt(timeline: GameCard[], card: GameCard, index: number): GameCard[] {
+  return [...timeline.slice(0, index), card, ...timeline.slice(index)];
+}
+
+/**
+ * The slot at which `year` keeps a sorted (ascending) timeline sorted. Used to
+ * place a stolen card into the stealer's own timeline (their chosen slot was an
+ * index into the ACTIVE player's timeline, so it can't be reused here).
+ */
+function sortedInsertIndex(timeline: GameCard[], year: number): number {
+  let i = 0;
+  while (i < timeline.length && timeline[i].year <= year) i++;
+  return i;
+}
 
 // ---------------------------------------------------------------------------
 // Pure placement logic
@@ -43,6 +60,15 @@ export type GameAction =
     }
   | { type: 'DRAW_CARD' }
   | { type: 'PLACE_CARD'; payload: { insertIndex: number } }
+  | { type: 'AWARD_CHIP'; payload: { playerId: string } }
+  | {
+      type: 'ATTEMPT_STEAL';
+      payload: {
+        stealerId: string;
+        stealerInsertIndex: number;
+        activeInsertIndex: number;
+      };
+    }
   | { type: 'NEXT_PLAYER' }
   | { type: 'END_GAME'; payload: { winner: Player } }
   | { type: 'RESET' };
@@ -53,7 +79,12 @@ const initialState: GameState = {
   currentPlayerIndex: 0,
   currentCard: null,
   deck: [],
-  settings: { cardsToWin: 10, playlistId: '', hideCoverUntilRevealed: false },
+  settings: {
+    cardsToWin: 10,
+    playlistId: '',
+    hideCoverUntilRevealed: false,
+    chipsEnabled: true,
+  },
   winner: null,
   lastPlacement: null,
 };
@@ -69,6 +100,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         name,
         timeline: [deck[i]],
         score: 0,
+        chips: 2, // start with 2 Nickel (Hitster-style)
+        brandtsCount: 0,
       }));
       const remaining = deck.slice(playerNames.length);
 
@@ -135,6 +168,88 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         },
         winner: won ? updatedPlayer : state.winner,
         phase: won ? 'result' : state.phase,
+      };
+    }
+
+    case 'AWARD_CHIP': {
+      const { playerId } = action.payload;
+      const players = state.players.map((p) =>
+        p.id === playerId && p.chips < MAX_CHIPS ? { ...p, chips: p.chips + 1 } : p
+      );
+      return { ...state, players };
+    }
+
+    case 'ATTEMPT_STEAL': {
+      const card = state.currentCard;
+      if (!card) return state;
+
+      const { stealerId, stealerInsertIndex, activeInsertIndex } = action.payload;
+      const activeIndex = state.currentPlayerIndex;
+      const active = state.players[activeIndex];
+      const stealer = state.players.find((p) => p.id === stealerId);
+      if (!stealer || stealer.id === active.id) return state;
+
+      // The steal is judged against the ACTIVE player's timeline at the slot the
+      // stealer picked there (stealerInsertIndex is an index into active.timeline).
+      const stealCorrect = isCorrectPlacement(
+        active.timeline,
+        card,
+        stealerInsertIndex
+      );
+      // The active player's own placement only matters if the steal missed.
+      const activeCorrect = isCorrectPlacement(
+        active.timeline,
+        card,
+        activeInsertIndex
+      );
+
+      const players = state.players.map((p, i) => {
+        if (p.id === stealerId) {
+          // The chip is always spent. On success the card joins THEIR timeline at
+          // the position that keeps their own timeline sorted (computed fresh -
+          // stealerInsertIndex referred to the active player's timeline).
+          const chips = Math.max(0, p.chips - 1);
+          if (stealCorrect) {
+            return {
+              ...p,
+              chips,
+              timeline: insertAt(p.timeline, card, sortedInsertIndex(p.timeline, card.year)),
+              score: p.score + 1,
+              brandtsCount: p.brandtsCount + 1, // successful steal = a "Brandt"
+            };
+          }
+          return { ...p, chips };
+        }
+        if (i === activeIndex && !stealCorrect && activeCorrect) {
+          // Steal missed and the active player had placed correctly -> they keep it.
+          return {
+            ...p,
+            timeline: insertAt(p.timeline, card, activeInsertIndex),
+            score: p.score + 1,
+          };
+        }
+        return p;
+      });
+
+      const winner =
+        players.find((p) => p.score >= state.settings.cardsToWin) ?? null;
+
+      return {
+        ...state,
+        players,
+        currentCard: null,
+        lastPlacement: {
+          result: activeCorrect ? 'correct' : 'incorrect',
+          card,
+          insertIndex: activeInsertIndex,
+          steal: {
+            stealerId,
+            insertIndex: stealerInsertIndex,
+            result: stealCorrect ? 'correct' : 'incorrect',
+          },
+        },
+        winner: winner ?? state.winner,
+        phase: winner ? 'result' : state.phase,
       };
     }
 

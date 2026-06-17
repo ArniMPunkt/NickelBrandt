@@ -29,6 +29,10 @@ export interface Player {
   timeline: PlayerTimeline;
   /** Number of cards placed correctly (the free start card does NOT count). */
   score: number;
+  /** Earned chips ("Nickel"). Max 5. Start: 2 (Hitster-style). */
+  chips: number;
+  /** Number of successful steals ("Brandt"). Start: 0. */
+  brandtsCount: number;
 }
 
 export type GamePhase = 'setup' | 'playing' | 'result';
@@ -43,17 +47,35 @@ export interface GameSettings {
    * placed (for title/artist-guessing variants). Default false.
    */
   hideCoverUntilRevealed: boolean;
+  /**
+   * Chip system (earn chips + "Hitster!" steals). Default true. When false the
+   * whole chip UI (question, timer, steal) is hidden and the game plays as before.
+   */
+  chipsEnabled: boolean;
 }
+
+/** The maximum number of chips a player can hold. */
+export const MAX_CHIPS = 5;
 
 export type PlacementResult = 'correct' | 'incorrect';
 
 /** Snapshot of the most recent placement, used to reveal the result on screen. */
 export interface LastPlacement {
+  /** Outcome of the ACTIVE player's own placement. */
   result: PlacementResult;
   /** The card that was just placed (year now revealed). */
   card: GameCard;
-  /** The insert slot that was chosen (0..timeline.length). */
+  /** The active player's insert slot (0..timeline.length). */
   insertIndex: number;
+  /** Present when another player called "Hitster!" and tried to steal this turn. */
+  steal?: {
+    /** Player id who attempted the steal. */
+    stealerId: string;
+    /** The stealer's predicted insert slot in their own timeline. */
+    insertIndex: number;
+    /** Whether the stealer's prediction was correct (they take the card). */
+    result: PlacementResult;
+  };
 }
 
 export interface GameState {

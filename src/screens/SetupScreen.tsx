@@ -11,7 +11,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -21,13 +20,14 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
+import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
+import { SettingsGear } from '../components/SettingsModal';
 import { COLORS } from '../theme/colors';
 import type { GameStackParamList } from '../types/navigation';
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 6;
-const WIN_OPTIONS = [5, 10, 15];
 
 type Nav = NativeStackNavigationProp<GameStackParamList, 'Setup'>;
 
@@ -35,11 +35,10 @@ export default function SetupScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { dispatch } = useGame();
+  const { settings } = useSettings();
 
   const [names, setNames] = useState<string[]>(['', '']);
   const [playlist, setPlaylist] = useState('');
-  const [cardsToWin, setCardsToWin] = useState(10);
-  const [hideCover, setHideCover] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -106,14 +105,15 @@ export default function SetupScreen() {
         payload: {
           playerNames: trimmed,
           settings: {
-            cardsToWin,
+            cardsToWin: settings.cardsToWin,
             playlistId: Spotify.parsePlaylistId(playlist),
-            hideCoverUntilRevealed: hideCover,
+            hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
+            chipsEnabled: settings.chipsEnabled,
           },
           deck,
         },
       });
-      navigation.navigate('Handoff');
+      navigation.navigate('Intro');
     } catch (e: any) {
       const code = e?.code ? `[${e.code}] ` : '';
       setError(`${code}${e?.message ?? String(e)}`);
@@ -123,6 +123,7 @@ export default function SetupScreen() {
   };
 
   return (
+   <View style={styles.root}>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
@@ -186,40 +187,10 @@ export default function SetupScreen() {
         <Text style={styles.pasteBtnText}>📋  Aus Zwischenablage einfügen</Text>
       </Pressable>
 
-      <Text style={styles.label}>KARTEN ZUM GEWINNEN</Text>
-      <View style={styles.winRow}>
-        {WIN_OPTIONS.map((opt) => {
-          const active = cardsToWin === opt;
-          return (
-            <Pressable
-              key={opt}
-              style={[styles.winOpt, active && styles.winOptActive]}
-              onPress={() => setCardsToWin(opt)}
-            >
-              <Text style={[styles.winOptText, active && styles.winOptTextActive]}>
-                {opt}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <Text style={styles.label}>SPIELVARIANTE</Text>
-      <View style={styles.toggleRow}>
-        <View style={styles.toggleTextWrap}>
-          <Text style={styles.toggleTitle}>Cover erst nach Aufdeckung zeigen</Text>
-          <Text style={styles.toggleHint}>
-            Für Spielvarianten mit Titel/Interpret-Rätseln
-          </Text>
-        </View>
-        <Switch
-          value={hideCover}
-          onValueChange={setHideCover}
-          trackColor={{ false: COLORS.border, true: COLORS.primary }}
-          thumbColor={COLORS.text}
-          ios_backgroundColor={COLORS.border}
-        />
-      </View>
+      <Text style={styles.rulesNote}>
+        Spielregeln (Karten zum Gewinnen, Varianten, Nickel) findest du im ⚙️-Menü
+        oben rechts.
+      </Text>
 
       {error && (
         <View style={styles.errorBox}>
@@ -239,10 +210,13 @@ export default function SetupScreen() {
         )}
       </Pressable>
     </ScrollView>
+    <SettingsGear />
+   </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.background },
   screen: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 20, paddingBottom: 48, gap: 12 },
 
@@ -330,28 +304,13 @@ const styles = StyleSheet.create({
   },
   addBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 15 },
 
-  winRow: { flexDirection: 'row', gap: 12 },
-  winOpt: {
-    flex: 1,
-    minHeight: 64,
-    borderRadius: 16,
-    backgroundColor: COLORS.backgroundAlt,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  rulesNote: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
-  winOptActive: {
-    borderColor: COLORS.accent,
-    backgroundColor: COLORS.accent,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  winOptText: { color: COLORS.text, fontSize: 26, fontWeight: '900' },
-  winOptTextActive: { color: COLORS.background },
 
   errorBox: {
     backgroundColor: COLORS.backgroundAlt,
