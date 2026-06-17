@@ -558,6 +558,48 @@ export async function getPlaylistTracks(
   return cards;
 }
 
+/** Summary of one of the user's playlists, for the in-app picker. */
+export interface PlaylistSummary {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  trackCount: number;
+  ownerName: string;
+}
+
+/**
+ * Load the connected user's playlists (owned + followed/collaborative), paginated.
+ * Reuses the PKCE Web API token. GET /me/playlists is known to work (200).
+ */
+export async function getUserPlaylists(): Promise<PlaylistSummary[]> {
+  const token = await getWebApiToken();
+  const PAGE = 50;
+  const MAX = 300; // safety cap (6 pages)
+  const out: PlaylistSummary[] = [];
+
+  for (let offset = 0; offset < MAX; offset += PAGE) {
+    const url = `https://api.spotify.com/v1/me/playlists?limit=${PAGE}&offset=${offset}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      throw await webApiError(res, 'playlists');
+    }
+    const data = await res.json();
+    const items: any[] = data?.items ?? [];
+    for (const pl of items) {
+      if (!pl || !pl.id) continue;
+      out.push({
+        id: pl.id,
+        name: pl.name ?? 'Unbenannte Playlist',
+        imageUrl: pl.images?.[0]?.url ?? null,
+        trackCount: pl.tracks?.total ?? 0,
+        ownerName: pl.owner?.display_name ?? '',
+      });
+    }
+    if (items.length < PAGE || !data?.next) break;
+  }
+  return out;
+}
+
 /** Fisher-Yates shuffle returning a new array (does not mutate the input). */
 export function shuffleDeck<T>(tracks: T[]): T[] {
   const out = tracks.slice();

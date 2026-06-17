@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,14 +16,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
+import type { PlaylistSummary } from '../services/spotify';
 import { SettingsGear } from '../components/SettingsModal';
+import { PlaylistPicker } from './PlaylistPickerScreen';
 import { COLORS } from '../theme/colors';
 import type { GameStackParamList } from '../types/navigation';
 
@@ -38,7 +40,8 @@ export default function SetupScreen() {
   const { settings } = useSettings();
 
   const [names, setNames] = useState<string[]>(['', '']);
-  const [playlist, setPlaylist] = useState('');
+  const [playlist, setPlaylist] = useState<PlaylistSummary | null>(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -54,23 +57,6 @@ export default function SetupScreen() {
       prev.length > MIN_PLAYERS ? prev.filter((_, idx) => idx !== i) : prev
     );
 
-  const pasteFromClipboard = async () => {
-    setError(null);
-    const text = (await Clipboard.getString())?.trim();
-    if (!text) {
-      setError('Zwischenablage ist leer.');
-      return;
-    }
-    // Accept a Spotify URL/URI or a bare 22-char playlist id.
-    const looksLikePlaylist =
-      /spotify|playlist/i.test(text) || /^[A-Za-z0-9]{22}$/.test(text);
-    if (!looksLikePlaylist) {
-      setError('Zwischenablage enthält keinen Spotify-Playlist-Link.');
-      return;
-    }
-    setPlaylist(text);
-  };
-
   const startGame = async () => {
     setError(null);
     const trimmed = names.map((n) => n.trim());
@@ -78,8 +64,8 @@ export default function SetupScreen() {
       setError('Bitte für jeden Spieler einen Namen eingeben.');
       return;
     }
-    if (!playlist.trim()) {
-      setError('Bitte eine Spotify-Playlist (URL oder ID) eingeben.');
+    if (!playlist) {
+      setError('Bitte eine Playlist auswählen.');
       return;
     }
     if (!Spotify.isReadyToPlay()) {
@@ -92,7 +78,7 @@ export default function SetupScreen() {
 
     setLoading(true);
     try {
-      const tracks = await Spotify.getPlaylistTracks(playlist);
+      const tracks = await Spotify.getPlaylistTracks(playlist.id);
       if (tracks.length < trimmed.length + 1) {
         setError(
           `Playlist hat nur ${tracks.length} verwendbare Tracks - zu wenige für ${trimmed.length} Spieler.`
@@ -106,7 +92,7 @@ export default function SetupScreen() {
           playerNames: trimmed,
           settings: {
             cardsToWin: settings.cardsToWin,
-            playlistId: Spotify.parsePlaylistId(playlist),
+            playlistId: playlist.id,
             hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
             chipsEnabled: settings.chipsEnabled,
           },
@@ -166,26 +152,34 @@ export default function SetupScreen() {
         </Pressable>
       )}
 
-      <Text style={styles.label}>PLAYLIST (URL ODER ID)</Text>
-      <TextInput
-        style={[
-          styles.input,
-          styles.playlistInput,
-          focused === 'playlist' && styles.inputFocused,
-        ]}
-        placeholder="https://open.spotify.com/playlist/…"
-        placeholderTextColor={COLORS.textMuted}
-        value={playlist}
-        onChangeText={setPlaylist}
-        onFocus={() => setFocused('playlist')}
-        onBlur={() => setFocused(null)}
-        autoCapitalize="none"
-        autoCorrect={false}
-        multiline
-      />
-      <Pressable style={styles.pasteBtn} onPress={pasteFromClipboard}>
-        <Text style={styles.pasteBtnText}>📋  Aus Zwischenablage einfügen</Text>
-      </Pressable>
+      <Text style={styles.label}>PLAYLIST</Text>
+      {playlist ? (
+        <View style={styles.selectedCard}>
+          {playlist.imageUrl ? (
+            <Image source={{ uri: playlist.imageUrl }} style={styles.selectedCover} />
+          ) : (
+            <View style={[styles.selectedCover, styles.selectedCoverFallback]}>
+              <Text style={styles.selectedGlyph}>💿</Text>
+            </View>
+          )}
+          <View style={styles.selectedText}>
+            <Text style={styles.selectedLabel}>Ausgewählt</Text>
+            <Text style={styles.selectedName} numberOfLines={1}>
+              {playlist.name}
+            </Text>
+            <Text style={styles.selectedMeta} numberOfLines={1}>
+              {playlist.trackCount} Songs
+            </Text>
+          </View>
+          <Pressable style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
+            <Text style={styles.changeBtnText}>Ändern</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable style={styles.pickBtn} onPress={() => setPickerVisible(true)}>
+          <Text style={styles.pickBtnText}>Playlist auswählen 🎵</Text>
+        </Pressable>
+      )}
 
       <Text style={styles.rulesNote}>
         Spielregeln (Karten zum Gewinnen, Varianten, Nickel) findest du im ⚙️-Menü
@@ -211,6 +205,14 @@ export default function SetupScreen() {
       </Pressable>
     </ScrollView>
     <SettingsGear />
+    <PlaylistPicker
+      visible={pickerVisible}
+      onClose={() => setPickerVisible(false)}
+      onSelect={(p) => {
+        setPlaylist(p);
+        setError(null);
+      }}
+    />
    </View>
   );
 }
@@ -268,18 +270,63 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  playlistInput: { minHeight: 64, fontSize: 15, fontWeight: '600' },
+  pickBtn: {
+    minHeight: 60,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.secondary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  pickBtnText: { color: COLORS.secondary, fontWeight: '900', fontSize: 17 },
 
-  pasteBtn: {
+  selectedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    padding: 12,
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  selectedCover: { width: 52, height: 52, borderRadius: 10 },
+  selectedCoverFallback: {
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedGlyph: { fontSize: 26, color: COLORS.border },
+  selectedText: { flex: 1 },
+  selectedLabel: {
+    color: COLORS.accent,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  selectedName: { color: COLORS.text, fontSize: 17, fontWeight: '900' },
+  selectedMeta: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
+  changeBtn: {
     minHeight: 44,
+    paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: COLORS.secondary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
   },
-  pasteBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 14 },
+  changeBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 14 },
 
   removeBtn: {
     width: 52,
