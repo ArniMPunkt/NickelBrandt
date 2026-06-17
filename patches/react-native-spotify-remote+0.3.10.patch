@@ -1,0 +1,349 @@
+diff --git a/node_modules/react-native-spotify-remote/android/build.gradle b/node_modules/react-native-spotify-remote/android/build.gradle
+index 381c0cf..c3ccde9 100644
+--- a/node_modules/react-native-spotify-remote/android/build.gradle
++++ b/node_modules/react-native-spotify-remote/android/build.gradle
+@@ -1,52 +1,22 @@
+ // android/build.gradle
+-
+-// based on:
+-//
+-// * https://github.com/facebook/react-native/blob/0.60-stable/template/android/build.gradle
+-//   original location:
+-//   - https://github.com/facebook/react-native/blob/0.58-stable/local-cli/templates/HelloWorld/android/build.gradle
+-//
+-// * https://github.com/facebook/react-native/blob/0.60-stable/template/android/app/build.gradle
+-//   original location:
+-//   - https://github.com/facebook/react-native/blob/0.58-stable/local-cli/templates/HelloWorld/android/app/build.gradle
+-
+-def DEFAULT_COMPILE_SDK_VERSION = 28
+-def DEFAULT_BUILD_TOOLS_VERSION = '28.0.3'
+-def DEFAULT_MIN_SDK_VERSION = 16
+-def DEFAULT_TARGET_SDK_VERSION = 28
++// Modernised for AGP 8 / Gradle 8 (Expo SDK 54, RN 0.81):
++//  - removed the legacy `maven` plugin and the maven Upload/javadoc tasks
++//  - added the required `namespace`
++//  - replaced jcenter with mavenCentral
+ 
+ def safeExtGet(prop, fallback) {
+     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+ }
+ 
+ apply plugin: 'com.android.library'
+-apply plugin: 'maven'
+-
+-buildscript {
+-    // The Android Gradle plugin is only required when opening the android folder stand-alone.
+-    // This avoids unnecessary downloads and potential conflicts when the library is included as a
+-    // module dependency in an application project.
+-    // ref: https://docs.gradle.org/current/userguide/tutorial_using_tasks.html#sec:build_script_external_dependencies
+-    if (project == rootProject) {
+-        repositories {
+-            google()
+-            jcenter()
+-        }
+-        dependencies {
+-            classpath 'com.android.tools.build:gradle:3.4.1'
+-        }
+-    }
+-}
+-
+-apply plugin: 'com.android.library'
+-apply plugin: 'maven'
+ 
+ android {
+-    compileSdkVersion safeExtGet('compileSdkVersion', DEFAULT_COMPILE_SDK_VERSION)
+-    buildToolsVersion safeExtGet('buildToolsVersion', DEFAULT_BUILD_TOOLS_VERSION)
++    namespace "com.reactlibrary"
++    compileSdkVersion safeExtGet('compileSdkVersion', 34)
++    buildToolsVersion safeExtGet('buildToolsVersion', '34.0.0')
+     defaultConfig {
+-        minSdkVersion safeExtGet('minSdkVersion', DEFAULT_MIN_SDK_VERSION)
+-        targetSdkVersion safeExtGet('targetSdkVersion', DEFAULT_TARGET_SDK_VERSION)
++        minSdkVersion safeExtGet('minSdkVersion', 24)
++        targetSdkVersion safeExtGet('targetSdkVersion', 34)
+         versionCode 1
+         versionName "1.0"
+     }
+@@ -54,28 +24,21 @@ android {
+         abortOnError false
+     }
+     compileOptions {
+-        sourceCompatibility = 1.8
+-        targetCompatibility = 1.8
++        sourceCompatibility = JavaVersion.VERSION_1_8
++        targetCompatibility = JavaVersion.VERSION_1_8
+     }
+ }
+ 
+ repositories {
+-    // ref: https://www.baeldung.com/maven-local-repository
+     mavenLocal()
++    mavenCentral()
+     maven {
+         // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+         url "$rootDir/../node_modules/react-native/android"
+     }
+-    maven {
+-        // Android JSC is installed from npm
+-        url "$rootDir/../node_modules/jsc-android/dist"
+-    }
+     google()
+-    jcenter()
+ }
+ 
+-
+-
+ dependencies {
+     def externalLibs = fileTree(dir: "$projectDir/external", include: '**/*.aar').collect()
+     println("Adding external libraries ${externalLibs}")
+@@ -85,127 +48,3 @@ dependencies {
+     //noinspection GradleDynamicVersion
+     implementation 'com.facebook.react:react-native:+'
+ }
+-
+-def configureReactNativePom(def pom) {
+-    def packageJson = new groovy.json.JsonSlurper().parseText(file('../package.json').text)
+-
+-    pom.project {
+-        name packageJson.title
+-        artifactId packageJson.name
+-        version = packageJson.version
+-        group = "com.reactlibrary"
+-        description packageJson.description
+-        url packageJson.repository.baseUrl
+-
+-        licenses {
+-            license {
+-                name packageJson.license
+-                url packageJson.repository.baseUrl + '/blob/master/' + packageJson.licenseFilename
+-                distribution 'repo'
+-            }
+-        }
+-
+-        developers {
+-            developer {
+-                id packageJson.author.username
+-                name packageJson.author.name
+-            }
+-        }
+-    }
+-}
+-
+-afterEvaluate { project ->
+-    // some Gradle build hooks ref:
+-    // https://www.oreilly.com/library/view/gradle-beyond-the/9781449373801/ch03.html
+-    task androidJavadoc(type: Javadoc) {
+-        source = android.sourceSets.main.java.srcDirs
+-        classpath += files(android.bootClasspath)
+-        classpath += files(project.getConfigurations().getByName('compile').asList())
+-        include '**/*.java'
+-    }
+-
+-    task androidJavadocJar(type: Jar, dependsOn: androidJavadoc) {
+-        classifier = 'javadoc'
+-        from androidJavadoc.destinationDir
+-    }
+-
+-    task androidSourcesJar(type: Jar) {
+-        classifier = 'sources'
+-        from android.sourceSets.main.java.srcDirs
+-        include '**/*.java'
+-    }
+-
+-    android.libraryVariants.all { variant ->
+-        def name = variant.name.capitalize()
+-        def javaCompileTask = variant.javaCompileProvider.get()
+-
+-        task "jar${name}"(type: Jar, dependsOn: javaCompileTask) {
+-            from javaCompileTask.destinationDir
+-        }
+-    }
+-
+-    artifacts {
+-        archives androidSourcesJar
+-        archives androidJavadocJar
+-    }
+-
+-    task installArchives(type: Upload) {
+-        configuration = configurations.archives
+-        repositories.mavenDeployer {
+-            // Deploy to react-native-event-bridge/maven, ready to publish to npm
+-            repository url: "file://${projectDir}/../android/maven"
+-            configureReactNativePom pom
+-        }
+-    }
+-}
+-
+-
+-
+-//buildscript {
+-//    repositories {
+-//        google()
+-//        jcenter()
+-//        mavenCentral()
+-//    }
+-//
+-//    dependencies {
+-//        classpath 'com.android.tools.build:gradle:3.6.1'
+-//    }
+-//}
+-//
+-//apply plugin: 'com.android.library'
+-//
+-//android {
+-//    compileSdkVersion 28
+-//    buildToolsVersion "28.0.3"
+-//
+-//    defaultConfig {
+-//        minSdkVersion 16
+-//        targetSdkVersion 28
+-//        versionCode 1
+-//        versionName "1.0"
+-//    }
+-//    lintOptions {
+-//        abortOnError false
+-//    }
+-//    compileOptions {
+-//        sourceCompatibility = 1.8
+-//        targetCompatibility = 1.8
+-//    }
+-//}
+-//
+-//repositories {
+-//    google()
+-//    maven {
+-//        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+-//        url "$rootDir/../node_modules/react-native/android"
+-//    }
+-//    jcenter()
+-//}
+-//
+-//dependencies {
+-//    implementation project(':spotify-app-remote-release-0.7.0')
+-//    implementation 'com.spotify.android:auth:1.2.3'
+-//    implementation project(path: ':react-native-events')
+-//    implementation 'com.facebook.react:react-native:+'
+-//}
+diff --git a/node_modules/react-native-spotify-remote/android/src/main/java/com/reactlibrary/RNSpotifyRemoteAuthModule.java b/node_modules/react-native-spotify-remote/android/src/main/java/com/reactlibrary/RNSpotifyRemoteAuthModule.java
+index 6668798..e57d3f3 100644
+--- a/node_modules/react-native-spotify-remote/android/src/main/java/com/reactlibrary/RNSpotifyRemoteAuthModule.java
++++ b/node_modules/react-native-spotify-remote/android/src/main/java/com/reactlibrary/RNSpotifyRemoteAuthModule.java
+@@ -90,8 +90,12 @@ public class RNSpotifyRemoteAuthModule extends ReactContextBaseJavaModule implem
+                 // Auth flow returned an error
+                 case ERROR:
+                     if (authPromise != null) {
+-                        String code = response.getCode();
+-                        String error = response.getError();
++                        // response.getCode() is null for ERROR responses, and
++                        // PromiseImpl.reject(code, message) requires a non-null code
++                        // (Kotlin @NonNull) - passing null crashes with an NPE on
++                        // newer React Native. Fall back to a readable code/message.
++                        String code = response.getCode() != null ? response.getCode() : "AUTH_ERROR";
++                        String error = response.getError() != null ? response.getError() : "Spotify authorization failed";
+                         authPromise.reject(code, error);
+                         mConnectionParamsBuilder = null;
+                     }
+diff --git a/node_modules/react-native-spotify-remote/dist/SpotifyAuth.js b/node_modules/react-native-spotify-remote/dist/SpotifyAuth.js
+index a081719..9f547dd 100644
+--- a/node_modules/react-native-spotify-remote/dist/SpotifyAuth.js
++++ b/node_modules/react-native-spotify-remote/dist/SpotifyAuth.js
+@@ -51,34 +51,46 @@ var react_native_1 = require("react-native");
+ var ApiConfig_1 = require("./ApiConfig");
+ var ApiScope_1 = require("./ApiScope");
+ var SpotifyAuth = react_native_1.NativeModules.RNSpotifyRemoteAuth;
+-// Augment the iOS implementation of authorize to convert the Android style scopes
+-// to flags
+-if (react_native_1.Platform.OS === "ios") {
+-    var iosAuthorize_1 = react_native_1.NativeModules.RNSpotifyRemoteAuth.authorize;
+-    SpotifyAuth.authorize = function (config) {
+-        var iosConfig = __assign(__assign(__assign({}, ApiConfig_1.API_CONFIG_DEFAULTS), config), { scopes: ApiScope_1.getiOSScopeFromScopes(config.scopes) });
+-        return iosAuthorize_1(iosConfig);
+-    };
+-}
+-if (react_native_1.Platform.OS === "android") {
+-    var androidAuthorize_1 = react_native_1.NativeModules.RNSpotifyRemoteAuth.authorize;
+-    SpotifyAuth.authorize = function (config) {
+-        var mergedConfig = __assign(__assign({}, ApiConfig_1.API_CONFIG_DEFAULTS), config);
+-        return androidAuthorize_1(mergedConfig);
+-    };
++// PATCH (NickelBrandt): guard against an uninitialized native bridge at module
++// load. On the very first JS bundle load NativeModules.RNSpotifyRemoteAuth can be
++// null; the original code read `.authorize` on it at module scope, throwing
++// "Cannot read property 'authorize' of null" during require(). The `if (SpotifyAuth)`
++// guard runs the augmentation only when the native module is present, so the
++// ORIGINAL eager capture of the native authorize is safe here and MUST stay eager:
++// SpotifyAuth IS NativeModules.RNSpotifyRemoteAuth, so the wrapper below overwrites
++// `.authorize`. Re-reading `.authorize` at call time would hit the wrapper itself
++// -> infinite recursion ("Maximum call stack size exceeded"). Capturing it now,
++// before the overwrite, keeps a reference to the real native function.
++if (SpotifyAuth) {
++    // Augment the iOS implementation of authorize to convert the Android style scopes
++    // to flags
++    if (react_native_1.Platform.OS === "ios") {
++        var iosAuthorize_1 = react_native_1.NativeModules.RNSpotifyRemoteAuth.authorize;
++        SpotifyAuth.authorize = function (config) {
++            var iosConfig = __assign(__assign(__assign({}, ApiConfig_1.API_CONFIG_DEFAULTS), config), { scopes: ApiScope_1.getiOSScopeFromScopes(config.scopes) });
++            return iosAuthorize_1(iosConfig);
++        };
++    }
++    if (react_native_1.Platform.OS === "android") {
++        var androidAuthorize_1 = react_native_1.NativeModules.RNSpotifyRemoteAuth.authorize;
++        SpotifyAuth.authorize = function (config) {
++            var mergedConfig = __assign(__assign({}, ApiConfig_1.API_CONFIG_DEFAULTS), config);
++            return androidAuthorize_1(mergedConfig);
++        };
++    }
++    // todo: remove in future release
++    // Here for backwards compatability
++    SpotifyAuth.initialize = function (config) { return __awaiter(void 0, void 0, void 0, function () {
++        var session;
++        return __generator(this, function (_a) {
++            switch (_a.label) {
++                case 0: return [4 /*yield*/, SpotifyAuth.authorize(config)];
++                case 1:
++                    session = _a.sent();
++                    return [2 /*return*/, session.accessToken];
++            }
++        });
++    }); };
+ }
+-// todo: remove in future release
+-// Here for backwards compatability
+-SpotifyAuth.initialize = function (config) { return __awaiter(void 0, void 0, void 0, function () {
+-    var session;
+-    return __generator(this, function (_a) {
+-        switch (_a.label) {
+-            case 0: return [4 /*yield*/, SpotifyAuth.authorize(config)];
+-            case 1:
+-                session = _a.sent();
+-                return [2 /*return*/, session.accessToken];
+-        }
+-    });
+-}); };
+ exports.default = SpotifyAuth;
+ //# sourceMappingURL=SpotifyAuth.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-spotify-remote/dist/SpotifyRemote.js b/node_modules/react-native-spotify-remote/dist/SpotifyRemote.js
+index 2f64664..d77b6e8 100644
+--- a/node_modules/react-native-spotify-remote/dist/SpotifyRemote.js
++++ b/node_modules/react-native-spotify-remote/dist/SpotifyRemote.js
+@@ -57,6 +57,11 @@ var GetChildrenItemsOptions_1 = require("./GetChildrenItemsOptions");
+  * @ignore
+  */
+ var SpotifyRemote = react_native_1.NativeModules.RNSpotifyRemoteAppRemote;
++// PATCH (NickelBrandt): guard against an uninitialized native bridge at module
++// load. If NativeModules.RNSpotifyRemoteAppRemote is null on the first JS bundle
++// load, the augmentation below (register/conform/setPlaying/.on) would crash
++// require(). Only run it when the native module is actually present.
++if (SpotifyRemote) {
+ react_native_events_1.default.register(SpotifyRemote);
+ react_native_events_1.default.conform(SpotifyRemote);
+ // Example of Javascript only api method
+@@ -131,6 +136,7 @@ SpotifyRemote.on(metaEvents.newListener, function (type) {
+         }
+     }
+ });
++} // end PATCH (NickelBrandt) guard
+ /**
+  * @ignore
+  */

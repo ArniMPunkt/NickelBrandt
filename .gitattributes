@@ -1,0 +1,4 @@
+# Keep patch-package patches LF-only so they apply cleanly on every OS.
+# (CRLF in the patch or its context lines makes patch-package fail/partially
+# apply, which caused inconsistent patched node_modules.)
+patches/**.patch text eol=lf
