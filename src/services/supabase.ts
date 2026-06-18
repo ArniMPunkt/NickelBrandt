@@ -42,6 +42,18 @@ export function getPlayerId(): string {
   return cachedPlayerId;
 }
 
+// --- Realtime channel naming ------------------------------------------------
+
+// Each subscription gets a UNIQUE channel topic. supabase.channel(topic) returns
+// the cached channel for a repeated topic - and you cannot add postgres_changes
+// listeners after subscribe(). A unique suffix guarantees a fresh channel per
+// call, so two screens (or an old + reconnected subscription) never collide.
+let channelSeq = 0;
+function uniqueChannelTopic(prefix: string): string {
+  channelSeq += 1;
+  return `${prefix}:${channelSeq}`;
+}
+
 // --- Lobby code -------------------------------------------------------------
 
 // Unambiguous alphabet (no O/0, I/1).
@@ -170,7 +182,7 @@ export function subscribeToLobbyPlayers(
   onChange: () => void
 ): () => void {
   const channel = supabase
-    .channel(`lobby_players:${lobbyId}`)
+    .channel(uniqueChannelTopic(`lobby_players:${lobbyId}`))
     .on(
       'postgres_changes',
       {
@@ -377,7 +389,7 @@ export function subscribeToGameState(
   onStatus?: (status: string) => void
 ): () => void {
   const channel = supabase
-    .channel(`game:${lobbyId}`)
+    .channel(uniqueChannelTopic(`game:${lobbyId}`))
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'lobbies', filter: `id=eq.${lobbyId}` },
