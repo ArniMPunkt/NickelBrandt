@@ -130,12 +130,18 @@ let connected = false;
 const playedTrackIds = new Set<string>();
 
 /**
- * Authorize with Spotify, connect the App Remote, AND obtain the Web API token.
+ * Connect to Spotify: PKCE Web API authorization + App Remote connection.
  *
- * Doing the Web API (PKCE) login here - once, when the user connects in the
- * Spotify tab - means game start needs no browser popup later: it reuses this
- * token (silently refreshing it as needed). Throws if config is missing or the
- * user cancels.
+ * Why no auth.authorize() here anymore: Spotify is phasing out the implicit/TOKEN
+ * grant, which made the old auth.authorize() fall back to a browser email/OTP
+ * login. On Android the App Remote does NOT use that token anyway - it
+ * authenticates app-to-app via the installed Spotify app (clientId + redirectUri).
+ * So we:
+ *   1) run the modern Authorization Code + PKCE flow (also gets the user's
+ *      consent for app-remote-control / streaming, pre-authorizing the remote), and
+ *   2) connect the App Remote via connectWithoutAuth (no deprecated SSO).
+ * The PKCE token also powers the Web API (playlists). Throws on missing config /
+ * cancel / Spotify app not reachable.
  */
 export async function connect(): Promise<void> {
   if (!CLIENT_ID || !REDIRECT_URL) {
@@ -145,30 +151,59 @@ export async function connect(): Promise<void> {
     );
   }
 
-  const session = await getAuth().authorize(spotifyConfig);
-  accessToken = session.accessToken;
+  // 1) Web API authorization (Authorization Code + PKCE). Single browser step;
+  //    also pre-authorizes the playback scopes used by the App Remote below.
+  await ensureWebApiAuthorized();
 
+  // 2) App Remote, app-to-app via the installed Spotify app. The token arg is
+  //    ignored by the Android module (it builds ConnectionParams from
+  //    clientId + redirectUri); we pass '' on purpose. This avoids the
+  //    deprecated implicit-grant auth.authorize() path entirely.
   try {
-    // App Remote requires the Spotify app to be installed AND running.
-    await getRemote().connect(session.accessToken);
+    // connectWithoutAuth is a native @ReactMethod not surfaced in the lib's TS
+    // types, so we access it via the (guarded) remote singleton with a cast.
+    const remote = getRemote() as unknown as {
+      connectWithoutAuth: (
+        token: string,
+        clientId: string,
+        redirectUri: string
+      ) => Promise<void>;
+    };
+    await remote.connectWithoutAuth('', CLIENT_ID, REDIRECT_URL);
     connected = true;
   } catch (e: any) {
     const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
-    if (raw.includes('couldnotfindspotifyapp') || raw.includes('not installed')) {
+    if (
+      raw.includes('couldnotfindspotifyapp') ||
+      raw.includes('could not find') ||
+      raw.includes('not installed')
+    ) {
       throw new Error(
         'Spotify app not found. Install the Spotify app and open it once, ' +
           'then try again (the App Remote SDK talks to the running Spotify app).'
       );
     }
-    if (raw.includes('notloggedin')) {
+    if (raw.includes('not authorized')) {
+      throw new Error(
+        'Spotify-Berechtigung fehlt. Im Spotify-Tab "Verbindung trennen" und neu ' +
+          'verbinden, damit die Wiedergabe-Berechtigung erteilt wird.'
+      );
+    }
+    if (raw.includes('notloggedin') || raw.includes('not logged in')) {
       throw new Error('Not logged in to the Spotify app. Log in there, then retry.');
     }
     throw e;
   }
 
-  // One-time Web API authorization (PKCE) for playlist reads. This is the only
-  // browser popup, and it happens here in the Spotify tab - not at game start.
-  await ensureWebApiAuthorized();
+  // --- Legacy fallback (deprecated implicit/TOKEN flow) ----------------------
+  // If a device's Spotify app is too old to support connectWithoutAuth, the
+  // previous path was (kept here for reference; Spotify is deprecating TOKEN):
+  //
+  //   const session = await getAuth().authorize(spotifyConfig);
+  //   accessToken = session.accessToken;
+  //   await getRemote().connect(session.accessToken);
+  //   connected = true;
+  //   await ensureWebApiAuthorized();
 }
 
 /**
@@ -208,7 +243,16 @@ const SPOTIFY_DISCOVERY: AuthSession.DiscoveryDocument = {
 /** Must be registered EXACTLY in the Spotify Dashboard under Redirect URIs. */
 const WEB_API_REDIRECT_URI = 'nickelbrandt://spotify-web-callback';
 
-const WEB_API_SCOPES = ['playlist-read-private', 'playlist-read-collaborative'];
+// Web API playlist reads + the playback scopes. Requesting app-remote-control /
+// streaming here means the PKCE consent ALSO pre-authorizes the user for the App
+// Remote connection (connectWithoutAuth requires prior authorization, since it
+// can't show a consent dialog itself).
+const WEB_API_SCOPES = [
+  'playlist-read-private',
+  'playlist-read-collaborative',
+  'app-remote-control',
+  'streaming',
+];
 
 let webApiToken: string | null = null;
 let webApiRefreshToken: string | null = null;
