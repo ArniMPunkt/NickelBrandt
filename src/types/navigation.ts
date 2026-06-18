@@ -9,3 +9,9 @@ export type GameStackParamList = {
   Game: undefined;
   Result: undefined;
 };
+
+export type OnlineStackParamList = {
+  OnlineHome: undefined;
+  Lobby: { lobbyId: string; code: string };
+  OnlineGame: { lobbyId: string };
+};

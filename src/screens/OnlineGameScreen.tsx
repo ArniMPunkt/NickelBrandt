@@ -1,0 +1,439 @@
+/**
+ * OnlineGameScreen - synced round play (Etappe 2, no steal/Hitster yet).
+ *
+ * Renders per role from the synced game_state:
+ *  - active player (phase card_drawn): own timeline with [+] -> placeCard()
+ *  - others: read-only own timeline + "[name] ist dran…"
+ *  - host (phase placing): "Titel + Interpret richtig erkannt?" -> confirm + resolve
+ *  - host (phase revealing): "Nächste Karte ziehen" -> drawNextCard()
+ *
+ * Only the host has Spotify, so only the host plays audio.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Online from '../services/supabase';
+import * as Spotify from '../services/spotify';
+import { COLORS } from '../theme/colors';
+import type { OnlineStackParamList } from '../types/navigation';
+import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
+
+type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineGame'>;
+type GameRoute = RouteProp<OnlineStackParamList, 'OnlineGame'>;
+
+function TimelineStrip({
+  timeline,
+  onInsert,
+}: {
+  timeline: GameCard[];
+  onInsert?: (i: number) => void;
+}) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineRow}>
+      {Array.from({ length: timeline.length + 1 }).map((_, slot) => (
+        <View key={`slot-${slot}`} style={styles.slotWrap}>
+          {onInsert ? (
+            <Pressable style={styles.insertBtn} onPress={() => onInsert(slot)}>
+              <Text style={styles.insertText}>+</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.insertSpacer} />
+          )}
+          {slot < timeline.length && (
+            <View style={styles.tlCard}>
+              <Text style={styles.tlYear}>{timeline[slot].year}</Text>
+              <Text style={styles.tlTitle} numberOfLines={2}>
+                {timeline[slot].title}
+              </Text>
+            </View>
+          )}
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+export default function OnlineGameScreen() {
+  const navigation = useNavigation<Nav>();
+  const insets = useSafeAreaInsets();
+  const { lobbyId } = useRoute<GameRoute>().params;
+
+  const [lobby, setLobby] = useState<Lobby | null>(null);
+  const [players, setPlayers] = useState<LobbyPlayer[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const myId = Online.getPlayerId();
+
+  const refresh = useCallback(async () => {
+    try {
+      const [lb, list] = await Promise.all([
+        Online.getLobby(lobbyId),
+        Online.getLobbyPlayers(lobbyId),
+      ]);
+      setLobby(lb);
+      setPlayers(list);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  }, [lobbyId]);
+
+  useEffect(() => {
+    refresh();
+    const unsubscribe = Online.subscribeToGameState(lobbyId, refresh);
+    return unsubscribe;
+  }, [lobbyId, refresh]);
+
+  const gs = lobby?.game_state ?? null;
+  const me = players.find((p) => p.player_id === myId);
+  const isHost = !!me?.is_host;
+  const activePlayer = gs ? players.find((p) => p.player_id === gs.activePlayerId) : undefined;
+  const isActive = !!gs && gs.activePlayerId === myId;
+  const phase = gs?.phase;
+  const card = gs?.currentCard ?? null;
+  const isRevealed = phase === 'revealing' || phase === 'finished';
+  const concealed = !!gs?.hideCoverUntilRevealed && !isRevealed;
+  const myTimeline = me?.timeline ?? [];
+
+  // Host plays the current track when a new card is drawn.
+  useEffect(() => {
+    if (!isHost) return;
+    if (phase === 'card_drawn' && card) {
+      Spotify.playUri(card.trackUri).catch(() => {});
+    }
+    if (phase === 'finished') {
+      Spotify.pause().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card?.id, phase, isHost]);
+
+  const onPlace = (insertIndex: number) => {
+    Online.placeCard(lobbyId, insertIndex).catch((e: any) =>
+      setError(e?.message ?? String(e))
+    );
+  };
+
+  const hostConfirm = async (wasCorrect: boolean) => {
+    try {
+      await Online.confirmGuess(lobbyId, wasCorrect);
+      await Online.resolvePlacement(lobbyId);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    }
+  };
+
+  const hostNext = () => {
+    Online.drawNextCard(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+  };
+
+  if (!gs) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <Text style={styles.muted}>Lade Spielzustand…</Text>
+        {error && <Text style={styles.error}>{error}</Text>}
+      </View>
+    );
+  }
+
+  // ----- Finished -----
+  if (phase === 'finished') {
+    const winner = gs.winnerId
+      ? players.find((p) => p.player_id === gs.winnerId)
+      : [...players].sort((a, b) => b.score - a.score)[0];
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}>
+        <Text style={styles.trophy}>🏆</Text>
+        <Text style={styles.winnerLabel}>{gs.winnerId ? 'GEWINNER' : 'SPITZENREITER'}</Text>
+        <Text style={styles.winnerName}>{winner ? winner.player_name : '-'}</Text>
+        <Text style={styles.sectionLabel}>ERGEBNIS</Text>
+        {[...players]
+          .sort((a, b) => b.score - a.score)
+          .map((p) => (
+            <View key={p.id} style={styles.scoreRow}>
+              <Text style={styles.scoreName} numberOfLines={1}>
+                {p.player_name}
+              </Text>
+              <Text style={styles.scoreVal}>{p.score} Pkt.</Text>
+            </View>
+          ))}
+        <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('OnlineHome')}>
+          <Text style={styles.primaryBtnText}>Zurück</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  // ----- Playing -----
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.activeName} numberOfLines={1}>
+            {isActive ? 'Du bist dran' : `${activePlayer?.player_name ?? '—'} ist dran`}
+          </Text>
+          <Text style={styles.subLine}>
+            {me ? `${me.score} Pkt · 🪙 ${me.chips}` : ''}
+          </Text>
+        </View>
+        <View style={styles.deckPill}>
+          <Text style={styles.deckCount}>{gs.deck.length}</Text>
+          <Text style={styles.deckLabel}>im Deck</Text>
+        </View>
+      </View>
+
+      {/* Card */}
+      {card && (
+        <View style={styles.cardBox}>
+          {concealed ? (
+            <View style={[styles.cover, styles.coverFallback]}>
+              <Text style={styles.coverGlyph}>💿</Text>
+            </View>
+          ) : card.coverUrl ? (
+            <Image source={{ uri: card.coverUrl }} style={styles.cover} />
+          ) : (
+            <View style={[styles.cover, styles.coverFallback]}>
+              <Text style={styles.coverGlyph}>♫</Text>
+            </View>
+          )}
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {concealed ? '????' : card.title}
+          </Text>
+          <Text style={styles.cardArtist} numberOfLines={1}>
+            {concealed ? '????' : card.artist}
+          </Text>
+          <Text style={styles.cardYear}>{isRevealed ? card.year : '????'}</Text>
+        </View>
+      )}
+
+      {/* Reveal feedback */}
+      {isRevealed && gs.lastResult && (
+        <View
+          style={[
+            styles.feedback,
+            { backgroundColor: gs.lastResult === 'correct' ? COLORS.correct : COLORS.incorrect },
+          ]}
+        >
+          <Text style={styles.feedbackText}>
+            {gs.lastResult === 'correct'
+              ? '✓  RICHTIG platziert'
+              : '✕  FALSCH platziert'}
+          </Text>
+        </View>
+      )}
+
+      {/* Active player places */}
+      {isActive && phase === 'card_drawn' ? (
+        <>
+          <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
+          <TimelineStrip timeline={myTimeline} onInsert={onPlace} />
+          <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
+        </>
+      ) : (
+        <>
+          <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
+          <TimelineStrip timeline={myTimeline} />
+          {phase === 'card_drawn' && !isActive && (
+            <Text style={styles.hint}>{activePlayer?.player_name} ordnet gerade ein…</Text>
+          )}
+          {phase === 'placing' && !isHost && (
+            <Text style={styles.hint}>Warte auf Host-Bestätigung…</Text>
+          )}
+        </>
+      )}
+
+      {/* Host: confirm guess after placing */}
+      {isHost && phase === 'placing' && (
+        <View style={styles.hostBox}>
+          <Text style={styles.hostTitle}>Titel + Interpret richtig erkannt?</Text>
+          <View style={styles.hostRow}>
+            <Pressable style={[styles.hostBtn, styles.hostYes]} onPress={() => hostConfirm(true)}>
+              <Text style={styles.hostYesText}>Ja, Nickel! 🪙</Text>
+            </Pressable>
+            <Pressable style={[styles.hostBtn, styles.hostNo]} onPress={() => hostConfirm(false)}>
+              <Text style={styles.hostNoText}>Nein</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Host: draw next after reveal */}
+      {isHost && phase === 'revealing' && (
+        <Pressable style={styles.primaryBtn} onPress={hostNext}>
+          <Text style={styles.primaryBtnText}>Nächste Karte ziehen</Text>
+        </Pressable>
+      )}
+
+      {/* Other players' scores */}
+      <Text style={styles.sectionLabel}>SPIELER</Text>
+      {players.map((p) => (
+        <View key={p.id} style={styles.scoreRow}>
+          <Text style={styles.scoreName} numberOfLines={1}>
+            {p.player_name}
+            {p.player_id === gs.activePlayerId ? ' ▶' : ''}
+            {p.player_id === myId ? ' (du)' : ''}
+          </Text>
+          <Text style={styles.scoreVal}>
+            {p.score} Pkt · {p.timeline.length} Karten · 🪙 {p.chips}
+          </Text>
+        </View>
+      ))}
+
+      {error && <Text style={styles.error}>{error}</Text>}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: COLORS.background },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  content: { padding: 20, paddingBottom: 48, gap: 12 },
+  muted: { color: COLORS.textMuted, fontSize: 16 },
+  error: { color: COLORS.incorrect, fontSize: 13, fontWeight: '700' },
+
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  activeName: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: COLORS.primary,
+    textShadowColor: COLORS.primary,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  subLine: { fontSize: 14, fontWeight: '700', color: COLORS.textMuted, marginTop: 2 },
+  deckPill: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderColor: COLORS.border,
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    minWidth: 64,
+  },
+  deckCount: { color: COLORS.secondary, fontWeight: '900', fontSize: 22 },
+  deckLabel: { color: COLORS.textMuted, fontWeight: '700', fontSize: 10, letterSpacing: 1 },
+
+  cardBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 24,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cover: { width: 200, height: 200, borderRadius: 16, marginBottom: 8 },
+  coverFallback: { backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' },
+  coverGlyph: { fontSize: 64, color: COLORS.border },
+  cardTitle: { fontSize: 22, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
+  cardArtist: { fontSize: 15, color: COLORS.textMuted, fontWeight: '600' },
+  cardYear: {
+    fontSize: 46,
+    fontWeight: '900',
+    color: COLORS.accent,
+    marginTop: 4,
+    textShadowColor: COLORS.accent,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+  },
+
+  feedback: { borderRadius: 16, paddingVertical: 14, paddingHorizontal: 12 },
+  feedbackText: { color: COLORS.background, fontWeight: '900', fontSize: 17, textAlign: 'center', letterSpacing: 0.5 },
+
+  sectionLabel: { fontSize: 13, fontWeight: '800', color: COLORS.secondary, letterSpacing: 2, marginTop: 10 },
+  hint: { color: COLORS.textMuted, fontSize: 14, fontStyle: 'italic' },
+
+  timelineRow: { alignItems: 'center', paddingVertical: 8 },
+  slotWrap: { flexDirection: 'row', alignItems: 'center' },
+  insertBtn: {
+    width: 48,
+    height: 84,
+    borderRadius: 14,
+    backgroundColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+  },
+  insertText: { color: COLORS.background, fontSize: 30, fontWeight: '900' },
+  insertSpacer: { width: 10 },
+  tlCard: {
+    width: 108,
+    height: 96,
+    borderRadius: 16,
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    padding: 10,
+    justifyContent: 'center',
+  },
+  tlYear: { color: COLORS.accent, fontSize: 26, fontWeight: '900' },
+  tlTitle: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
+
+  hostBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    padding: 16,
+    gap: 12,
+    marginTop: 8,
+  },
+  hostTitle: { color: COLORS.text, fontSize: 17, fontWeight: '900', textAlign: 'center' },
+  hostRow: { flexDirection: 'row', gap: 12 },
+  hostBtn: { flex: 1, minHeight: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  hostYes: { backgroundColor: COLORS.accent },
+  hostYesText: { color: COLORS.background, fontSize: 15, fontWeight: '900' },
+  hostNo: { backgroundColor: COLORS.background, borderWidth: 2, borderColor: COLORS.border },
+  hostNoText: { color: COLORS.textMuted, fontSize: 16, fontWeight: '800' },
+
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  scoreName: { color: COLORS.text, fontWeight: '800', fontSize: 15, flexShrink: 1 },
+  scoreVal: { color: COLORS.textMuted, fontWeight: '600', fontSize: 12 },
+
+  trophy: { fontSize: 64, textAlign: 'center' },
+  winnerLabel: { fontSize: 14, fontWeight: '800', color: COLORS.secondary, letterSpacing: 3, textAlign: 'center' },
+  winnerName: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: COLORS.primary,
+    textAlign: 'center',
+    textShadowColor: COLORS.primary,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 18,
+  },
+
+  primaryBtn: {
+    marginTop: 16,
+    minHeight: 58,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryBtnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+});

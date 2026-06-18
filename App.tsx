@@ -22,13 +22,17 @@ import HandoffScreen from './src/screens/HandoffScreen';
 import GameScreen from './src/screens/GameScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import SpotifyConnectScreen from './src/screens/SpotifyConnectScreen';
+import OnlineHomeScreen from './src/screens/OnlineHomeScreen';
+import LobbyScreen from './src/screens/LobbyScreen';
+import OnlineGameScreen from './src/screens/OnlineGameScreen';
 import { COLORS } from './src/theme/colors';
-import type { GameStackParamList } from './src/types/navigation';
+import type { GameStackParamList, OnlineStackParamList } from './src/types/navigation';
 
 const SPOTIFY_GREEN = '#1DB954';
 
 const GameStackNav = createNativeStackNavigator<GameStackParamList>();
 const SpotifyStackNav = createNativeStackNavigator();
+const OnlineStackNav = createNativeStackNavigator<OnlineStackParamList>();
 const Tab = createBottomTabNavigator();
 
 function GameStack() {
@@ -62,6 +66,21 @@ function SpotifyStack() {
   );
 }
 
+function OnlineStack() {
+  return (
+    <OnlineStackNav.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: COLORS.background },
+      }}
+    >
+      <OnlineStackNav.Screen name="OnlineHome" component={OnlineHomeScreen} />
+      <OnlineStackNav.Screen name="Lobby" component={LobbyScreen} />
+      <OnlineStackNav.Screen name="OnlineGame" component={OnlineGameScreen} />
+    </OnlineStackNav.Navigator>
+  );
+}
+
 /** Emoji glyph tab icon (the label is the primary cue). */
 function GameTabIcon({ focused }: { focused: boolean }) {
   return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🎵</Text>;
@@ -77,6 +96,11 @@ function SpotifyTabIcon({ focused }: { focused: boolean }) {
       ]}
     />
   );
+}
+
+/** Globe emoji tab icon for Online. */
+function OnlineTabIcon({ focused }: { focused: boolean }) {
+  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🌐</Text>;
 }
 
 export default function App() {
@@ -105,6 +129,11 @@ export default function App() {
               name="Spiel"
               component={GameStack}
               options={{ tabBarIcon: GameTabIcon }}
+            />
+            <Tab.Screen
+              name="Online"
+              component={OnlineStack}
+              options={{ tabBarIcon: OnlineTabIcon }}
             />
             <Tab.Screen
               name="Spotify"
