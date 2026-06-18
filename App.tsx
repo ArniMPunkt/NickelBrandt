@@ -8,6 +8,7 @@
  *
  * Stack headers are hidden - each screen renders its own header/safe area.
  */
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -16,6 +17,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GameProvider } from './src/context/GameContext';
 import { SettingsProvider } from './src/context/SettingsContext';
+import { initSpotifyAuth } from './src/services/spotify';
+import { initPlayerId } from './src/services/supabase';
 import SetupScreen from './src/screens/SetupScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import HandoffScreen from './src/screens/HandoffScreen';
@@ -104,6 +107,12 @@ function OnlineTabIcon({ focused }: { focused: boolean }) {
 }
 
 export default function App() {
+  // Load persisted Spotify tokens + online player id from encrypted storage.
+  useEffect(() => {
+    initSpotifyAuth().catch(() => {});
+    initPlayerId().catch(() => {});
+  }, []);
+
   return (
     <SafeAreaProvider>
       <SettingsProvider>

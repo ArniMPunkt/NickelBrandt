@@ -22,6 +22,7 @@
 import { NativeModules } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
 import type { ApiConfig } from 'react-native-spotify-remote';
 import type { TrackMeta } from '../types/spotify';
 import type { GameCard } from '../types/game';
@@ -218,10 +219,16 @@ export async function disconnect(): Promise<void> {
   } finally {
     accessToken = null;
     connected = false;
-    // Also drop the PKCE Web-API token so a reconnect re-authorizes cleanly.
+    // Also drop the PKCE Web-API token (memory + encrypted storage) so a
+    // reconnect re-authorizes cleanly.
     webApiToken = null;
     webApiRefreshToken = null;
     webApiTokenExpiresAt = 0;
+    try {
+      await SecureStore.deleteItemAsync(TOKEN_STORE_KEY);
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -258,12 +265,63 @@ let webApiToken: string | null = null;
 let webApiRefreshToken: string | null = null;
 let webApiTokenExpiresAt = 0; // epoch ms
 
+// Encrypted persistence so the user stays logged in across app restarts. The
+// refresh token is the important part - with it, ensure/getWebApiToken refresh
+// silently (no browser). Cleared on disconnect().
+const TOKEN_STORE_KEY = 'nb.spotify.webtoken';
+
+async function persistToken(): Promise<void> {
+  try {
+    if (!webApiToken && !webApiRefreshToken) return;
+    await SecureStore.setItemAsync(
+      TOKEN_STORE_KEY,
+      JSON.stringify({
+        accessToken: webApiToken,
+        refreshToken: webApiRefreshToken,
+        expiresAt: webApiTokenExpiresAt,
+      })
+    );
+  } catch {
+    // SecureStore unavailable (e.g. before a rebuild) -> stay in-memory only.
+  }
+}
+
+// One-time load of persisted tokens at startup (memoized).
+let loadPromise: Promise<void> | null = null;
+function ensureLoaded(): Promise<void> {
+  if (!loadPromise) {
+    loadPromise = (async () => {
+      try {
+        const raw = await SecureStore.getItemAsync(TOKEN_STORE_KEY);
+        if (raw) {
+          const t = JSON.parse(raw);
+          // Don't clobber a token already obtained this session.
+          if (!webApiToken && !webApiRefreshToken) {
+            webApiToken = t.accessToken ?? null;
+            webApiRefreshToken = t.refreshToken ?? null;
+            webApiTokenExpiresAt = t.expiresAt ?? 0;
+          }
+        }
+      } catch {
+        // ignore - treat as no stored token
+      }
+    })();
+  }
+  return loadPromise;
+}
+
+/** Warm the persisted token load at app start (optional; ensure* also call it). */
+export function initSpotifyAuth(): Promise<void> {
+  return ensureLoaded();
+}
+
 function applyWebToken(token: AuthSession.TokenResponse): void {
   webApiToken = token.accessToken;
   if (token.refreshToken) webApiRefreshToken = token.refreshToken;
   // expiresIn is in seconds; refresh 60s early to avoid edge-of-expiry 401s.
   const ttl = (token.expiresIn ?? 3600) - 60;
   webApiTokenExpiresAt = Date.now() + Math.max(ttl, 0) * 1000;
+  void persistToken(); // fire-and-forget encrypted save
 }
 
 export function isWebApiAuthorized(): boolean {
@@ -333,6 +391,7 @@ async function refreshWebApi(): Promise<void> {
  * Called from connect() (Spotify tab) so the browser popup happens only there.
  */
 export async function ensureWebApiAuthorized(): Promise<void> {
+  await ensureLoaded();
   if (isWebApiAuthorized()) return;
   if (webApiRefreshToken) {
     try {
@@ -351,6 +410,7 @@ export async function ensureWebApiAuthorized(): Promise<void> {
  * a playlist never triggers a browser popup.
  */
 async function getWebApiToken(): Promise<string> {
+  await ensureLoaded();
   if (isWebApiAuthorized()) return webApiToken!;
   if (webApiRefreshToken) {
     try {

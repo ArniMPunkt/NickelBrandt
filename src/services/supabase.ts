@@ -5,14 +5,16 @@
  * which RN provides. `react-native-url-polyfill/auto` is imported first so URL
  * parsing works reliably in RN.
  *
- * Identity: there is no login. Each app session gets a random player_id. It is
- * currently IN-MEMORY (lost on app restart). For per-install persistence use
- * @react-native-async-storage/async-storage (native module -> needs a rebuild) -
- * swap only the getPlayerId() implementation below.
+ * Identity: there is no login. A random player_id is generated once per install
+ * and PERSISTED via expo-secure-store (see initPlayerId / getPlayerId), so it is
+ * stable across app restarts. Note: @supabase/supabase-js itself is pure JS, but
+ * the project now uses expo-secure-store (native) for persistence -> a rebuild is
+ * required after this change.
  */
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
 import { MAX_CHIPS } from '../types/game';
 import type { GameCard, Lobby, LobbyPlayer, OnlineGameState } from '../types/online';
@@ -34,9 +36,38 @@ export function isSupabaseConfigured(): boolean {
 
 // --- Identity ---------------------------------------------------------------
 
+const PLAYER_ID_STORE_KEY = 'nb.online.playerId';
 let cachedPlayerId: string | null = null;
 
-/** Stable-per-session random id for this device/install (see note above). */
+/**
+ * Load (or create + persist) the stable per-install player id from encrypted
+ * storage. Call once at app start (App.tsx) so getPlayerId() returns the
+ * persisted id. Prefers a stored id over any in-memory fallback.
+ */
+export async function initPlayerId(): Promise<string> {
+  try {
+    const stored = await SecureStore.getItemAsync(PLAYER_ID_STORE_KEY);
+    if (stored) {
+      cachedPlayerId = stored;
+      return stored;
+    }
+  } catch {
+    // SecureStore unavailable (e.g. before a rebuild) -> fall back to in-memory.
+  }
+  if (!cachedPlayerId) cachedPlayerId = Crypto.randomUUID();
+  try {
+    await SecureStore.setItemAsync(PLAYER_ID_STORE_KEY, cachedPlayerId);
+  } catch {
+    // ignore - stays in-memory for this session
+  }
+  return cachedPlayerId;
+}
+
+/**
+ * Synchronous accessor (used in render). Returns the loaded/persisted id once
+ * initPlayerId() has run; before that it returns an in-memory fallback (it does
+ * NOT persist, so it can't clobber a stored id that initPlayerId will load).
+ */
 export function getPlayerId(): string {
   if (!cachedPlayerId) cachedPlayerId = Crypto.randomUUID();
   return cachedPlayerId;

@@ -46,5 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ['./plugins/withSpotifyRemote', { redirectUri: SPOTIFY_REDIRECT_URI }],
     // Needed by expo-auth-session (PKCE Web-API auth) to complete the redirect.
     'expo-web-browser',
+    // Encrypted storage for the Spotify refresh token + online player_id.
+    'expo-secure-store',
   ],
 });
