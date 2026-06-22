@@ -455,6 +455,7 @@ export async function startGame(
     pendingInsertIndex: null,
     lastResult: null,
     hitsterCallerId: null,
+    passedHitster: [],
     stealResult: null,
     turnOrder,
     cardsToWin: opts.cardsToWin,
@@ -488,6 +489,7 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
     pendingInsertIndex: insertIndex,
     phase: 'hitster_window',
     hitsterCallerId: null,
+    passedHitster: [],
     stealResult: null,
     lastResult: null,
   });
@@ -575,6 +577,61 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
       .eq('id', active.id);
   }
   if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+}
+
+/**
+ * A non-active player presses "Kein Hitster": record their id in passedHitster,
+ * then check whether the window can close early. The write is guarded by the same
+ * atomic condition as the steal claim (phase still 'hitster_window' AND no caller
+ * yet) so it can never clobber a concurrent "Hitster!" call.
+ */
+export async function passHitster(lobbyId: string, playerId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.phase !== 'hitster_window') return;
+
+  const passed = gs.passedHitster ?? [];
+  if (!passed.includes(playerId)) {
+    const nextPassed = [...passed, playerId];
+    const newGs: OnlineGameState = { ...gs, passedHitster: nextPassed };
+    const { data } = await supabase
+      .from('lobbies')
+      .update({ game_state: newGs })
+      .eq('id', lobbyId)
+      .filter('game_state->>phase', 'eq', 'hitster_window')
+      .filter('game_state->>hitsterCallerId', 'is', null)
+      .select();
+    if (!data || data.length === 0) {
+      console.log('[GameDebug] passHitster: window already claimed/closed, ignoring');
+      return;
+    }
+    console.log(`[GameDebug] passHitster player=${playerId} passed=${nextPassed.length}`);
+  }
+
+  await checkHitsterWindowComplete(lobbyId);
+}
+
+/**
+ * Close the steal window early if every potential stealer (non-active player with
+ * >=1 Nickel) has either called "Hitster!" or pressed "Kein Hitster". Safe to call
+ * from any client: closeHitsterWindow is itself atomic.
+ */
+async function checkHitsterWindowComplete(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.phase !== 'hitster_window') return;
+
+  const players = await getLobbyPlayers(lobbyId);
+  const potential = players.filter(
+    (p) => p.player_id !== gs.activePlayerId && p.chips >= 1
+  );
+  const passed = new Set(gs.passedHitster ?? []);
+  const allResponded = potential.length > 0 && potential.every((p) => passed.has(p.player_id));
+  console.log(
+    `[GameDebug] checkHitsterWindowComplete potential=${potential.length} passed=${passed.size} allResponded=${allResponded}`
+  );
+  if (allResponded) {
+    console.log('[GameDebug] all potential stealers passed -> closing window early');
+    await closeHitsterWindow(lobbyId);
+  }
 }
 
 /**
@@ -683,6 +740,7 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
     pendingInsertIndex: null,
     lastResult: null,
     hitsterCallerId: null,
+    passedHitster: [],
     stealResult: null,
   });
 }

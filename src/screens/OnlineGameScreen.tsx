@@ -37,18 +37,56 @@ import type { OnlineStackParamList } from '../types/navigation';
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineGame'>;
 type GameRoute = RouteProp<OnlineStackParamList, 'OnlineGame'>;
 
-const STEAL_WINDOW_MS = 5000;
+const STEAL_WINDOW_MS = 8000;
 const STEAL_GRACE_MS = 700;
 
 function TimelineStrip({
   timeline,
   onInsert,
   isSlotEnabled,
+  markedInsertIndex,
 }: {
   timeline: GameCard[];
   onInsert?: (i: number) => void;
   isSlotEnabled?: (i: number) => boolean;
+  /** Read-only: show WHERE the active player inserted (a "????" placeholder card),
+   *  without revealing the card or whether the placement was correct. */
+  markedInsertIndex?: number | null;
 }) {
+  // Read-only timeline with a marked insertion slot (hitster_window for others).
+  if (!onInsert && markedInsertIndex != null) {
+    const display: Array<{ kind: 'card'; card: GameCard } | { kind: 'marker' }> = [];
+    for (let i = 0; i <= timeline.length; i++) {
+      if (i === markedInsertIndex) display.push({ kind: 'marker' });
+      if (i < timeline.length) display.push({ kind: 'card', card: timeline[i] });
+    }
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineRow}>
+        {display.map((d, idx) => (
+          <View key={`disp-${idx}`} style={styles.slotWrap}>
+            <View style={styles.insertSpacer} />
+            {d.kind === 'card' ? (
+              <View style={styles.tlCard}>
+                <Text style={styles.tlYear}>{d.card.year}</Text>
+                <Text style={styles.tlTitle} numberOfLines={2}>
+                  {d.card.title}
+                </Text>
+              </View>
+            ) : (
+              <View style={[styles.tlCard, styles.tlCardMarked]}>
+                <Text style={styles.tlYearMarked}>????</Text>
+                <Text style={styles.tlTitleMarked} numberOfLines={2}>
+                  neue Karte
+                </Text>
+              </View>
+            )}
+          </View>
+        ))}
+        <View style={styles.insertSpacer} />
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineRow}>
       {Array.from({ length: timeline.length + 1 }).map((_, slot) => {
@@ -277,6 +315,8 @@ export default function OnlineGameScreen() {
     });
     if (!won) setNotice('Jemand anderes war schneller beim Hitster-Ruf.');
   };
+  const onPassHitster = () =>
+    Online.passHitster(lobbyId, myId).catch((e: any) => setError(e?.message ?? String(e)));
   const onStealPlace = (i: number) =>
     Online.resolveHitsterPlacement(lobbyId, i).catch((e: any) => setError(e?.message ?? String(e)));
   const hostConfirm = (wasCorrect: boolean) =>
@@ -308,6 +348,8 @@ export default function OnlineGameScreen() {
       ]
     );
   };
+
+  const hasPassed = !!gs.passedHitster?.includes(myId);
 
   // --- Reveal-derived values ---
   const steal = gs.hitsterCallerId
@@ -475,9 +517,18 @@ export default function OnlineGameScreen() {
             {isActive ? (
               <Text style={styles.hint}>Mitspieler können jetzt „Hitster!" rufen…</Text>
             ) : me && me.chips >= 1 ? (
-              <Pressable style={styles.hitsterBtn} onPress={onHitster}>
-                <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
-              </Pressable>
+              hasPassed ? (
+                <Text style={styles.hint}>Du hast „Kein Hitster" gewählt. ✓</Text>
+              ) : (
+                <>
+                  <Pressable style={styles.hitsterBtn} onPress={onHitster}>
+                    <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
+                  </Pressable>
+                  <Pressable style={styles.noHitsterBtn} onPress={onPassHitster}>
+                    <Text style={styles.noHitsterText}>Kein Hitster</Text>
+                  </Pressable>
+                </>
+              )
             ) : (
               <Text style={styles.hint}>Du hast keine 🪙 zum Klauen.</Text>
             )}
@@ -487,7 +538,10 @@ export default function OnlineGameScreen() {
               <Text style={styles.sectionLabel}>
                 ZEITLINIE VON {activePlayer?.player_name?.toUpperCase() ?? '—'}
               </Text>
-              <TimelineStrip timeline={activeTimeline} />
+              <TimelineStrip timeline={activeTimeline} markedInsertIndex={gs.pendingInsertIndex} />
+              <Text style={styles.hint}>
+                „????" zeigt, wo {activePlayer?.player_name} die Karte eingeordnet hat.
+              </Text>
             </>
           )}
         </>
@@ -701,6 +755,23 @@ const styles = StyleSheet.create({
   },
   tlYear: { color: COLORS.accent, fontSize: 26, fontWeight: '900' },
   tlTitle: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
+  tlCardMarked: {
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.background,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  tlYearMarked: {
+    color: COLORS.primary,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  tlTitleMarked: { color: COLORS.primary, fontSize: 12, fontWeight: '800' },
 
   stealBox: {
     backgroundColor: COLORS.backgroundAlt,
@@ -734,6 +805,16 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   hitsterText: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 1 },
+  noHitsterBtn: {
+    alignSelf: 'stretch',
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noHitsterText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '800' },
 
   hostBox: {
     backgroundColor: COLORS.backgroundAlt,

@@ -32,6 +32,13 @@ export interface OnlineGameState {
   lastResult: 'correct' | 'incorrect' | null;
   /** Who won the "Hitster!" call this turn (player_id), or null. */
   hitsterCallerId: string | null;
+  /**
+   * Player ids who pressed "Kein Hitster" this turn (reset each round). When all
+   * potential stealers (non-active players with >=1 Nickel) have either stolen or
+   * passed, the window closes early. Optional for backward-compat with rows
+   * written before this field existed.
+   */
+  passedHitster?: string[];
   /** The steal's outcome (caller prediction), or null if no steal happened. */
   stealResult: 'correct' | 'incorrect' | null;
   /** Turn rotation order (player_ids, join order). */
