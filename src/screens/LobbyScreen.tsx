@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -45,6 +46,8 @@ export default function LobbyScreen() {
   // Navigate to the intro exactly once when the game starts (guards against the
   // realtime/poll re-firing and yanking the player back from Intro/Game).
   const navigatedRef = useRef(false);
+  // Handle a host-ended lobby exactly once.
+  const endedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -53,6 +56,16 @@ export default function LobbyScreen() {
         Online.getLobbyPlayers(lobbyId),
       ]);
       setPlayers(list);
+      // Host ended the lobby from the waiting room. Once the game has started
+      // (navigatedRef set), OnlineGameScreen owns this transition instead.
+      if (lobby.status === 'ended' && !endedRef.current && !navigatedRef.current) {
+        endedRef.current = true;
+        console.log('[LobbyDebug] lobby ended by host -> back to OnlineHome');
+        Online.clearLastLobbyId().catch(() => {});
+        Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
+        navigation.navigate('OnlineHome');
+        return;
+      }
       if (lobby.status === 'playing' && !navigatedRef.current) {
         navigatedRef.current = true;
         navigation.navigate('OnlineIntro', { lobbyId });
@@ -124,6 +137,31 @@ export default function LobbyScreen() {
     } finally {
       navigation.navigate('OnlineHome');
     }
+  };
+
+  // Host-only: end the whole lobby for everyone (with a safety confirmation).
+  const endLobby = () => {
+    Alert.alert(
+      'Lobby beenden?',
+      'Alle Mitspieler werden sofort aus der Lobby entfernt.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Beenden',
+          style: 'destructive',
+          onPress: async () => {
+            endedRef.current = true; // suppress our own "host ended" alert
+            try {
+              await Online.endLobby(lobbyId);
+            } catch (e: any) {
+              setError(e?.message ?? String(e));
+            } finally {
+              navigation.navigate('OnlineHome');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const onStartPressed = () => {
@@ -208,9 +246,15 @@ export default function LobbyScreen() {
         <Text style={styles.waitText}>Warte auf Host…</Text>
       )}
 
-      <Pressable style={styles.leaveBtn} onPress={leave}>
-        <Text style={styles.leaveBtnText}>Lobby verlassen</Text>
-      </Pressable>
+      {isHost ? (
+        <Pressable style={styles.endBtn} onPress={endLobby}>
+          <Text style={styles.endBtnText}>Lobby beenden</Text>
+        </Pressable>
+      ) : (
+        <Pressable style={styles.leaveBtn} onPress={leave}>
+          <Text style={styles.leaveBtnText}>Lobby verlassen</Text>
+        </Pressable>
+      )}
 
       <PlaylistPicker
         visible={pickerVisible}
@@ -322,4 +366,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   leaveBtnText: { color: COLORS.incorrect, fontSize: 15, fontWeight: '900' },
+
+  endBtn: {
+    marginTop: 12,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: COLORS.incorrect,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  endBtnText: { color: COLORS.background, fontSize: 15, fontWeight: '900' },
 });

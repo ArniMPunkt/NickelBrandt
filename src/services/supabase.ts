@@ -73,6 +73,119 @@ export function getPlayerId(): string {
   return cachedPlayerId;
 }
 
+// --- Last active lobby (resume after app restart) ---------------------------
+
+const LAST_LOBBY_STORE_KEY = 'nb.online.lastLobbyId';
+
+// In-memory holder for the "resume your lobby" suggestion, computed once at app
+// start by initResumableLobby(). OnlineHomeScreen subscribes to render a banner.
+let resumableLobby: Lobby | null = null;
+const resumeListeners = new Set<() => void>();
+
+function setResumableLobby(lobby: Lobby | null): void {
+  resumableLobby = lobby;
+  resumeListeners.forEach((fn) => fn());
+}
+
+/** Sync accessor for the resume suggestion (used in render). */
+export function getResumableLobby(): Lobby | null {
+  return resumableLobby;
+}
+
+/** Subscribe to resume-suggestion changes; returns an unsubscribe function. */
+export function subscribeResumableLobby(fn: () => void): () => void {
+  resumeListeners.add(fn);
+  return () => {
+    resumeListeners.delete(fn);
+  };
+}
+
+/** Dismiss the resume suggestion for this session (does NOT delete the stored id). */
+export function dismissResumableLobby(): void {
+  setResumableLobby(null);
+}
+
+/** Remember the lobby this device last joined/created, for resume after restart. */
+async function saveLastLobbyId(lobbyId: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(LAST_LOBBY_STORE_KEY, lobbyId);
+    console.log('[LobbyDebug] saved last lobby id', lobbyId);
+  } catch {
+    // SecureStore unavailable -> resume is simply not offered next start.
+  }
+}
+
+/** Forget the last active lobby (on explicit leave, host-end, or stale check). */
+export async function clearLastLobbyId(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(LAST_LOBBY_STORE_KEY);
+    console.log('[LobbyDebug] cleared last lobby id');
+  } catch {
+    // ignore
+  }
+  // Whenever the stored id is gone, the resume suggestion is no longer valid.
+  dismissResumableLobby();
+}
+
+/**
+ * App-start check: if a last-active lobby was stored, verify it still exists,
+ * is not ended/finished, and that THIS device's player is still a member. If so,
+ * publish it as a resume suggestion; otherwise clear the stale id. Requires
+ * initPlayerId() to have run first (uses getPlayerId()).
+ */
+export async function initResumableLobby(): Promise<void> {
+  let storedId: string | null = null;
+  try {
+    storedId = await SecureStore.getItemAsync(LAST_LOBBY_STORE_KEY);
+  } catch {
+    storedId = null;
+  }
+  if (!storedId) {
+    console.log('[LobbyDebug] resumable check: no stored lobby');
+    setResumableLobby(null);
+    return;
+  }
+  try {
+    const { data: lobby } = await supabase
+      .from('lobbies')
+      .select('*')
+      .eq('id', storedId)
+      .maybeSingle();
+
+    if (!lobby || lobby.status === 'ended' || lobby.status === 'finished') {
+      console.log(
+        `[LobbyDebug] resumable check: lobby gone/over -> clear (status=${lobby?.status ?? 'missing'})`
+      );
+      await clearLastLobbyId();
+      setResumableLobby(null);
+      return;
+    }
+
+    const playerId = getPlayerId();
+    const { data: mine } = await supabase
+      .from('lobby_players')
+      .select('id')
+      .eq('lobby_id', storedId)
+      .eq('player_id', playerId)
+      .maybeSingle();
+
+    if (!mine) {
+      console.log('[LobbyDebug] resumable check: no longer a member -> clear');
+      await clearLastLobbyId();
+      setResumableLobby(null);
+      return;
+    }
+
+    console.log(
+      `[LobbyDebug] resumable lobby found code=${(lobby as Lobby).code} status=${lobby.status}`
+    );
+    setResumableLobby(lobby as Lobby);
+  } catch (e) {
+    console.log('[LobbyDebug] resumable check failed:', e);
+    setResumableLobby(null);
+  }
+}
+
 // --- Realtime channel naming ------------------------------------------------
 
 // Each subscription gets a UNIQUE channel topic. supabase.channel(topic) returns
@@ -129,6 +242,7 @@ export async function createLobby(playerName: string): Promise<Lobby> {
       throw new Error(`Beitritt als Host fehlgeschlagen: ${playerError.message}`);
     }
     console.log(`[LobbyDebug] createLobby host=${hostId} -> lobby id=${lobby.id} code=${lobby.code}`);
+    await saveLastLobbyId(lobby.id);
     return lobby as Lobby;
   }
   throw new Error('Lobby-Code konnte nicht erzeugt werden. Bitte erneut versuchen.');
@@ -175,6 +289,7 @@ export async function joinLobby(playerName: string, code: string): Promise<Lobby
     }
   }
   console.log(`[LobbyDebug] joinLobby player=${playerId} -> lobby id=${lobby.id} code=${lobby.code} (alreadyIn=${!!existing})`);
+  await saveLastLobbyId(lobby.id);
   return lobby as Lobby;
 }
 
@@ -186,6 +301,24 @@ export async function leaveLobby(lobbyId: string): Promise<void> {
     .delete()
     .eq('lobby_id', lobbyId)
     .eq('player_id', playerId);
+  // No longer in this lobby -> drop the resume suggestion + stored id.
+  await clearLastLobbyId();
+  dismissResumableLobby();
+}
+
+/**
+ * Host ends the whole lobby/round: set status 'ended'. All other devices detect
+ * this via their realtime subscription and navigate back to the Online home.
+ */
+export async function endLobby(lobbyId: string): Promise<void> {
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ status: 'ended' })
+    .eq('id', lobbyId);
+  if (error) throw new Error(`Lobby konnte nicht beendet werden: ${error.message}`);
+  console.log('[LobbyDebug] endLobby', lobbyId);
+  await clearLastLobbyId();
+  dismissResumableLobby();
 }
 
 /** Fetch the current players of a lobby (ordered by join time). */

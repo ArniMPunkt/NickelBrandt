@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   AppState,
   Image,
@@ -92,6 +93,9 @@ export default function OnlineGameScreen() {
 
   const myId = Online.getPlayerId();
   const barAnim = useRef(new Animated.Value(1)).current;
+  // Handle a host-ended lobby exactly once.
+  const endedRef = useRef(false);
+  const [codeVisible, setCodeVisible] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -99,12 +103,23 @@ export default function OnlineGameScreen() {
         Online.getLobby(lobbyId),
         Online.getLobbyPlayers(lobbyId),
       ]);
+      // Host ended the whole lobby -> everyone returns to the Online home with a
+      // clear message. (endLobby() on the host sets endedRef first, so the host
+      // who triggered it does not also get this alert.)
+      if (lb.status === 'ended' && !endedRef.current) {
+        endedRef.current = true;
+        console.log('[GameDebug] lobby ended by host -> back to OnlineHome');
+        Online.clearLastLobbyId().catch(() => {});
+        Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
+        navigation.navigate('OnlineHome');
+        return;
+      }
       setLobby(lb);
       setPlayers(list);
     } catch (e: any) {
       setError(e?.message ?? String(e));
     }
-  }, [lobbyId]);
+  }, [lobbyId, navigation]);
 
   // Lifecycle: live game-state subscription + realtime-socket recovery + a
   // safety-net poll. Ported from LobbyScreen's proven resilience pattern so a
@@ -269,6 +284,31 @@ export default function OnlineGameScreen() {
   const hostNext = () =>
     Online.drawNextCard(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
 
+  // Host-only: end the running round for everyone (with a safety confirmation).
+  const onEndLobby = () => {
+    Alert.alert(
+      'Lobby beenden?',
+      'Alle Mitspieler werden sofort aus der laufenden Runde entfernt.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Beenden',
+          style: 'destructive',
+          onPress: async () => {
+            endedRef.current = true; // suppress our own "host ended" alert
+            try {
+              await Online.endLobby(lobbyId);
+            } catch (e: any) {
+              setError(e?.message ?? String(e));
+            } finally {
+              navigation.navigate('OnlineHome');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // --- Reveal-derived values ---
   const steal = gs.hitsterCallerId
     ? { id: gs.hitsterCallerId, result: gs.stealResult }
@@ -314,7 +354,13 @@ export default function OnlineGameScreen() {
               </Text>
             </View>
           ))}
-        <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('OnlineHome')}>
+        <Pressable
+          style={styles.primaryBtn}
+          onPress={() => {
+            Online.clearLastLobbyId().catch(() => {});
+            navigation.navigate('OnlineHome');
+          }}
+        >
           <Text style={styles.primaryBtnText}>Zurück</Text>
         </Pressable>
       </ScrollView>
@@ -335,7 +381,23 @@ export default function OnlineGameScreen() {
           <Text style={styles.deckCount}>{gs.deck.length}</Text>
           <Text style={styles.deckLabel}>im Deck</Text>
         </View>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.iconBtn} onPress={() => setCodeVisible((v) => !v)} hitSlop={8}>
+            <Text style={styles.iconBtnText}>ⓘ</Text>
+          </Pressable>
+          {isHost && (
+            <Pressable style={styles.iconBtn} onPress={onEndLobby} hitSlop={8}>
+              <Text style={styles.iconBtnText}>⋯</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
+
+      {codeVisible && (
+        <Text style={styles.codeLine}>
+          Lobby-Code: <Text style={styles.codeLineValue}>{lobby?.code ?? '—'}</Text>
+        </Text>
+      )}
 
       {/* Card */}
       {card && (
@@ -536,6 +598,26 @@ const styles = StyleSheet.create({
   },
   deckCount: { color: COLORS.secondary, fontWeight: '900', fontSize: 22 },
   deckLabel: { color: COLORS.textMuted, fontWeight: '700', fontSize: 10, letterSpacing: 1 },
+
+  headerActions: { flexDirection: 'row', gap: 6 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '900' },
+  codeLine: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  codeLineValue: { color: COLORS.primary, fontWeight: '900', letterSpacing: 2 },
 
   cardBox: {
     backgroundColor: COLORS.backgroundAlt,

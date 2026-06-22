@@ -18,7 +18,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GameProvider } from './src/context/GameContext';
 import { SettingsProvider } from './src/context/SettingsContext';
 import { initSpotifyAuth } from './src/services/spotify';
-import { initPlayerId } from './src/services/supabase';
+import { initPlayerId, initResumableLobby } from './src/services/supabase';
 import SetupScreen from './src/screens/SetupScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import HandoffScreen from './src/screens/HandoffScreen';
@@ -109,10 +109,15 @@ function OnlineTabIcon({ focused }: { focused: boolean }) {
 }
 
 export default function App() {
-  // Load persisted Spotify tokens + online player id from encrypted storage.
+  // Load persisted Spotify tokens + online player id from encrypted storage, then
+  // check whether the last active lobby is still resumable (player id must be
+  // loaded first, so this runs after initPlayerId).
   useEffect(() => {
     initSpotifyAuth().catch(() => {});
-    initPlayerId().catch(() => {});
+    (async () => {
+      await initPlayerId().catch(() => {});
+      await initResumableLobby().catch(() => {});
+    })();
   }, []);
 
   return (

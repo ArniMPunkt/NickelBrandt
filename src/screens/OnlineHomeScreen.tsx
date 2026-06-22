@@ -2,7 +2,7 @@
  * OnlineHomeScreen - entry point for the Online mode: create or join a lobby.
  * Separate from the Hot-Seat flow. No game logic yet (Etappe 1).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import { COLORS } from '../theme/colors';
 import type { OnlineStackParamList } from '../types/navigation';
+import type { Lobby } from '../types/online';
 
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineHome'>;
 
@@ -28,8 +29,32 @@ export default function OnlineHomeScreen() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // "Resume your lobby" suggestion, computed once at app start (initResumableLobby).
+  const [resumable, setResumable] = useState<Lobby | null>(Online.getResumableLobby());
 
   const configured = Online.isSupabaseConfigured();
+
+  // Keep in sync with the service holder (it may resolve after first render, and
+  // gets cleared on leave/end).
+  useEffect(() => {
+    const unsub = Online.subscribeResumableLobby(() => setResumable(Online.getResumableLobby()));
+    setResumable(Online.getResumableLobby());
+    return unsub;
+  }, []);
+
+  const resumeLobby = () => {
+    if (!resumable) return;
+    console.log(`[LobbyDebug] resume tapped code=${resumable.code} status=${resumable.status}`);
+    if (resumable.status === 'playing') {
+      navigation.navigate('OnlineGame', { lobbyId: resumable.id });
+    } else {
+      navigation.navigate('Lobby', { lobbyId: resumable.id, code: resumable.code });
+    }
+  };
+
+  const ignoreResume = () => {
+    Online.dismissResumableLobby();
+  };
 
   const requireName = (): string | null => {
     const trimmed = name.trim();
@@ -82,6 +107,21 @@ export default function OnlineHomeScreen() {
     >
       <Text style={styles.title}>Online spielen</Text>
       <Text style={styles.subtitle}>Erstelle eine Lobby oder tritt einer bei.</Text>
+
+      {resumable && (
+        <View style={styles.resumeBox}>
+          <Text style={styles.resumeLabel}>DU WARST IN EINER LOBBY</Text>
+          <Pressable style={styles.resumeBtn} onPress={resumeLobby}>
+            <Text style={styles.resumeBtnText}>
+              {resumable.status === 'playing' ? '▶ Zurück ins Spiel' : '↩ Zurück zur Lobby'}{' '}
+              {resumable.code}
+            </Text>
+          </Pressable>
+          <Pressable onPress={ignoreResume} hitSlop={8}>
+            <Text style={styles.resumeIgnore}>Ignorieren</Text>
+          </Pressable>
+        </View>
+      )}
 
       {!configured && (
         <View style={styles.warnBox}>
@@ -166,6 +206,38 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   warnText: { color: COLORS.accent, fontSize: 13, fontWeight: '700' },
+
+  resumeBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderColor: COLORS.secondary,
+    borderWidth: 2,
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+    marginTop: 4,
+    shadowColor: COLORS.secondary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  resumeLabel: { color: COLORS.secondary, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
+  resumeBtn: {
+    minHeight: 52,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  resumeBtnText: { color: COLORS.background, fontSize: 17, fontWeight: '900', letterSpacing: 1 },
+  resumeIgnore: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
 
   label: {
     fontSize: 13,

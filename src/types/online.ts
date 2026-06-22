@@ -6,7 +6,7 @@ import type { GameCard } from './game';
 
 export type { GameCard };
 
-export type LobbyStatus = 'waiting' | 'playing' | 'finished';
+export type LobbyStatus = 'waiting' | 'playing' | 'finished' | 'ended';
 
 /** Round phase synced via lobbies.game_state. */
 export type OnlinePhase =
