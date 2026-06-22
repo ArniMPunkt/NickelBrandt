@@ -13,5 +13,6 @@ export type GameStackParamList = {
 export type OnlineStackParamList = {
   OnlineHome: undefined;
   Lobby: { lobbyId: string; code: string };
+  OnlineIntro: { lobbyId: string };
   OnlineGame: { lobbyId: string };
 };

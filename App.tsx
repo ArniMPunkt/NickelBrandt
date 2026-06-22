@@ -27,6 +27,7 @@ import ResultScreen from './src/screens/ResultScreen';
 import SpotifyConnectScreen from './src/screens/SpotifyConnectScreen';
 import OnlineHomeScreen from './src/screens/OnlineHomeScreen';
 import LobbyScreen from './src/screens/LobbyScreen';
+import OnlineIntroScreen from './src/screens/OnlineIntroScreen';
 import OnlineGameScreen from './src/screens/OnlineGameScreen';
 import { COLORS } from './src/theme/colors';
 import type { GameStackParamList, OnlineStackParamList } from './src/types/navigation';
@@ -79,6 +80,7 @@ function OnlineStack() {
     >
       <OnlineStackNav.Screen name="OnlineHome" component={OnlineHomeScreen} />
       <OnlineStackNav.Screen name="Lobby" component={LobbyScreen} />
+      <OnlineStackNav.Screen name="OnlineIntro" component={OnlineIntroScreen} />
       <OnlineStackNav.Screen name="OnlineGame" component={OnlineGameScreen} />
     </OnlineStackNav.Navigator>
   );

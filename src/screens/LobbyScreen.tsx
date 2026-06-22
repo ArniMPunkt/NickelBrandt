@@ -3,7 +3,7 @@
  * Host connects Spotify + picks a playlist, then starts the game; all devices
  * auto-navigate to OnlineGame once the lobby status becomes 'playing'.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -42,6 +42,9 @@ export default function LobbyScreen() {
   const myId = Online.getPlayerId();
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
+  // Navigate to the intro exactly once when the game starts (guards against the
+  // realtime/poll re-firing and yanking the player back from Intro/Game).
+  const navigatedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -50,8 +53,9 @@ export default function LobbyScreen() {
         Online.getLobbyPlayers(lobbyId),
       ]);
       setPlayers(list);
-      if (lobby.status === 'playing') {
-        navigation.navigate('OnlineGame', { lobbyId });
+      if (lobby.status === 'playing' && !navigatedRef.current) {
+        navigatedRef.current = true;
+        navigation.navigate('OnlineIntro', { lobbyId });
       }
     } catch (e: any) {
       setError(e?.message ?? String(e));

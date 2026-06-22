@@ -125,6 +125,12 @@ export default function OnlineGameScreen() {
   const isRevealed = phase === 'awaiting_host_confirmation' || phase === 'finished';
   const concealed = !!gs?.hideCoverUntilRevealed && !isRevealed;
   const myTimeline = me?.timeline ?? [];
+  const activeTimeline = activePlayer?.timeline ?? [];
+  // Non-active players see the active player's timeline (read-only) the whole
+  // round, so they have time to plan a possible steal. The card shrinks to fit.
+  const showActiveTimeline =
+    !isActive && (phase === 'card_drawn' || phase === 'hitster_window');
+  const compactCard = showActiveTimeline;
 
   // Host plays the current track when a new card is drawn; pause when finished.
   useEffect(() => {
@@ -271,25 +277,31 @@ export default function OnlineGameScreen() {
 
       {/* Card */}
       {card && (
-        <View style={styles.cardBox}>
+        <View style={[styles.cardBox, compactCard && styles.cardBoxCompact]}>
           {concealed ? (
-            <View style={[styles.cover, styles.coverFallback]}>
-              <Text style={styles.coverGlyph}>💿</Text>
+            <View style={[styles.cover, compactCard && styles.coverCompact, styles.coverFallback]}>
+              <Text style={[styles.coverGlyph, compactCard && styles.coverGlyphCompact]}>💿</Text>
             </View>
           ) : card.coverUrl ? (
-            <Image source={{ uri: card.coverUrl }} style={styles.cover} />
+            <Image source={{ uri: card.coverUrl }} style={[styles.cover, compactCard && styles.coverCompact]} />
           ) : (
-            <View style={[styles.cover, styles.coverFallback]}>
-              <Text style={styles.coverGlyph}>♫</Text>
+            <View style={[styles.cover, compactCard && styles.coverCompact, styles.coverFallback]}>
+              <Text style={[styles.coverGlyph, compactCard && styles.coverGlyphCompact]}>♫</Text>
             </View>
           )}
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {concealed ? '????' : card.title}
+          {!compactCard && (
+            <>
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {concealed ? '????' : card.title}
+              </Text>
+              <Text style={styles.cardArtist} numberOfLines={1}>
+                {concealed ? '????' : card.artist}
+              </Text>
+            </>
+          )}
+          <Text style={[styles.cardYear, compactCard && styles.cardYearCompact]}>
+            {isRevealed ? card.year : '????'}
           </Text>
-          <Text style={styles.cardArtist} numberOfLines={1}>
-            {concealed ? '????' : card.artist}
-          </Text>
-          <Text style={styles.cardYear}>{isRevealed ? card.year : '????'}</Text>
         </View>
       )}
 
@@ -305,36 +317,56 @@ export default function OnlineGameScreen() {
         </View>
       )}
 
-      {/* ---- card_drawn: active places ---- */}
+      {/* ---- card_drawn: active places; others watch both timelines ---- */}
       {phase === 'card_drawn' && (
         <>
-          <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
-          <TimelineStrip timeline={myTimeline} onInsert={isActive ? onPlace : undefined} />
           {isActive ? (
-            <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
+            <>
+              <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
+              <TimelineStrip timeline={myTimeline} onInsert={onPlace} />
+              <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
+            </>
           ) : (
-            <Text style={styles.hint}>{activePlayer?.player_name} ordnet gerade ein…</Text>
+            <>
+              <Text style={styles.sectionLabel}>
+                ZEITLINIE VON {activePlayer?.player_name?.toUpperCase() ?? '—'}
+              </Text>
+              <TimelineStrip timeline={activeTimeline} />
+              <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
+              <TimelineStrip timeline={myTimeline} />
+              <Text style={styles.hint}>{activePlayer?.player_name} ordnet gerade ein…</Text>
+            </>
           )}
         </>
       )}
 
       {/* ---- hitster_window: 5s steal window ---- */}
       {phase === 'hitster_window' && (
-        <View style={styles.stealBox}>
-          <Text style={styles.stealTitle}>Karte eingeordnet!</Text>
-          <View style={styles.barTrack}>
-            <Animated.View style={[styles.barFill, { width: barWidth }]} />
+        <>
+          <View style={styles.stealBox}>
+            <Text style={styles.stealTitle}>Karte eingeordnet!</Text>
+            <View style={styles.barTrack}>
+              <Animated.View style={[styles.barFill, { width: barWidth }]} />
+            </View>
+            {isActive ? (
+              <Text style={styles.hint}>Mitspieler können jetzt „Hitster!" rufen…</Text>
+            ) : me && me.chips >= 1 ? (
+              <Pressable style={styles.hitsterBtn} onPress={onHitster}>
+                <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
+              </Pressable>
+            ) : (
+              <Text style={styles.hint}>Du hast keine 🪙 zum Klauen.</Text>
+            )}
           </View>
-          {isActive ? (
-            <Text style={styles.hint}>Mitspieler können jetzt „Hitster!" rufen…</Text>
-          ) : me && me.chips >= 1 ? (
-            <Pressable style={styles.hitsterBtn} onPress={onHitster}>
-              <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
-            </Pressable>
-          ) : (
-            <Text style={styles.hint}>Du hast keine 🪙 zum Klauen.</Text>
+          {!isActive && (
+            <>
+              <Text style={styles.sectionLabel}>
+                ZEITLINIE VON {activePlayer?.player_name?.toUpperCase() ?? '—'}
+              </Text>
+              <TimelineStrip timeline={activeTimeline} />
+            </>
           )}
-        </View>
+        </>
       )}
 
       {/* ---- hitster_resolving: caller places in active's timeline ---- */}
@@ -457,9 +489,13 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
+  cardBoxCompact: { padding: 12, gap: 2 },
   cover: { width: 200, height: 200, borderRadius: 16, marginBottom: 8 },
+  coverCompact: { width: 72, height: 72, borderRadius: 10, marginBottom: 0 },
   coverFallback: { backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' },
   coverGlyph: { fontSize: 64, color: COLORS.border },
+  coverGlyphCompact: { fontSize: 32 },
+  cardYearCompact: { fontSize: 24, textShadowRadius: 8 },
   cardTitle: { fontSize: 22, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
   cardArtist: { fontSize: 15, color: COLORS.textMuted, fontWeight: '600' },
   cardYear: {
