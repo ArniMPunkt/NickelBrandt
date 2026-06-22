@@ -44,6 +44,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     ['./plugins/withSpotifyRemote', { redirectUri: SPOTIFY_REDIRECT_URI }],
+    // Sets C++17 on the fmt pod to fix consteval errors with newer Xcode/Clang.
+    './plugins/withFmtCppStandard',
     // Needed by expo-auth-session (PKCE Web-API auth) to complete the redirect.
     'expo-web-browser',
     // Encrypted storage for the Spotify refresh token + online player_id.
