@@ -12,9 +12,10 @@ export type LobbyStatus = 'waiting' | 'playing' | 'finished';
 export type OnlinePhase =
   | 'waiting' // game not started
   | 'card_drawn' // active player must pick a position
-  | 'placing' // position chosen, awaiting host confirm + resolve
-  | 'revealing' // result shown; host draws next
-  | 'finished';
+  | 'hitster_window' // active placed; 5s window for others to call "Hitster!"
+  | 'hitster_resolving' // someone claimed the steal; awaiting their slot choice
+  | 'awaiting_host_confirmation' // card revealed + placement resolved; host answers title/artist
+  | 'finished'; // round result shown (winnerId set => game over)
 
 /** The whole synced round state (stored in lobbies.game_state jsonb). */
 export interface OnlineGameState {
@@ -25,10 +26,14 @@ export interface OnlineGameState {
   /** Whose turn it is (player_id). */
   activePlayerId: string;
   phase: OnlinePhase;
-  /** The active player's chosen slot, before the host resolves it. */
+  /** The active player's chosen slot, before the round is resolved. */
   pendingInsertIndex: number | null;
-  /** Result of the resolved placement, for the reveal UI. */
+  /** Result of the active player's own placement, for the reveal UI. */
   lastResult: 'correct' | 'incorrect' | null;
+  /** Who won the "Hitster!" call this turn (player_id), or null. */
+  hitsterCallerId: string | null;
+  /** The steal's outcome (caller prediction), or null if no steal happened. */
+  stealResult: 'correct' | 'incorrect' | null;
   /** Turn rotation order (player_ids, join order). */
   turnOrder: string[];
   cardsToWin: number;

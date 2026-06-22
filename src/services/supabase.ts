@@ -237,13 +237,16 @@ export function subscribeToLobbyPlayers(
 }
 
 // ---------------------------------------------------------------------------
-// Game state (Etappe 2) — NO steal/Hitster yet (comes in Etappe 4).
+// Game state + distributed Hitster (Etappe 4).
 //
-// Race safety: per turn only TWO writers act, and on disjoint data — the active
-// player writes pendingInsertIndex (placeCard), the host writes everything else
-// (confirmGuess / resolvePlacement / drawNextCard). UI buttons are gated by phase
-// + role so the same action isn't triggered twice. Good enough for this stage;
-// DB-level optimistic concurrency can be added later if needed.
+// Race safety:
+//  - Per-turn writers act on disjoint data and are gated by phase + role.
+//  - The "Hitster!" call is contended (any non-active player may press), so it is
+//    claimed ATOMICALLY: callHitster / closeHitsterWindow update the row only
+//    WHERE game_state->>phase = 'hitster_window' AND game_state->>hitsterCallerId
+//    IS NULL. Postgres row locks + WHERE re-evaluation under READ COMMITTED mean
+//    exactly one of N concurrent writers matches (the others affect 0 rows). No
+//    Postgres function / migration is required for this.
 // ---------------------------------------------------------------------------
 
 function shuffle<T>(arr: T[]): T[] {
@@ -318,6 +321,8 @@ export async function startGame(
     phase: 'card_drawn',
     pendingInsertIndex: null,
     lastResult: null,
+    hitsterCallerId: null,
+    stealResult: null,
     turnOrder,
     cardsToWin: opts.cardsToWin,
     hideCoverUntilRevealed: opts.hideCoverUntilRevealed,
@@ -331,31 +336,73 @@ export async function startGame(
   if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
 }
 
-/** Active player picks a slot; host resolves it afterwards. */
+/** The slot at which `year` keeps a sorted (ascending) timeline sorted. */
+function sortedInsertIndex(timeline: GameCard[], year: number): number {
+  let i = 0;
+  while (i < timeline.length && timeline[i].year <= year) i++;
+  return i;
+}
+
+/**
+ * Active player picks a slot. This opens the 5s "Hitster!" window (phase
+ * hitster_window) - reveal/resolution happen AFTER the window (or after a steal).
+ */
 export async function placeCard(lobbyId: string, insertIndex: number): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs) return;
-  await writeGameState(lobbyId, { ...gs, pendingInsertIndex: insertIndex, phase: 'placing' });
+  await writeGameState(lobbyId, {
+    ...gs,
+    pendingInsertIndex: insertIndex,
+    phase: 'hitster_window',
+    hitsterCallerId: null,
+    stealResult: null,
+    lastResult: null,
+  });
 }
 
-/** Host confirms whether title+artist were guessed -> award a Nickel if yes. */
-export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promise<void> {
-  if (!wasCorrect) return;
+/**
+ * Atomically claim the "Hitster!" call. Returns true if THIS caller won.
+ *
+ * Atomicity: the UPDATE only writes when the row still has phase 'hitster_window'
+ * AND hitster_caller_id IS NULL. Postgres takes a row lock per UPDATE; under READ
+ * COMMITTED a second concurrent UPDATE waits for the first to commit and then
+ * RE-EVALUATES its WHERE against the now-updated row - where hitster_caller_id is
+ * no longer null - so it matches 0 rows. `.select()` returns the updated row only
+ * to the winner (the loser gets []). This is the classic "UPDATE ... WHERE col IS
+ * NULL RETURNING" claim, applied to a jsonb field via PostgREST json-path filters.
+ * No Postgres function / migration needed.
+ */
+export async function callHitster(lobbyId: string, callerId: string): Promise<boolean> {
   const { game_state: gs } = await getLobby(lobbyId);
-  if (!gs) return;
-  const players = await getLobbyPlayers(lobbyId);
-  const active = players.find((p) => p.player_id === gs.activePlayerId);
-  if (!active) return;
-  const chips = Math.min(active.chips + 1, MAX_CHIPS);
-  await supabase.from('lobby_players').update({ chips }).eq('id', active.id);
+  if (!gs || gs.phase !== 'hitster_window') return false;
+
+  const newGs: OnlineGameState = {
+    ...gs,
+    hitsterCallerId: callerId,
+    phase: 'hitster_resolving',
+  };
+  const { data, error } = await supabase
+    .from('lobbies')
+    .update({ game_state: newGs })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'hitster_window')
+    .filter('game_state->>hitsterCallerId', 'is', null)
+    .select();
+
+  const won = !error && !!data && data.length > 0;
+  console.log(`[GameDebug] callHitster caller=${callerId} won=${won}`, error?.message ?? '');
+  return won;
 }
 
-/** Host resolves the pending placement (reuses isCorrectPlacement from game.ts). */
-export async function resolvePlacement(lobbyId: string): Promise<void> {
-  const lobby = await getLobby(lobbyId);
-  const gs = lobby.game_state;
-  if (!gs || !gs.currentCard || gs.pendingInsertIndex == null) return;
-
+/**
+ * Host's window timeout: no one stole -> resolve the active player's placement.
+ * Claimed atomically (same WHERE guard) so a late callHitster can't be overridden.
+ */
+export async function closeHitsterWindow(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.phase !== 'hitster_window' || !gs.currentCard || gs.pendingInsertIndex == null) {
+    return;
+  }
   const players = await getLobbyPlayers(lobbyId);
   const active = players.find((p) => p.player_id === gs.activePlayerId);
   if (!active) return;
@@ -363,24 +410,120 @@ export async function resolvePlacement(lobbyId: string): Promise<void> {
   const card = gs.currentCard;
   const idx = gs.pendingInsertIndex;
   const correct = isCorrectPlacement(active.timeline, card, idx);
-  const newTimeline = correct ? insertAt(active.timeline, card, idx) : active.timeline;
   const newScore = correct ? active.score + 1 : active.score;
-
-  await supabase
-    .from('lobby_players')
-    .update({ timeline: newTimeline, score: newScore })
-    .eq('id', active.id);
-
   const won = correct && newScore >= gs.cardsToWin;
+
+  // Atomic transition (only if still an open, unclaimed window).
+  const { data } = await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        phase: won ? 'finished' : 'awaiting_host_confirmation',
+        lastResult: correct ? 'correct' : 'incorrect',
+        stealResult: null,
+        hitsterCallerId: null,
+        winnerId: won ? active.player_id : gs.winnerId,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'hitster_window')
+    .filter('game_state->>hitsterCallerId', 'is', null)
+    .select();
+
+  if (!data || data.length === 0) {
+    console.log('[GameDebug] closeHitsterWindow: lost to a caller, steal proceeds');
+    return;
+  }
+  if (correct) {
+    await supabase
+      .from('lobby_players')
+      .update({ timeline: insertAt(active.timeline, card, idx), score: newScore })
+      .eq('id', active.id);
+  }
+  if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+}
+
+/**
+ * The Hitster caller picks a slot in the ACTIVE player's timeline. Correctness is
+ * judged against the active player's timeline + the caller's slot (same logic as
+ * hot-seat). Success: card -> caller's OWN sorted timeline + score + brandt, -1
+ * Nickel. Miss: -1 Nickel, then the active player's own placement is evaluated.
+ */
+export async function resolveHitsterPlacement(
+  lobbyId: string,
+  insertIndex: number
+): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.phase !== 'hitster_resolving' || !gs.currentCard || gs.pendingInsertIndex == null) {
+    return;
+  }
+  const callerId = gs.hitsterCallerId;
+  const players = await getLobbyPlayers(lobbyId);
+  const active = players.find((p) => p.player_id === gs.activePlayerId);
+  const caller = players.find((p) => p.player_id === callerId);
+  if (!active || !caller) return;
+
+  const card = gs.currentCard;
+  const stealCorrect = isCorrectPlacement(active.timeline, card, insertIndex);
+  const activeCorrect = isCorrectPlacement(active.timeline, card, gs.pendingInsertIndex);
+  let winnerId: string | null = gs.winnerId;
+
+  // Caller: always -1 Nickel; on success card joins their own timeline + brandt.
+  const callerUpdate: Record<string, unknown> = { chips: Math.max(0, caller.chips - 1) };
+  if (stealCorrect) {
+    const idx = sortedInsertIndex(caller.timeline, card.year);
+    const newScore = caller.score + 1;
+    callerUpdate.timeline = insertAt(caller.timeline, card, idx);
+    callerUpdate.score = newScore;
+    callerUpdate.brandts_count = caller.brandts_count + 1;
+    if (newScore >= gs.cardsToWin) winnerId = caller.player_id;
+  }
+  await supabase.from('lobby_players').update(callerUpdate).eq('id', caller.id);
+
+  // Active player keeps the card only if the steal missed AND they were correct.
+  if (!stealCorrect && activeCorrect) {
+    const newScore = active.score + 1;
+    await supabase
+      .from('lobby_players')
+      .update({ timeline: insertAt(active.timeline, card, gs.pendingInsertIndex), score: newScore })
+      .eq('id', active.id);
+    if (newScore >= gs.cardsToWin) winnerId = active.player_id;
+  }
+
+  const won = !!winnerId;
+  console.log(
+    `[GameDebug] resolveHitsterPlacement caller=${callerId} stealCorrect=${stealCorrect} activeCorrect=${activeCorrect}`
+  );
   await writeGameState(lobbyId, {
     ...gs,
-    lastResult: correct ? 'correct' : 'incorrect',
-    phase: won ? 'finished' : 'revealing',
-    winnerId: won ? active.player_id : gs.winnerId,
+    phase: won ? 'finished' : 'awaiting_host_confirmation',
+    lastResult: activeCorrect ? 'correct' : 'incorrect',
+    stealResult: stealCorrect ? 'correct' : 'incorrect',
+    hitsterCallerId: callerId,
+    winnerId,
   });
-  if (won) {
-    await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+  if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+}
+
+/**
+ * Host confirms (AFTER reveal) whether title+artist were guessed -> award a Nickel
+ * to the active player if yes, then end the round (phase 'finished').
+ */
+export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs) return;
+  if (wasCorrect) {
+    const players = await getLobbyPlayers(lobbyId);
+    const active = players.find((p) => p.player_id === gs.activePlayerId);
+    if (active) {
+      await supabase
+        .from('lobby_players')
+        .update({ chips: Math.min(active.chips + 1, MAX_CHIPS) })
+        .eq('id', active.id);
+    }
   }
+  await writeGameState(lobbyId, { ...gs, phase: 'finished' });
 }
 
 /** Host draws the next card + rotates to the next player (or finishes). */
@@ -406,6 +549,8 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
     phase: 'card_drawn',
     pendingInsertIndex: null,
     lastResult: null,
+    hitsterCallerId: null,
+    stealResult: null,
   });
 }
 

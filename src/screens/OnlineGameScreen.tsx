@@ -1,16 +1,20 @@
 /**
- * OnlineGameScreen - synced round play (Etappe 2, no steal/Hitster yet).
+ * OnlineGameScreen - synced round play with the distributed Hitster mechanism.
  *
- * Renders per role from the synced game_state:
- *  - active player (phase card_drawn): own timeline with [+] -> placeCard()
- *  - others: read-only own timeline + "[name] ist dran…"
- *  - host (phase placing): "Titel + Interpret richtig erkannt?" -> confirm + resolve
- *  - host (phase revealing): "Nächste Karte ziehen" -> drawNextCard()
+ * Phase flow (all synced via game_state):
+ *   card_drawn  -> active player places ([+])            -> placeCard
+ *   hitster_window -> 5s; other players with Nickel may  -> callHitster (atomic)
+ *   hitster_resolving -> caller places in active's       -> resolveHitsterPlacement
+ *                        timeline (active's slot blocked)
+ *   awaiting_host_confirmation -> card revealed; host     -> confirmGuess
+ *                        answers "title+artist?"
+ *   finished    -> result message; host draws next        -> drawNextCard
  *
- * Only the host has Spotify, so only the host plays audio.
+ * The HOST owns the 5s window timeout (closeHitsterWindow). Only the host plays audio.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -25,40 +29,52 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { COLORS } from '../theme/colors';
-import type { OnlineStackParamList } from '../types/navigation';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
+import type { OnlineStackParamList } from '../types/navigation';
 
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineGame'>;
 type GameRoute = RouteProp<OnlineStackParamList, 'OnlineGame'>;
 
+const STEAL_WINDOW_MS = 5000;
+const STEAL_GRACE_MS = 700;
+
 function TimelineStrip({
   timeline,
   onInsert,
+  isSlotEnabled,
 }: {
   timeline: GameCard[];
   onInsert?: (i: number) => void;
+  isSlotEnabled?: (i: number) => boolean;
 }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineRow}>
-      {Array.from({ length: timeline.length + 1 }).map((_, slot) => (
-        <View key={`slot-${slot}`} style={styles.slotWrap}>
-          {onInsert ? (
-            <Pressable style={styles.insertBtn} onPress={() => onInsert(slot)}>
-              <Text style={styles.insertText}>+</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.insertSpacer} />
-          )}
-          {slot < timeline.length && (
-            <View style={styles.tlCard}>
-              <Text style={styles.tlYear}>{timeline[slot].year}</Text>
-              <Text style={styles.tlTitle} numberOfLines={2}>
-                {timeline[slot].title}
-              </Text>
-            </View>
-          )}
-        </View>
-      ))}
+      {Array.from({ length: timeline.length + 1 }).map((_, slot) => {
+        const enabled = isSlotEnabled ? isSlotEnabled(slot) : true;
+        return (
+          <View key={`slot-${slot}`} style={styles.slotWrap}>
+            {onInsert ? (
+              <Pressable
+                style={[styles.insertBtn, !enabled && styles.insertBtnDisabled]}
+                onPress={enabled ? () => onInsert(slot) : undefined}
+                disabled={!enabled}
+              >
+                <Text style={styles.insertText}>+</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.insertSpacer} />
+            )}
+            {slot < timeline.length && (
+              <View style={styles.tlCard}>
+                <Text style={styles.tlYear}>{timeline[slot].year}</Text>
+                <Text style={styles.tlTitle} numberOfLines={2}>
+                  {timeline[slot].title}
+                </Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -71,8 +87,10 @@ export default function OnlineGameScreen() {
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const myId = Online.getPlayerId();
+  const barAnim = useRef(new Animated.Value(1)).current;
 
   const refresh = useCallback(async () => {
     try {
@@ -90,50 +108,71 @@ export default function OnlineGameScreen() {
   useEffect(() => {
     refresh();
     const unsubscribe = Online.subscribeToGameState(lobbyId, refresh);
-    return unsubscribe;
+    const poll = setInterval(refresh, 5000);
+    return () => {
+      unsubscribe();
+      clearInterval(poll);
+    };
   }, [lobbyId, refresh]);
 
   const gs = lobby?.game_state ?? null;
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
+  const phase = gs?.phase;
   const activePlayer = gs ? players.find((p) => p.player_id === gs.activePlayerId) : undefined;
   const isActive = !!gs && gs.activePlayerId === myId;
-  const phase = gs?.phase;
   const card = gs?.currentCard ?? null;
-  const isRevealed = phase === 'revealing' || phase === 'finished';
+  const isRevealed = phase === 'awaiting_host_confirmation' || phase === 'finished';
   const concealed = !!gs?.hideCoverUntilRevealed && !isRevealed;
   const myTimeline = me?.timeline ?? [];
 
-  // Host plays the current track when a new card is drawn.
+  // Host plays the current track when a new card is drawn; pause when finished.
   useEffect(() => {
     if (!isHost) return;
-    if (phase === 'card_drawn' && card) {
-      Spotify.playUri(card.trackUri).catch(() => {});
-    }
-    if (phase === 'finished') {
-      Spotify.pause().catch(() => {});
-    }
+    if (phase === 'card_drawn' && card) Spotify.playUri(card.trackUri).catch(() => {});
+    if (phase === 'finished') Spotify.pause().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, phase, isHost]);
 
-  const onPlace = (insertIndex: number) => {
-    Online.placeCard(lobbyId, insertIndex).catch((e: any) =>
-      setError(e?.message ?? String(e))
-    );
-  };
-
-  const hostConfirm = async (wasCorrect: boolean) => {
-    try {
-      await Online.confirmGuess(lobbyId, wasCorrect);
-      await Online.resolvePlacement(lobbyId);
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
+  // Cosmetic countdown bar while the steal window is open (each device animates).
+  useEffect(() => {
+    if (phase === 'hitster_window') {
+      barAnim.setValue(1);
+      const anim = Animated.timing(barAnim, {
+        toValue: 0,
+        duration: STEAL_WINDOW_MS,
+        useNativeDriver: false,
+      });
+      anim.start();
+      return () => anim.stop();
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, gs?.currentCard?.id]);
 
-  const hostNext = () => {
-    Online.drawNextCard(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
-  };
+  // The HOST is the authority that closes the window after the timeout.
+  useEffect(() => {
+    if (!isHost || phase !== 'hitster_window') return;
+    const t = setTimeout(() => {
+      Online.closeHitsterWindow(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+    }, STEAL_WINDOW_MS + STEAL_GRACE_MS);
+    return () => clearTimeout(t);
+  }, [isHost, phase, lobbyId]);
+
+  // Clear the transient notice when the round/phase moves on.
+  useEffect(() => {
+    setNotice(null);
+  }, [phase, gs?.currentCard?.id]);
+
+  // Stable playful line for the "both wrong" outcome, per card.
+  const bothWrongMessage = useMemo(() => {
+    const variants = [
+      'Tja, das war wohl nix für beide! 🙈',
+      'Daneben! Beide haben sich verzockt. 🎲',
+      'Doppelt vorbei – die Karte fliegt raus! 😅',
+    ];
+    return variants[Math.floor(Math.random() * variants.length)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs?.currentCard?.id]);
 
   if (!gs) {
     return (
@@ -144,15 +183,55 @@ export default function OnlineGameScreen() {
     );
   }
 
-  // ----- Finished -----
-  if (phase === 'finished') {
-    const winner = gs.winnerId
-      ? players.find((p) => p.player_id === gs.winnerId)
-      : [...players].sort((a, b) => b.score - a.score)[0];
+  // --- Handlers ---
+  const onPlace = (i: number) =>
+    Online.placeCard(lobbyId, i).catch((e: any) => setError(e?.message ?? String(e)));
+  const onHitster = async () => {
+    setError(null);
+    const won = await Online.callHitster(lobbyId, myId).catch((e: any) => {
+      setError(e?.message ?? String(e));
+      return false;
+    });
+    if (!won) setNotice('Jemand anderes war schneller beim Hitster-Ruf.');
+  };
+  const onStealPlace = (i: number) =>
+    Online.resolveHitsterPlacement(lobbyId, i).catch((e: any) => setError(e?.message ?? String(e)));
+  const hostConfirm = (wasCorrect: boolean) =>
+    Online.confirmGuess(lobbyId, wasCorrect).catch((e: any) => setError(e?.message ?? String(e)));
+  const hostNext = () =>
+    Online.drawNextCard(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+
+  // --- Reveal-derived values ---
+  const steal = gs.hitsterCallerId
+    ? { id: gs.hitsterCallerId, result: gs.stealResult }
+    : null;
+  const stealerName = steal ? players.find((p) => p.player_id === steal.id)?.player_name : undefined;
+  const brandtSuccess = !!steal && steal.result === 'correct';
+  const kept = brandtSuccess || (!brandtSuccess && gs.lastResult === 'correct');
+
+  let resultMsg = '';
+  if (isRevealed) {
+    if (brandtSuccess) {
+      resultMsg = `🔥 ${stealerName} hat einen Brandt gemacht!`;
+    } else if (steal && steal.result === 'incorrect') {
+      resultMsg =
+        gs.lastResult === 'correct'
+          ? `${activePlayer?.player_name} hatte recht! Die Karte bleibt.`
+          : bothWrongMessage;
+    } else {
+      resultMsg = gs.lastResult === 'correct' ? '✓  RICHTIG platziert' : '✕  FALSCH platziert';
+    }
+  }
+
+  const barWidth = barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+
+  // ----- Finished: game over (winner) -----
+  if (phase === 'finished' && gs.winnerId) {
+    const winner = players.find((p) => p.player_id === gs.winnerId);
     return (
       <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}>
         <Text style={styles.trophy}>🏆</Text>
-        <Text style={styles.winnerLabel}>{gs.winnerId ? 'GEWINNER' : 'SPITZENREITER'}</Text>
+        <Text style={styles.winnerLabel}>GEWINNER</Text>
         <Text style={styles.winnerName}>{winner ? winner.player_name : '-'}</Text>
         <Text style={styles.sectionLabel}>ERGEBNIS</Text>
         {[...players]
@@ -162,7 +241,9 @@ export default function OnlineGameScreen() {
               <Text style={styles.scoreName} numberOfLines={1}>
                 {p.player_name}
               </Text>
-              <Text style={styles.scoreVal}>{p.score} Pkt.</Text>
+              <Text style={styles.scoreVal}>
+                {p.score} Pkt · 🔥 {p.brandts_count}
+              </Text>
             </View>
           ))}
         <Pressable style={styles.primaryBtn} onPress={() => navigation.navigate('OnlineHome')}>
@@ -180,9 +261,7 @@ export default function OnlineGameScreen() {
           <Text style={styles.activeName} numberOfLines={1}>
             {isActive ? 'Du bist dran' : `${activePlayer?.player_name ?? '—'} ist dran`}
           </Text>
-          <Text style={styles.subLine}>
-            {me ? `${me.score} Pkt · 🪙 ${me.chips}` : ''}
-          </Text>
+          <Text style={styles.subLine}>{me ? `${me.score} Pkt · 🪙 ${me.chips}` : ''}</Text>
         </View>
         <View style={styles.deckPill}>
           <Text style={styles.deckCount}>{gs.deck.length}</Text>
@@ -214,65 +293,106 @@ export default function OnlineGameScreen() {
         </View>
       )}
 
-      {/* Reveal feedback */}
-      {isRevealed && gs.lastResult && (
+      {/* Reveal result */}
+      {isRevealed && !!resultMsg && (
         <View
           style={[
-            styles.feedback,
-            { backgroundColor: gs.lastResult === 'correct' ? COLORS.correct : COLORS.incorrect },
+            brandtSuccess ? styles.brandtBox : styles.feedback,
+            !brandtSuccess && { backgroundColor: kept ? COLORS.correct : COLORS.incorrect },
           ]}
         >
-          <Text style={styles.feedbackText}>
-            {gs.lastResult === 'correct'
-              ? '✓  RICHTIG platziert'
-              : '✕  FALSCH platziert'}
-          </Text>
+          <Text style={brandtSuccess ? styles.brandtText : styles.feedbackText}>{resultMsg}</Text>
         </View>
       )}
 
-      {/* Active player places */}
-      {isActive && phase === 'card_drawn' ? (
+      {/* ---- card_drawn: active places ---- */}
+      {phase === 'card_drawn' && (
         <>
           <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
-          <TimelineStrip timeline={myTimeline} onInsert={onPlace} />
-          <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
-          <TimelineStrip timeline={myTimeline} />
-          {phase === 'card_drawn' && !isActive && (
+          <TimelineStrip timeline={myTimeline} onInsert={isActive ? onPlace : undefined} />
+          {isActive ? (
+            <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
+          ) : (
             <Text style={styles.hint}>{activePlayer?.player_name} ordnet gerade ein…</Text>
           )}
-          {phase === 'placing' && !isHost && (
-            <Text style={styles.hint}>Warte auf Host-Bestätigung…</Text>
-          )}
         </>
       )}
 
-      {/* Host: confirm guess after placing */}
-      {isHost && phase === 'placing' && (
-        <View style={styles.hostBox}>
-          <Text style={styles.hostTitle}>Titel + Interpret richtig erkannt?</Text>
-          <View style={styles.hostRow}>
-            <Pressable style={[styles.hostBtn, styles.hostYes]} onPress={() => hostConfirm(true)}>
-              <Text style={styles.hostYesText}>Ja, Nickel! 🪙</Text>
-            </Pressable>
-            <Pressable style={[styles.hostBtn, styles.hostNo]} onPress={() => hostConfirm(false)}>
-              <Text style={styles.hostNoText}>Nein</Text>
-            </Pressable>
+      {/* ---- hitster_window: 5s steal window ---- */}
+      {phase === 'hitster_window' && (
+        <View style={styles.stealBox}>
+          <Text style={styles.stealTitle}>Karte eingeordnet!</Text>
+          <View style={styles.barTrack}>
+            <Animated.View style={[styles.barFill, { width: barWidth }]} />
           </View>
+          {isActive ? (
+            <Text style={styles.hint}>Mitspieler können jetzt „Hitster!" rufen…</Text>
+          ) : me && me.chips >= 1 ? (
+            <Pressable style={styles.hitsterBtn} onPress={onHitster}>
+              <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.hint}>Du hast keine 🪙 zum Klauen.</Text>
+          )}
         </View>
       )}
 
-      {/* Host: draw next after reveal */}
-      {isHost && phase === 'revealing' && (
-        <Pressable style={styles.primaryBtn} onPress={hostNext}>
-          <Text style={styles.primaryBtnText}>Nächste Karte ziehen</Text>
-        </Pressable>
+      {/* ---- hitster_resolving: caller places in active's timeline ---- */}
+      {phase === 'hitster_resolving' && (
+        <View>
+          {gs.hitsterCallerId === myId ? (
+            <>
+              <Text style={styles.sectionLabel}>
+                {activePlayer?.player_name?.toUpperCase()} — WO GEHÖRT SIE HIN?
+              </Text>
+              <TimelineStrip
+                timeline={activePlayer?.timeline ?? []}
+                onInsert={onStealPlace}
+                isSlotEnabled={(i) => i !== gs.pendingInsertIndex}
+              />
+              <Text style={styles.hint}>
+                Der bereits gewählte Slot ist gesperrt — 1 🪙 wird eingesetzt.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.hint}>
+              {stealerName ?? 'Jemand'} versucht zu klauen…
+            </Text>
+          )}
+        </View>
       )}
 
-      {/* Other players' scores */}
+      {/* ---- awaiting_host_confirmation: reveal shown; host answers ---- */}
+      {phase === 'awaiting_host_confirmation' &&
+        (isHost ? (
+          <View style={styles.hostBox}>
+            <Text style={styles.hostTitle}>Titel + Interpret richtig erkannt?</Text>
+            <View style={styles.hostRow}>
+              <Pressable style={[styles.hostBtn, styles.hostYes]} onPress={() => hostConfirm(true)}>
+                <Text style={styles.hostYesText}>Ja, Nickel! 🪙</Text>
+              </Pressable>
+              <Pressable style={[styles.hostBtn, styles.hostNo]} onPress={() => hostConfirm(false)}>
+                <Text style={styles.hostNoText}>Nein</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.hint}>Warte auf Host-Bestätigung…</Text>
+        ))}
+
+      {/* ---- finished (round, not game): host draws next ---- */}
+      {phase === 'finished' &&
+        (isHost ? (
+          <Pressable style={styles.primaryBtn} onPress={hostNext}>
+            <Text style={styles.primaryBtnText}>Nächste Karte ziehen</Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.hint}>Warte auf den Host…</Text>
+        ))}
+
+      {notice && <Text style={styles.notice}>{notice}</Text>}
+
+      {/* Players */}
       <Text style={styles.sectionLabel}>SPIELER</Text>
       {players.map((p) => (
         <View key={p.id} style={styles.scoreRow}>
@@ -298,6 +418,7 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingBottom: 48, gap: 12 },
   muted: { color: COLORS.textMuted, fontSize: 16 },
   error: { color: COLORS.incorrect, fontSize: 13, fontWeight: '700' },
+  notice: { color: COLORS.accent, fontSize: 14, fontWeight: '700', textAlign: 'center' },
 
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   activeName: {
@@ -353,6 +474,23 @@ const styles = StyleSheet.create({
 
   feedback: { borderRadius: 16, paddingVertical: 14, paddingHorizontal: 12 },
   feedbackText: { color: COLORS.background, fontWeight: '900', fontSize: 17, textAlign: 'center', letterSpacing: 0.5 },
+  brandtBox: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.backgroundAlt,
+  },
+  brandtText: {
+    color: COLORS.accent,
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+    textShadowColor: COLORS.accent,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+  },
 
   sectionLabel: { fontSize: 13, fontWeight: '800', color: COLORS.secondary, letterSpacing: 2, marginTop: 10 },
   hint: { color: COLORS.textMuted, fontSize: 14, fontStyle: 'italic' },
@@ -368,6 +506,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 5,
   },
+  insertBtnDisabled: { backgroundColor: COLORS.border, opacity: 0.35 },
   insertText: { color: COLORS.background, fontSize: 30, fontWeight: '900' },
   insertSpacer: { width: 10 },
   tlCard: {
@@ -383,6 +522,39 @@ const styles = StyleSheet.create({
   tlYear: { color: COLORS.accent, fontSize: 26, fontWeight: '900' },
   tlTitle: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
 
+  stealBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+    padding: 20,
+    alignItems: 'center',
+    gap: 10,
+  },
+  stealTitle: { color: COLORS.text, fontSize: 20, fontWeight: '900' },
+  barTrack: {
+    width: '100%',
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: COLORS.background,
+    overflow: 'hidden',
+  },
+  barFill: { height: '100%', backgroundColor: COLORS.secondary, borderRadius: 999 },
+  hitsterBtn: {
+    minHeight: 60,
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.primary,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  hitsterText: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 1 },
+
   hostBox: {
     backgroundColor: COLORS.backgroundAlt,
     borderRadius: 18,
@@ -390,7 +562,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.accent,
     padding: 16,
     gap: 12,
-    marginTop: 8,
   },
   hostTitle: { color: COLORS.text, fontSize: 17, fontWeight: '900', textAlign: 'center' },
   hostRow: { flexDirection: 'row', gap: 12 },
