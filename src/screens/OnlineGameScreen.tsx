@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  AppState,
   Image,
   Pressable,
   ScrollView,
@@ -22,7 +23,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -105,15 +106,76 @@ export default function OnlineGameScreen() {
     }
   }, [lobbyId]);
 
+  // Lifecycle: live game-state subscription + realtime-socket recovery + a
+  // safety-net poll. Ported from LobbyScreen's proven resilience pattern so a
+  // tab-switch / app-background no longer leaves the round on a dead socket.
+  // NOTE: this cleanup deliberately does NOT call leaveLobby() - leaving the
+  // lobby is exclusively the job of the explicit "Lobby verlassen" button.
   useEffect(() => {
-    refresh();
-    const unsubscribe = Online.subscribeToGameState(lobbyId, refresh);
-    const poll = setInterval(refresh, 5000);
-    return () => {
-      unsubscribe();
-      clearInterval(poll);
+    console.log(`[GameDebug] OnlineGameScreen MOUNT lobbyId=${lobbyId} myId=${myId}`);
+    let disposed = false;
+    let unsub: (() => void) | null = null;
+    let reconnecting = false; // suppress the CLOSED we cause when tearing down
+    let reconnectScheduled = false;
+
+    // Recover from a stale realtime socket: re-fetch now, then re-subscribe.
+    const handleStatus = (status: string) => {
+      if (disposed) return;
+      const bad =
+        status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR';
+      if (!bad || reconnecting) return;
+      console.log('[GameDebug] bad channel status -> refetch + resubscribe:', status);
+      refresh();
+      if (reconnectScheduled) return;
+      reconnectScheduled = true;
+      setTimeout(() => {
+        reconnectScheduled = false;
+        if (disposed) return;
+        reconnecting = true;
+        unsub?.();
+        unsub = Online.subscribeToGameState(lobbyId, refresh, handleStatus);
+        setTimeout(() => {
+          reconnecting = false;
+        }, 600);
+        refresh();
+      }, 1500);
     };
+
+    refresh();
+    unsub = Online.subscribeToGameState(lobbyId, refresh, handleStatus);
+
+    // Safety-net polling while in the game. A touch slower than the lobby's 5s
+    // since live rounds carry more realtime traffic and the socket recovery
+    // above is the primary path; this just covers any missed event.
+    const poll = setInterval(refresh, 7000);
+
+    // Returning from background: useFocusEffect does NOT fire if the screen was
+    // already focused when the app was minimized, so refresh explicitly here.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && !disposed) {
+        console.log('[GameDebug] app foreground -> refresh');
+        refresh();
+      }
+    });
+
+    return () => {
+      console.log(`[GameDebug] OnlineGameScreen UNMOUNT lobbyId=${lobbyId}`);
+      disposed = true;
+      clearInterval(poll);
+      appStateSub.remove();
+      unsub?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lobbyId, refresh]);
+
+  // Re-entering the Online tab re-fetches (tab screens stay mounted, so the
+  // mount effect above does NOT re-run on focus).
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[GameDebug] OnlineGameScreen FOCUSED -> refresh');
+      refresh();
+    }, [refresh])
+  );
 
   const gs = lobby?.game_state ?? null;
   const me = players.find((p) => p.player_id === myId);
