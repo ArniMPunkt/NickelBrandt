@@ -5,7 +5,8 @@
       "Read",
       "Write",
       "Edit",
-      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1)"
+      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1)",
+      "PowerShell(npx expo install expo-splash-screen 2>&1)"
     ],
     "deny": [
       "Bash(rm -rf /*)",

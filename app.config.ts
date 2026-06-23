@@ -56,5 +56,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-web-browser',
     // Encrypted storage for the Spotify refresh token + online player_id.
     'expo-secure-store',
+    // Startup splash: centered logo on the app's purple, consistent on iOS +
+    // Android. `contain` + a modest imageWidth shows the logo small (the image
+    // already includes the #1A0F3C surround), instead of stretching full-screen.
+    [
+      'expo-splash-screen',
+      {
+        image: './assets/icon.png',
+        backgroundColor: '#1A0F3C',
+        imageWidth: 200,
+        resizeMode: 'contain',
+      },
+    ],
   ],
 });
