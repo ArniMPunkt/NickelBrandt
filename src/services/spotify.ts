@@ -653,6 +653,8 @@ export async function getPlaylistTracks(
         artist: t.artists?.[0]?.name ?? 'Unknown',
         year,
         coverUrl: t.album?.images?.[0]?.url,
+        // For the MusicBrainz year check (external_ids comes with the full track).
+        isrc: t.external_ids?.isrc,
       });
     }
 

@@ -17,6 +17,12 @@ export interface GameCard {
   /** Release year as a number (from release_date.substring(0,4)). */
   year: number;
   coverUrl?: string;
+  /**
+   * International Standard Recording Code (Spotify external_ids.isrc), when
+   * available. Used by the MusicBrainz playlist check to look up the original
+   * first-release year. Optional - not every track exposes one.
+   */
+  isrc?: string;
 }
 
 /** A player's ordered timeline of revealed cards (ascending by year). */

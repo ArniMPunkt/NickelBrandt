@@ -25,6 +25,7 @@ import * as Spotify from '../services/spotify';
 import type { PlaylistSummary } from '../services/spotify';
 import { SettingsGear } from '../components/SettingsModal';
 import { PlaylistPicker } from './PlaylistPickerScreen';
+import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
 import type { GameStackParamList } from '../types/navigation';
 
@@ -42,6 +43,7 @@ export default function SetupScreen() {
   const [names, setNames] = useState<string[]>(['', '']);
   const [playlist, setPlaylist] = useState<PlaylistSummary | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [checkVisible, setCheckVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -175,7 +177,13 @@ export default function SetupScreen() {
             <Text style={styles.changeBtnText}>Ändern</Text>
           </Pressable>
         </View>
-      ) : (
+      ) : null}
+      {playlist && (
+        <Pressable style={styles.checkBtn} onPress={() => setCheckVisible(true)}>
+          <Text style={styles.checkBtnText}>🔍 Playlist prüfen (Jahre)</Text>
+        </Pressable>
+      )}
+      {!playlist && (
         <Pressable style={styles.pickBtn} onPress={() => setPickerVisible(true)}>
           <Text style={styles.pickBtnText}>Playlist auswählen 🎵</Text>
         </Pressable>
@@ -213,6 +221,14 @@ export default function SetupScreen() {
         setError(null);
       }}
     />
+    {playlist && (
+      <PlaylistCheckModal
+        visible={checkVisible}
+        onClose={() => setCheckVisible(false)}
+        playlistId={playlist.id}
+        playlistName={playlist.name}
+      />
+    )}
    </View>
   );
 }
@@ -327,6 +343,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   changeBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 14 },
+
+  checkBtn: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  checkBtnText: { color: COLORS.textMuted, fontWeight: '800', fontSize: 14 },
 
   removeBtn: {
     width: 52,
