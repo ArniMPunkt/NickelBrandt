@@ -41,7 +41,7 @@ export function PlaylistCheckModal({
   const [phase, setPhase] = useState<Phase>('loading');
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
-  const [currentTitle, setCurrentTitle] = useState('');
+  const [batch, setBatch] = useState<{ from: number; to: number } | null>(null);
   const [results, setResults] = useState<TrackYearCheck[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showClean, setShowClean] = useState(false);
@@ -54,7 +54,7 @@ export function PlaylistCheckModal({
     setError(null);
     setDone(0);
     setTotal(0);
-    setCurrentTitle('');
+    setBatch(null);
     setShowClean(false);
     try {
       const tracks = await Spotify.getPlaylistTracks(playlistId);
@@ -62,11 +62,11 @@ export function PlaylistCheckModal({
       setTotal(tracks.length);
       setPhase('checking');
       const res = await MusicBrainz.checkPlaylistYears(tracks, {
-        onProgress: (d, t, card) => {
+        onProgress: (d, t, b) => {
           if (cancelledRef.current) return;
           setDone(d);
           setTotal(t);
-          if (card) setCurrentTitle(card.title);
+          if (b) setBatch(b);
         },
         isCancelled: () => cancelledRef.current,
       });
@@ -124,17 +124,21 @@ export function PlaylistCheckModal({
         {phase === 'checking' && (
           <View style={styles.centered}>
             <Text style={styles.progressCount}>
-              Prüfe Track {Math.min(done + 1, total)} von {total}…
+              {batch
+                ? batch.from === batch.to
+                  ? `Prüfe Track ${batch.from} von ${total}…`
+                  : `Prüfe Tracks ${batch.from}–${batch.to} von ${total}…`
+                : `Prüfe… (${done}/${total})`}
             </Text>
             <View style={styles.barTrack}>
               <View style={[styles.barFill, { width: `${progressPct}%` }]} />
             </View>
-            <Text style={styles.muted} numberOfLines={1}>
-              {currentTitle}
+            <Text style={styles.muted}>
+              {done} von {total} geprüft
             </Text>
             <Text style={styles.hint}>
-              MusicBrainz erlaubt ~1 Abfrage/Sekunde – das dauert bei großen
-              Playlists einen Moment.
+              Läuft in kleinen Bursts (mehrere parallel) – innerhalb der
+              MusicBrainz-Grenzen.
             </Text>
           </View>
         )}

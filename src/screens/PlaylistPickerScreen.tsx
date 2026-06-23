@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
 import type { PlaylistSummary } from '../services/spotify';
+import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
 
 export function PlaylistPicker({
@@ -34,6 +35,9 @@ export function PlaylistPicker({
   const [error, setError] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [query, setQuery] = useState('');
+  // The "Playlist prüfen" check can be opened for ANY row without selecting it.
+  const [checkTarget, setCheckTarget] = useState<PlaylistSummary | null>(null);
+  const [checkVisible, setCheckVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,6 +61,11 @@ export function PlaylistPicker({
     onClose();
   };
 
+  const openCheck = (p: PlaylistSummary) => {
+    setCheckTarget(p);
+    setCheckVisible(true);
+  };
+
   const renderItem = ({ item }: { item: PlaylistSummary }) => (
     <Pressable style={styles.row} onPress={() => choose(item)}>
       {item.imageUrl ? (
@@ -74,6 +83,14 @@ export function PlaylistPicker({
           {item.trackCount} Songs{item.ownerName ? ` · ${item.ownerName}` : ''}
         </Text>
       </View>
+      {/* Separate tap target: opens the year check WITHOUT selecting the row. */}
+      <Pressable
+        style={styles.checkBtn}
+        onPress={() => openCheck(item)}
+        hitSlop={8}
+      >
+        <Text style={styles.checkIcon}>🔍</Text>
+      </Pressable>
     </Pressable>
   );
 
@@ -142,6 +159,15 @@ export function PlaylistPicker({
             renderItem={renderItem}
             contentContainerStyle={styles.list}
             keyboardShouldPersistTaps="handled"
+          />
+        )}
+
+        {checkTarget && (
+          <PlaylistCheckModal
+            visible={checkVisible}
+            onClose={() => setCheckVisible(false)}
+            playlistId={checkTarget.id}
+            playlistName={checkTarget.name}
           />
         )}
       </View>
@@ -228,4 +254,16 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowName: { color: COLORS.text, fontSize: 17, fontWeight: '800' },
   rowMeta: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600', marginTop: 2 },
+
+  checkBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkIcon: { fontSize: 18 },
 });
