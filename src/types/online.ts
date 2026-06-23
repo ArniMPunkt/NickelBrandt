@@ -41,6 +41,12 @@ export interface OnlineGameState {
   passedHitster?: string[];
   /** The steal's outcome (caller prediction), or null if no steal happened. */
   stealResult: 'correct' | 'incorrect' | null;
+  /**
+   * True when the steal missed ONLY because the active player was also correct at
+   * an equal-year slot (both slots year-valid). Drives the "Gleiches Jahr, beide
+   * Plätze richtig" reveal message. Optional for backward-compat.
+   */
+  stealEqualYear?: boolean;
   /** Turn rotation order (player_ids, join order). */
   turnOrder: string[];
   cardsToWin: number;

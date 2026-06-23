@@ -75,6 +75,12 @@ export interface LastPlacement {
     insertIndex: number;
     /** Whether the stealer's prediction was correct (they take the card). */
     result: PlacementResult;
+    /**
+     * True when the steal missed ONLY because the active player was also correct
+     * at an equal-year slot (both slots were year-valid). Drives the "Gleiches
+     * Jahr, beide Plätze richtig" reveal message.
+     */
+    equalYear?: boolean;
   };
 }
 

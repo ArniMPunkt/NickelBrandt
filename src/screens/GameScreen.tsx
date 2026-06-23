@@ -357,13 +357,16 @@ export default function GameScreen() {
   if (lastPlacement) {
     if (steal) {
       // steal.result === 'correct' is shown via the Brandt celebration block,
-      // not this bar. Here we only handle the two "steal missed" outcomes.
-      feedbackMsg =
-        steal.result === 'correct'
-          ? `🎯 ${stealerName} hat geklaut — richtig eingeordnet!`
-          : lastPlacement.result === 'correct'
-            ? `${player.name} hatte recht! Die Karte bleibt.`
-            : bothWrongMessage;
+      // not this bar. Here we only handle the "steal missed" outcomes.
+      if (steal.result === 'correct') {
+        feedbackMsg = `🎯 ${stealerName} hat geklaut — richtig eingeordnet!`;
+      } else if (steal.equalYear) {
+        feedbackMsg = `🎵 Gleiches Jahr, beide Plätze richtig – die Karte bleibt bei ${player.name}!`;
+      } else if (lastPlacement.result === 'correct') {
+        feedbackMsg = `${player.name} hatte recht! Die Karte bleibt.`;
+      } else {
+        feedbackMsg = bothWrongMessage;
+      }
     } else {
       feedbackMsg = kept ? '✓  RICHTIG — Karte bleibt' : '✕  FALSCH — Karte abgeworfen';
     }

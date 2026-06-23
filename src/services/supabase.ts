@@ -457,6 +457,7 @@ export async function startGame(
     hitsterCallerId: null,
     passedHitster: [],
     stealResult: null,
+    stealEqualYear: false,
     turnOrder,
     cardsToWin: opts.cardsToWin,
     hideCoverUntilRevealed: opts.hideCoverUntilRevealed,
@@ -491,6 +492,7 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
     hitsterCallerId: null,
     passedHitster: [],
     stealResult: null,
+    stealEqualYear: false,
     lastResult: null,
   });
 }
@@ -557,6 +559,7 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
         phase: won ? 'finished' : 'awaiting_host_confirmation',
         lastResult: correct ? 'correct' : 'incorrect',
         stealResult: null,
+        stealEqualYear: false,
         hitsterCallerId: null,
         winnerId: won ? active.player_id : gs.winnerId,
       } as OnlineGameState,
@@ -655,8 +658,18 @@ export async function resolveHitsterPlacement(
   if (!active || !caller) return;
 
   const card = gs.currentCard;
-  const stealCorrect = isCorrectPlacement(active.timeline, card, insertIndex);
+  // The active player's own placement decides whether a steal is even possible.
   const activeCorrect = isCorrectPlacement(active.timeline, card, gs.pendingInsertIndex);
+  // Whether the caller's slot is year-valid in the active player's timeline.
+  const callerSlotValid = isCorrectPlacement(active.timeline, card, insertIndex);
+  // A steal only succeeds if the active player placed WRONGLY and the caller then
+  // found a year-valid slot. If the active player was already correct, no steal is
+  // possible - even when an equal-year situation leaves a second valid slot for the
+  // caller (that slot is NOT the active player's actual choice).
+  const stealCorrect = !activeCorrect && callerSlotValid;
+  // Equal-year standoff: the steal missed only because the active player was also
+  // correct at an equally-valid slot.
+  const stealEqualYear = activeCorrect && callerSlotValid;
   let winnerId: string | null = gs.winnerId;
 
   // Caller: always -1 Nickel; on success card joins their own timeline + brandt.
@@ -683,13 +696,14 @@ export async function resolveHitsterPlacement(
 
   const won = !!winnerId;
   console.log(
-    `[GameDebug] resolveHitsterPlacement caller=${callerId} stealCorrect=${stealCorrect} activeCorrect=${activeCorrect}`
+    `[GameDebug] resolveHitsterPlacement caller=${callerId} stealCorrect=${stealCorrect} activeCorrect=${activeCorrect} stealEqualYear=${stealEqualYear}`
   );
   await writeGameState(lobbyId, {
     ...gs,
     phase: won ? 'finished' : 'awaiting_host_confirmation',
     lastResult: activeCorrect ? 'correct' : 'incorrect',
     stealResult: stealCorrect ? 'correct' : 'incorrect',
+    stealEqualYear,
     hitsterCallerId: callerId,
     winnerId,
   });
@@ -742,6 +756,7 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
     hitsterCallerId: null,
     passedHitster: [],
     stealResult: null,
+    stealEqualYear: false,
   });
 }
 

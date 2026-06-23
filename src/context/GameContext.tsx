@@ -189,19 +189,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const stealer = state.players.find((p) => p.id === stealerId);
       if (!stealer || stealer.id === active.id) return state;
 
-      // The steal is judged against the ACTIVE player's timeline at the slot the
-      // stealer picked there (stealerInsertIndex is an index into active.timeline).
-      const stealCorrect = isCorrectPlacement(
-        active.timeline,
-        card,
-        stealerInsertIndex
-      );
-      // The active player's own placement only matters if the steal missed.
+      // The active player's own placement decides whether a steal is even possible.
       const activeCorrect = isCorrectPlacement(
         active.timeline,
         card,
         activeInsertIndex
       );
+      // Whether the stealer's slot is year-valid in the active player's timeline.
+      const stealerSlotValid = isCorrectPlacement(
+        active.timeline,
+        card,
+        stealerInsertIndex
+      );
+      // A steal only succeeds if the active player placed WRONGLY and the stealer
+      // then found a year-valid slot. If the active player was already correct, no
+      // steal is possible - even when an equal-year situation leaves a second valid
+      // slot for the stealer (that slot is NOT the active player's actual choice).
+      const stealCorrect = !activeCorrect && stealerSlotValid;
+      // Equal-year standoff: the steal missed only because the active player was
+      // also correct at an equally-valid slot.
+      const stealEqualYear = activeCorrect && stealerSlotValid;
 
       const players = state.players.map((p, i) => {
         if (p.id === stealerId) {
@@ -246,6 +253,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             stealerId,
             insertIndex: stealerInsertIndex,
             result: stealCorrect ? 'correct' : 'incorrect',
+            equalYear: stealEqualYear,
           },
         },
         winner: winner ?? state.winner,

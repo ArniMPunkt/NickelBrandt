@@ -364,8 +364,9 @@ export default function OnlineGameScreen() {
     if (brandtSuccess) {
       resultMsg = `🔥 ${stealerName} hat einen Brandt gemacht!`;
     } else if (steal && steal.result === 'incorrect') {
-      resultMsg =
-        gs.lastResult === 'correct'
+      resultMsg = gs.stealEqualYear
+        ? `🎵 Gleiches Jahr, beide Plätze richtig – die Karte bleibt bei ${activePlayer?.player_name}!`
+        : gs.lastResult === 'correct'
           ? `${activePlayer?.player_name} hatte recht! Die Karte bleibt.`
           : bothWrongMessage;
     } else {
