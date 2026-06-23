@@ -1,16 +1,17 @@
 /**
  * Navigation root.
  *
- * Two themed bottom tabs:
- *  - "Spiel": the Hot-Seat game flow as a Native Stack
- *    (Setup -> Handoff -> Game -> Result), wrapped in GameProvider.
- *  - "Spotify": connect/disconnect screen.
+ * Three themed bottom tabs, each with one clear responsibility:
+ *  - "Hot-Seat": the single-device game flow as a Native Stack
+ *    (Setup -> Intro -> Handoff -> Game -> Result).
+ *  - "Mit Freunden": the online multiplayer flow.
+ *  - "Einstellungen": Spotify connection, game rules, app info, data.
  *
  * Stack headers are hidden - each screen renders its own header/safe area.
  */
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -24,7 +25,7 @@ import IntroScreen from './src/screens/IntroScreen';
 import HandoffScreen from './src/screens/HandoffScreen';
 import GameScreen from './src/screens/GameScreen';
 import ResultScreen from './src/screens/ResultScreen';
-import SpotifyConnectScreen from './src/screens/SpotifyConnectScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import OnlineHomeScreen from './src/screens/OnlineHomeScreen';
 import LobbyScreen from './src/screens/LobbyScreen';
 import OnlineIntroScreen from './src/screens/OnlineIntroScreen';
@@ -32,10 +33,7 @@ import OnlineGameScreen from './src/screens/OnlineGameScreen';
 import { COLORS } from './src/theme/colors';
 import type { GameStackParamList, OnlineStackParamList } from './src/types/navigation';
 
-const SPOTIFY_GREEN = '#1DB954';
-
 const GameStackNav = createNativeStackNavigator<GameStackParamList>();
-const SpotifyStackNav = createNativeStackNavigator();
 const OnlineStackNav = createNativeStackNavigator<OnlineStackParamList>();
 const Tab = createBottomTabNavigator();
 
@@ -57,19 +55,6 @@ function GameStack() {
   );
 }
 
-function SpotifyStack() {
-  return (
-    <SpotifyStackNav.Navigator
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: COLORS.background },
-      }}
-    >
-      <SpotifyStackNav.Screen name="SpotifyConnect" component={SpotifyConnectScreen} />
-    </SpotifyStackNav.Navigator>
-  );
-}
-
 function OnlineStack() {
   return (
     <OnlineStackNav.Navigator
@@ -86,26 +71,17 @@ function OnlineStack() {
   );
 }
 
-/** Emoji glyph tab icon (the label is the primary cue). */
-function GameTabIcon({ focused }: { focused: boolean }) {
-  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🎵</Text>;
+/** Emoji glyph tab icons (the label is the primary cue). */
+function HotSeatTabIcon({ focused }: { focused: boolean }) {
+  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>📱</Text>;
 }
 
-/** Small Spotify-green dot tab icon. */
-function SpotifyTabIcon({ focused }: { focused: boolean }) {
-  return (
-    <View
-      style={[
-        styles.spotifyDot,
-        { opacity: focused ? 1 : 0.6 },
-      ]}
-    />
-  );
+function FriendsTabIcon({ focused }: { focused: boolean }) {
+  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>👥</Text>;
 }
 
-/** Globe emoji tab icon for Online. */
-function OnlineTabIcon({ focused }: { focused: boolean }) {
-  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🌐</Text>;
+function SettingsTabIcon({ focused }: { focused: boolean }) {
+  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>⚙️</Text>;
 }
 
 export default function App() {
@@ -142,19 +118,19 @@ export default function App() {
             }}
           >
             <Tab.Screen
-              name="Spiel"
+              name="Hot-Seat"
               component={GameStack}
-              options={{ tabBarIcon: GameTabIcon }}
+              options={{ tabBarIcon: HotSeatTabIcon }}
             />
             <Tab.Screen
-              name="Online"
+              name="Mit Freunden"
               component={OnlineStack}
-              options={{ tabBarIcon: OnlineTabIcon }}
+              options={{ tabBarIcon: FriendsTabIcon }}
             />
             <Tab.Screen
-              name="Spotify"
-              component={SpotifyStack}
-              options={{ tabBarIcon: SpotifyTabIcon }}
+              name="Einstellungen"
+              component={SettingsScreen}
+              options={{ tabBarIcon: SettingsTabIcon }}
             />
           </Tab.Navigator>
         </NavigationContainer>
@@ -167,10 +143,4 @@ export default function App() {
 
 const styles = StyleSheet.create({
   tabIcon: { fontSize: 20 },
-  spotifyDot: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    backgroundColor: SPOTIFY_GREEN,
-  },
 });

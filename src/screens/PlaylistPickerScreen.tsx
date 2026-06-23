@@ -135,7 +135,7 @@ export function PlaylistPicker({
               </Text>
             </View>
             <Text style={styles.muted}>
-              Nicht verbunden? Verbinde dich im Spotify-Tab oder im ⚙️-Menü.
+              Nicht verbunden? Verbinde dich im Tab „Einstellungen".
             </Text>
             <Pressable style={styles.retryBtn} onPress={load}>
               <Text style={styles.retryText}>Erneut versuchen</Text>

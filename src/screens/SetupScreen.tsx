@@ -5,7 +5,7 @@
  * START_GAME and hand off to the first player. (Spotify must already be
  * connected via the Spotify tab.) UI only - game logic unchanged.
  */
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -16,14 +16,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
 import type { PlaylistSummary } from '../services/spotify';
-import { SettingsGear } from '../components/SettingsModal';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
@@ -47,6 +46,15 @@ export default function SetupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
+  // Spotify Web-API auth gates "Spiel starten". Re-checked on focus, so connecting
+  // in the Einstellungen tab and returning here enables the button automatically.
+  const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isWebApiAuthorized());
+
+  useFocusEffect(
+    useCallback(() => {
+      setSpotifyAuthorized(Spotify.isWebApiAuthorized());
+    }, [])
+  );
 
   const setName = (i: number, value: string) =>
     setNames((prev) => prev.map((n, idx) => (idx === i ? value : n)));
@@ -72,8 +80,8 @@ export default function SetupScreen() {
     }
     if (!Spotify.isReadyToPlay()) {
       setError(
-        'Noch nicht mit Spotify verbunden. Bitte zuerst im Spotify-Tab ' +
-          '"Mit Spotify verbinden".'
+        'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Einstellungen" ' +
+          'mit Spotify verbinden.'
       );
       return;
     }
@@ -190,8 +198,8 @@ export default function SetupScreen() {
       )}
 
       <Text style={styles.rulesNote}>
-        Spielregeln (Karten zum Gewinnen, Varianten, Nickel) findest du im ⚙️-Menü
-        oben rechts.
+        Spielregeln (Karten zum Gewinnen, Varianten, Nickel) findest du im Tab
+        „Einstellungen".
       </Text>
 
       {error && (
@@ -201,9 +209,9 @@ export default function SetupScreen() {
       )}
 
       <Pressable
-        style={[styles.startBtn, loading && styles.startBtnDisabled]}
+        style={[styles.startBtn, (loading || !spotifyAuthorized) && styles.startBtnDisabled]}
         onPress={startGame}
-        disabled={loading}
+        disabled={loading || !spotifyAuthorized}
       >
         {loading ? (
           <ActivityIndicator color={COLORS.background} />
@@ -211,8 +219,12 @@ export default function SetupScreen() {
           <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
         )}
       </Pressable>
+      {!spotifyAuthorized && (
+        <Text style={styles.spotifyGateHint}>
+          Bitte zuerst mit Spotify verbinden (siehe Tab „Einstellungen").
+        </Text>
+      )}
     </ScrollView>
-    <SettingsGear />
     <PlaylistPicker
       visible={pickerVisible}
       onClose={() => setPickerVisible(false)}
@@ -409,11 +421,19 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  startBtnDisabled: { opacity: 0.6 },
+  startBtnDisabled: { opacity: 0.5 },
   startBtnText: {
     color: COLORS.background,
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  spotifyGateHint: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });

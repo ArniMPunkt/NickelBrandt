@@ -171,7 +171,7 @@ export default function LobbyScreen() {
       return;
     }
     if (!Spotify.isReadyToPlay()) {
-      setError('Bitte zuerst im Spotify-Tab verbinden (nur der Host braucht Spotify).');
+      setError('Bitte zuerst im Tab „Einstellungen" mit Spotify verbinden (nur der Host braucht Spotify).');
       return;
     }
     setPickerVisible(true);

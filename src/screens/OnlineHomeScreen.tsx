@@ -2,7 +2,7 @@
  * OnlineHomeScreen - entry point for the Online mode: create or join a lobby.
  * Separate from the Hot-Seat flow. No game logic yet (Etappe 1).
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,10 +12,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
+import * as Spotify from '../services/spotify';
 import { COLORS } from '../theme/colors';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { Lobby } from '../types/online';
@@ -31,8 +32,18 @@ export default function OnlineHomeScreen() {
   const [error, setError] = useState<string | null>(null);
   // "Resume your lobby" suggestion, computed once at app start (initResumableLobby).
   const [resumable, setResumable] = useState<Lobby | null>(Online.getResumableLobby());
+  // Spotify Web-API auth gates ONLY "Lobby erstellen" (the host needs Spotify);
+  // joining a lobby does not. Re-checked on focus so connecting in the
+  // Einstellungen tab and returning enables the button automatically.
+  const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isWebApiAuthorized());
 
   const configured = Online.isSupabaseConfigured();
+
+  useFocusEffect(
+    useCallback(() => {
+      setSpotifyAuthorized(Spotify.isWebApiAuthorized());
+    }, [])
+  );
 
   // Keep in sync with the service holder (it may resolve after first render, and
   // gets cleared on leave/end).
@@ -143,9 +154,9 @@ export default function OnlineHomeScreen() {
       />
 
       <Pressable
-        style={[styles.createBtn, (!configured || busy) && styles.disabled]}
+        style={[styles.createBtn, (!configured || busy || !spotifyAuthorized) && styles.disabled]}
         onPress={createLobby}
-        disabled={!configured || !!busy}
+        disabled={!configured || !!busy || !spotifyAuthorized}
       >
         {busy === 'create' ? (
           <ActivityIndicator color={COLORS.background} />
@@ -153,6 +164,12 @@ export default function OnlineHomeScreen() {
           <Text style={styles.createBtnText}>Lobby erstellen</Text>
         )}
       </Pressable>
+      {configured && !spotifyAuthorized && (
+        <Text style={styles.spotifyGateHint}>
+          Zum Erstellen zuerst mit Spotify verbinden (siehe Tab „Einstellungen"). Zum
+          Beitreten ist das nicht nötig.
+        </Text>
+      )}
 
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
@@ -273,6 +290,13 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   createBtnText: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
+  spotifyGateHint: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    marginTop: 8,
+  },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 12 },
   dividerLine: { flex: 1, height: 2, backgroundColor: COLORS.border, borderRadius: 2 },

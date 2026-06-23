@@ -186,7 +186,7 @@ export async function connect(): Promise<void> {
     }
     if (raw.includes('not authorized')) {
       throw new Error(
-        'Spotify-Berechtigung fehlt. Im Spotify-Tab "Verbindung trennen" und neu ' +
+        'Spotify-Berechtigung fehlt. In den Einstellungen "Verbindung trennen" und neu ' +
           'verbinden, damit die Wiedergabe-Berechtigung erteilt wird.'
       );
     }
@@ -421,7 +421,7 @@ async function getWebApiToken(): Promise<string> {
     if (isWebApiAuthorized()) return webApiToken!;
   }
   throw new Error(
-    'Spotify Web API nicht autorisiert. Bitte zuerst im Spotify-Tab ' +
+    'Spotify Web API nicht autorisiert. Bitte zuerst in den Einstellungen ' +
       '"Mit Spotify verbinden".'
   );
 }
@@ -511,14 +511,14 @@ function buildWebApiError(status: number, context: string, body: string): Error 
       `Spotify Web API 403 (${context}): Zugriff verweigert. Häufigste Ursachen: ` +
         '(1) eine von Spotify erstellte/redaktionelle Playlist (Discover Weekly, ' +
         '"This Is…", Top-Charts) - über die Web API gesperrt; nutze eine selbst ' +
-        'erstellte Playlist. (2) Der Token hat die Playlist-Scopes nicht - im ' +
-        'Spotify-Tab "Verbindung trennen" und neu verbinden. ' +
+        'erstellte Playlist. (2) Der Token hat die Playlist-Scopes nicht - in den ' +
+        'Einstellungen "Verbindung trennen" und neu verbinden. ' +
         `Server-Antwort: ${body}`
     );
   }
   if (status === 401) {
     return new Error(
-      `Spotify Web API 401 (${context}): Token abgelaufen/ungültig. Im Spotify-Tab ` +
+      `Spotify Web API 401 (${context}): Token abgelaufen/ungültig. In den Einstellungen ` +
         `"Verbindung trennen" und neu verbinden. Server-Antwort: ${body}`
     );
   }
