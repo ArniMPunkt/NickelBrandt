@@ -693,11 +693,16 @@ export async function getUserPlaylists(): Promise<PlaylistSummary[]> {
     const items: any[] = data?.items ?? [];
     for (const pl of items) {
       if (!pl || !pl.id) continue;
+      // Track count container: the Feb/Mar-2026 API migration renamed the
+      // playlist-items container `tracks`->`items` (verified: `tracks` is now
+      // undefined, `items.total` holds the count). `tracks.total` is kept as a
+      // cheap guard in case Spotify reverts/varies the field again.
+      const trackCount = pl.items?.total ?? pl.tracks?.total ?? 0;
       out.push({
         id: pl.id,
         name: pl.name ?? 'Unbenannte Playlist',
         imageUrl: pl.images?.[0]?.url ?? null,
-        trackCount: pl.tracks?.total ?? 0,
+        trackCount,
         ownerName: pl.owner?.display_name ?? '',
       });
     }

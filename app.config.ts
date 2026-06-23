@@ -28,14 +28,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.nickelbrandt.app',
+    icon: './assets/icon.png',
   },
   android: {
     package: 'com.nickelbrandt.app',
     adaptiveIcon: {
-      backgroundColor: '#E6F4FE',
-      foregroundImage: './assets/android-icon-foreground.png',
-      backgroundImage: './assets/android-icon-background.png',
-      monochromeImage: './assets/android-icon-monochrome.png',
+      // Solid logo-purple background behind the masked foreground. NOTE: a
+      // backgroundImage would override backgroundColor, so it is intentionally
+      // omitted here (was ./assets/android-icon-background.png).
+      foregroundImage: './assets/icon.png',
+      backgroundColor: '#1A0F3C',
     },
     predictiveBackGestureEnabled: false,
   },
