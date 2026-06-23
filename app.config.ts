@@ -36,7 +36,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       // Solid logo-purple background behind the masked foreground. NOTE: a
       // backgroundImage would override backgroundColor, so it is intentionally
       // omitted here (was ./assets/android-icon-background.png).
-      foregroundImage: './assets/icon.png',
+      //
+      // Android-specific foreground with ~19% safe-zone padding so launcher
+      // masks (circle/squircle/square) don't clip the logo. iOS / the top-level
+      // icon keep ./assets/icon.png, which doesn't need this extra padding.
+      foregroundImage: './assets/icon-android-final.png',
       backgroundColor: '#1A0F3C',
     },
     predictiveBackGestureEnabled: false,
