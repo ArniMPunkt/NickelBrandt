@@ -386,6 +386,29 @@ async function insertPoolSongs(supabase, rows) {
 async function main() {
   loadEnv(path.join(__dirname, '.env'));
 
+  // TEMP DIAGNOSTIC (remove after the key/grant issue is resolved). Verifies the
+  // service-role key arrives WITHOUT ever printing it in full.
+  {
+    const k = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const fmt = k.startsWith('sb_secret_')
+      ? 'NEW secret key (service_role)'
+      : k.startsWith('sb_publishable_')
+        ? 'NEW publishable key (anon — WRONG kind!)'
+        : k.startsWith('eyJ')
+          ? 'legacy JWT'
+          : '(empty / unknown)';
+    console.log(`[KeyDiag] service key: len=${k.length} prefix=${JSON.stringify(k.slice(0, 12))} format=${fmt}`);
+    if (k.startsWith('eyJ')) {
+      try {
+        const seg = k.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+        const role = JSON.parse(Buffer.from(seg, 'base64').toString()).role;
+        console.log(`[KeyDiag] JWT role claim = ${role}${role === 'service_role' ? ' ✓' : ' ✗ (needs service_role)'}`);
+      } catch {
+        console.log('[KeyDiag] could not decode JWT payload');
+      }
+    }
+  }
+
   const [csvPath, poolName, poolDesc] = process.argv.slice(2);
   if (!csvPath || !poolName) {
     console.error(
