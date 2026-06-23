@@ -356,13 +356,13 @@ export default function OnlineGameScreen() {
     ? { id: gs.hitsterCallerId, result: gs.stealResult }
     : null;
   const stealerName = steal ? players.find((p) => p.player_id === steal.id)?.player_name : undefined;
-  const brandtSuccess = !!steal && steal.result === 'correct';
-  const kept = brandtSuccess || (!brandtSuccess && gs.lastResult === 'correct');
+  const stealSuccess = !!steal && steal.result === 'correct';
+  const kept = stealSuccess || (!stealSuccess && gs.lastResult === 'correct');
 
   let resultMsg = '';
   if (isRevealed) {
-    if (brandtSuccess) {
-      resultMsg = `🔥 ${stealerName} hat einen Brandt gemacht!`;
+    if (stealSuccess) {
+      resultMsg = `🎯 ${stealerName} hat geklaut!`;
     } else if (steal && steal.result === 'incorrect') {
       resultMsg = gs.stealEqualYear
         ? `🎵 Gleiches Jahr, beide Plätze richtig – die Karte bleibt bei ${activePlayer?.player_name}!`
@@ -393,7 +393,7 @@ export default function OnlineGameScreen() {
                 {p.player_name}
               </Text>
               <Text style={styles.scoreVal}>
-                {p.score} Pkt · 🔥 {p.brandts_count}
+                {p.score} Pkt · 🔥 {p.max_brandt_streak}er-Streak
               </Text>
             </View>
           ))}
@@ -476,11 +476,11 @@ export default function OnlineGameScreen() {
       {isRevealed && !!resultMsg && (
         <View
           style={[
-            brandtSuccess ? styles.brandtBox : styles.feedback,
-            !brandtSuccess && { backgroundColor: kept ? COLORS.correct : COLORS.incorrect },
+            stealSuccess ? styles.brandtBox : styles.feedback,
+            !stealSuccess && { backgroundColor: kept ? COLORS.correct : COLORS.incorrect },
           ]}
         >
-          <Text style={brandtSuccess ? styles.brandtText : styles.feedbackText}>{resultMsg}</Text>
+          <Text style={stealSuccess ? styles.brandtText : styles.feedbackText}>{resultMsg}</Text>
         </View>
       )}
 

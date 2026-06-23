@@ -439,7 +439,7 @@ export async function startGame(
   for (let i = 0; i < players.length; i++) {
     const { error } = await supabase
       .from('lobby_players')
-      .update({ timeline: [shuffled[i]], score: 0, chips: 2, brandts_count: 0 })
+      .update({ timeline: [shuffled[i]], score: 0, chips: 2, current_streak: 0, max_brandt_streak: 0 })
       .eq('id', players[i].id);
     if (error) throw new Error(`Startkarte konnte nicht verteilt werden: ${error.message}`);
   }
@@ -573,12 +573,18 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
     console.log('[GameDebug] closeHitsterWindow: lost to a caller, steal proceeds');
     return;
   }
+  // Update the active player's Brandt streak (+1 if correct, reset to 0 otherwise)
+  // and, when correct, their timeline + score.
+  const streak = correct ? active.current_streak + 1 : 0;
+  const activeUpdate: Record<string, unknown> = {
+    current_streak: streak,
+    max_brandt_streak: Math.max(active.max_brandt_streak, streak),
+  };
   if (correct) {
-    await supabase
-      .from('lobby_players')
-      .update({ timeline: insertAt(active.timeline, card, idx), score: newScore })
-      .eq('id', active.id);
+    activeUpdate.timeline = insertAt(active.timeline, card, idx);
+    activeUpdate.score = newScore;
   }
+  await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
   if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
 }
 
@@ -640,8 +646,9 @@ async function checkHitsterWindowComplete(lobbyId: string): Promise<void> {
 /**
  * The Hitster caller picks a slot in the ACTIVE player's timeline. Correctness is
  * judged against the active player's timeline + the caller's slot (same logic as
- * hot-seat). Success: card -> caller's OWN sorted timeline + score + brandt, -1
- * Nickel. Miss: -1 Nickel, then the active player's own placement is evaluated.
+ * hot-seat). Success: card -> caller's OWN sorted timeline + score, -1 Nickel.
+ * Miss: -1 Nickel, then the active player's own placement is evaluated. A steal
+ * never affects the Brandt hot-streak (only own active-turn placements do).
  */
 export async function resolveHitsterPlacement(
   lobbyId: string,
@@ -672,27 +679,33 @@ export async function resolveHitsterPlacement(
   const stealEqualYear = activeCorrect && callerSlotValid;
   let winnerId: string | null = gs.winnerId;
 
-  // Caller: always -1 Nickel; on success card joins their own timeline + brandt.
+  // Caller: always -1 Nickel; on success the card joins their own timeline. A
+  // steal does NOT touch the caller's Brandt streak.
   const callerUpdate: Record<string, unknown> = { chips: Math.max(0, caller.chips - 1) };
   if (stealCorrect) {
     const idx = sortedInsertIndex(caller.timeline, card.year);
     const newScore = caller.score + 1;
     callerUpdate.timeline = insertAt(caller.timeline, card, idx);
     callerUpdate.score = newScore;
-    callerUpdate.brandts_count = caller.brandts_count + 1;
     if (newScore >= gs.cardsToWin) winnerId = caller.player_id;
   }
   await supabase.from('lobby_players').update(callerUpdate).eq('id', caller.id);
 
-  // Active player keeps the card only if the steal missed AND they were correct.
-  if (!stealCorrect && activeCorrect) {
+  // Active player's OWN placement drives their Brandt streak (+1 if correct, reset
+  // to 0 otherwise), regardless of the steal. They keep the card only when correct
+  // (a steal can't succeed when the active player was correct).
+  const activeStreak = activeCorrect ? active.current_streak + 1 : 0;
+  const activeUpdate: Record<string, unknown> = {
+    current_streak: activeStreak,
+    max_brandt_streak: Math.max(active.max_brandt_streak, activeStreak),
+  };
+  if (activeCorrect) {
     const newScore = active.score + 1;
-    await supabase
-      .from('lobby_players')
-      .update({ timeline: insertAt(active.timeline, card, gs.pendingInsertIndex), score: newScore })
-      .eq('id', active.id);
+    activeUpdate.timeline = insertAt(active.timeline, card, gs.pendingInsertIndex);
+    activeUpdate.score = newScore;
     if (newScore >= gs.cardsToWin) winnerId = active.player_id;
   }
+  await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
 
   const won = !!winnerId;
   console.log(

@@ -101,7 +101,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         timeline: [deck[i]],
         score: 0,
         chips: 2, // start with 2 Nickel (Hitster-style)
-        brandtsCount: 0,
+        currentStreak: 0,
+        maxBrandtStreak: 0,
       }));
       const remaining = deck.slice(playerNames.length);
 
@@ -146,10 +147,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         : player.timeline;
       const newScore = correct ? player.score + 1 : player.score;
 
+      // "Brandt" hot-streak: consecutive correct OWN placements (this is the
+      // player's own turn). +1 on correct, reset to 0 on a miss; track the peak.
+      const newStreak = correct ? player.currentStreak + 1 : 0;
+      const newMaxStreak = Math.max(player.maxBrandtStreak, newStreak);
+
       const updatedPlayer: Player = {
         ...player,
         timeline: newTimeline,
         score: newScore,
+        currentStreak: newStreak,
+        maxBrandtStreak: newMaxStreak,
       };
       const players = state.players.map((p, i) =>
         i === playerIndex ? updatedPlayer : p
@@ -214,7 +222,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         if (p.id === stealerId) {
           // The chip is always spent. On success the card joins THEIR timeline at
           // the position that keeps their own timeline sorted (computed fresh -
-          // stealerInsertIndex referred to the active player's timeline).
+          // stealerInsertIndex referred to the active player's timeline). A steal
+          // does NOT touch the stealer's Brandt streak (that only tracks their own
+          // active-turn placements).
           const chips = Math.max(0, p.chips - 1);
           if (stealCorrect) {
             return {
@@ -222,18 +232,27 @@ function gameReducer(state: GameState, action: GameAction): GameState {
               chips,
               timeline: insertAt(p.timeline, card, sortedInsertIndex(p.timeline, card.year)),
               score: p.score + 1,
-              brandtsCount: p.brandtsCount + 1, // successful steal = a "Brandt"
             };
           }
           return { ...p, chips };
         }
-        if (i === activeIndex && !stealCorrect && activeCorrect) {
-          // Steal missed and the active player had placed correctly -> they keep it.
-          return {
-            ...p,
-            timeline: insertAt(p.timeline, card, activeInsertIndex),
-            score: p.score + 1,
-          };
+        if (i === activeIndex) {
+          // The active player's OWN placement drives their Brandt streak, whether
+          // or not a steal happened: +1 if they were correct, reset to 0 if not.
+          const activeStreak = activeCorrect ? p.currentStreak + 1 : 0;
+          const activeMax = Math.max(p.maxBrandtStreak, activeStreak);
+          if (activeCorrect) {
+            // A steal can't succeed when the active player was correct, so they
+            // keep the card here.
+            return {
+              ...p,
+              timeline: insertAt(p.timeline, card, activeInsertIndex),
+              score: p.score + 1,
+              currentStreak: activeStreak,
+              maxBrandtStreak: activeMax,
+            };
+          }
+          return { ...p, currentStreak: activeStreak, maxBrandtStreak: activeMax };
         }
         return p;
       });

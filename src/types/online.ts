@@ -73,5 +73,8 @@ export interface LobbyPlayer {
   timeline: GameCard[];
   score: number;
   chips: number;
-  brandts_count: number;
+  /** Running count of consecutive correct OWN placements (resets on a miss). */
+  current_streak: number;
+  /** "Brandt": best hot-streak of correct own placements this game (not steals). */
+  max_brandt_streak: number;
 }

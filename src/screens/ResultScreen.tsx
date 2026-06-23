@@ -158,8 +158,8 @@ export default function ResultScreen() {
                 {p.name}
               </Text>
               <View style={styles.playerStats}>
-                {p.brandtsCount > 0 && (
-                  <Text style={styles.brandtBadge}>🔥 x{p.brandtsCount}</Text>
+                {p.maxBrandtStreak > 0 && (
+                  <Text style={styles.brandtBadge}>🔥 {p.maxBrandtStreak}er-Streak</Text>
                 )}
                 <Text style={styles.playerScore}>{p.score} Pkt.</Text>
               </View>

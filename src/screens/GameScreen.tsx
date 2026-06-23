@@ -242,7 +242,7 @@ export default function GameScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastPlacement]);
 
-  // "Brandt" celebration: flame pops in on a successful steal.
+  // Steal celebration: the marker pops in on a successful steal.
   useEffect(() => {
     if (lastPlacement?.steal?.result !== 'correct') return;
     brandtAnim.setValue(0);
@@ -356,7 +356,7 @@ export default function GameScreen() {
   let feedbackMsg = '';
   if (lastPlacement) {
     if (steal) {
-      // steal.result === 'correct' is shown via the Brandt celebration block,
+      // steal.result === 'correct' is shown via the steal celebration block,
       // not this bar. Here we only handle the "steal missed" outcomes.
       if (steal.result === 'correct') {
         feedbackMsg = `🎯 ${stealerName} hat geklaut — richtig eingeordnet!`;
@@ -378,7 +378,7 @@ export default function GameScreen() {
   const shakeX = cardShake.interpolate({ inputRange: [-1, 1], outputRange: [-10, 10] });
   const barWidth = barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
-  const brandtSuccess = steal?.result === 'correct';
+  const stealSuccess = steal?.result === 'correct';
   const brandtScale = brandtAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
   const brandtRotate = brandtAnim.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] });
   const brandtTranslateY = brandtAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
@@ -443,7 +443,7 @@ export default function GameScreen() {
       {/* ---------- REVEALED ---------- */}
       {isRevealed && (
         <>
-          {brandtSuccess ? (
+          {stealSuccess ? (
             <View style={styles.brandtBox}>
               <Animated.Text
                 style={[
@@ -458,10 +458,10 @@ export default function GameScreen() {
                   },
                 ]}
               >
-                🔥
+                🎯
               </Animated.Text>
               <Text style={styles.brandtText}>
-                {stealerName} hat einen Brandt gemacht! 🔥
+                {stealerName} hat geklaut! 🎯
               </Text>
             </View>
           ) : (

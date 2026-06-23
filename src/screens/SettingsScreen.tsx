@@ -208,8 +208,9 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <Text style={styles.infoRow}>Version {APP_VERSION}</Text>
         <Text style={styles.about}>
-          NickelBrandt — Musik-Party-Spiel. Errate das Jahr, sammle Nickel und mach einen
-          Brandt, indem du Karten von Mitspielern klaust.
+          NickelBrandt — Musik-Party-Spiel. Errate das Jahr, sammle Nickel und klau dir
+          Karten von Mitspielern. Platziere mehrere Karten in Folge richtig für einen Brandt
+          (Hot-Streak).
         </Text>
       </View>
 

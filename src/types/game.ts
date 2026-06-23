@@ -37,8 +37,13 @@ export interface Player {
   score: number;
   /** Earned chips ("Nickel"). Max 5. Start: 2 (Hitster-style). */
   chips: number;
-  /** Number of successful steals ("Brandt"). Start: 0. */
-  brandtsCount: number;
+  /** Running count of consecutive correct OWN placements (resets on a miss). */
+  currentStreak: number;
+  /**
+   * "Brandt": the highest currentStreak reached this game (best hot-streak of
+   * correct own placements). Per-game only; not affected by steals. Start: 0.
+   */
+  maxBrandtStreak: number;
 }
 
 export type GamePhase = 'setup' | 'playing' | 'result';
