@@ -9,7 +9,7 @@
  * animation is the active dot morphing its width with the scroll position - no
  * parallax, fades, or rotation.
  */
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Pressable,
@@ -26,13 +26,29 @@ export const ONBOARDING_KEY = '@nickelbrandt/onboarding_seen';
 
 type Slide = {
   accent: string;
-  glyph: string;
+  /** Emoji glyph for the illustration, OR a custom `illustration` node. */
+  glyph?: string;
+  illustration?: ReactNode;
   eyebrow: string;
   headline: string;
   /** Render the headline as the pink-glow "NickelBrandt" wordmark. */
   wordmark?: boolean;
   body: string;
 };
+
+/** Two simple phone silhouettes (no app-grid detail), clearly separated + staggered. */
+function TwoPhones({ color }: { color: string }) {
+  return (
+    <View style={styles.phonesRow}>
+      <View style={[styles.phone, { borderColor: color, transform: [{ translateY: 7 }] }]}>
+        <View style={[styles.phoneSpeaker, { backgroundColor: color }]} />
+      </View>
+      <View style={[styles.phone, { borderColor: color, transform: [{ translateY: -7 }] }]}>
+        <View style={[styles.phoneSpeaker, { backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
 
 const SLIDES: Slide[] = [
   {
@@ -48,7 +64,7 @@ const SLIDES: Slide[] = [
   },
   {
     accent: COLORS.secondary,
-    glyph: '📱  📱',
+    illustration: <TwoPhones color={COLORS.secondary} />,
     eyebrow: 'ZWEI MODI',
     headline: 'Zusammen spielen',
     body:
@@ -117,7 +133,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
                 { borderColor: slide.accent, shadowColor: slide.accent },
               ]}
             >
-              <Text style={styles.glyph}>{slide.glyph}</Text>
+              {slide.illustration ?? <Text style={styles.glyph}>{slide.glyph}</Text>}
             </View>
 
             <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
@@ -189,6 +205,18 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   glyph: { fontSize: 60 },
+
+  phonesRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  phone: {
+    width: 32,
+    height: 58,
+    borderRadius: 9,
+    borderWidth: 2.5,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    paddingTop: 5,
+  },
+  phoneSpeaker: { width: 11, height: 3, borderRadius: 2 },
 
   eyebrow: {
     fontSize: 13,
