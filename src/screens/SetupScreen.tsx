@@ -23,6 +23,7 @@ import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
 import { loadDeckSource, sourceId, type DeckSource } from '../services/deck';
+import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
@@ -95,7 +96,7 @@ export default function SetupScreen() {
         );
         return;
       }
-      const deck = Spotify.shuffleDeck(tracks);
+      const deck = shuffle(tracks);
       dispatch({
         type: 'START_GAME',
         payload: {

@@ -30,6 +30,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
+import { STEAL_WINDOW_MS } from '../game/constants';
 import { COLORS } from '../theme/colors';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
 import type { OnlineStackParamList } from '../types/navigation';
@@ -37,7 +38,6 @@ import type { OnlineStackParamList } from '../types/navigation';
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineGame'>;
 type GameRoute = RouteProp<OnlineStackParamList, 'OnlineGame'>;
 
-const STEAL_WINDOW_MS = 8000;
 const STEAL_GRACE_MS = 700;
 
 function TimelineStrip({

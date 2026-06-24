@@ -12,22 +12,7 @@ import {
   type GameState,
   type Player,
 } from '../types/game';
-
-/** Insert a card into a sorted timeline at the given slot (pure). */
-function insertAt(timeline: GameCard[], card: GameCard, index: number): GameCard[] {
-  return [...timeline.slice(0, index), card, ...timeline.slice(index)];
-}
-
-/**
- * The slot at which `year` keeps a sorted (ascending) timeline sorted. Used to
- * place a stolen card into the stealer's own timeline (their chosen slot was an
- * index into the ACTIVE player's timeline, so it can't be reused here).
- */
-function sortedInsertIndex(timeline: GameCard[], year: number): number {
-  let i = 0;
-  while (i < timeline.length && timeline[i].year <= year) i++;
-  return i;
-}
+import { insertAt, sortedInsertIndex } from '../game/cards';
 
 // ---------------------------------------------------------------------------
 // Pure placement logic

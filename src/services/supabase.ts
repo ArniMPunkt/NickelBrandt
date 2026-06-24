@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
+import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
 import { MAX_CHIPS } from '../types/game';
 import type { GameCard, Lobby, LobbyPlayer, OnlineGameState, SongPool } from '../types/online';
 
@@ -431,19 +432,6 @@ export async function getPoolSongs(poolId: string): Promise<GameCard[]> {
 //    Postgres function / migration is required for this.
 // ---------------------------------------------------------------------------
 
-function shuffle<T>(arr: T[]): T[] {
-  const out = arr.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-function insertAt<T>(arr: T[], item: T, index: number): T[] {
-  return [...arr.slice(0, index), item, ...arr.slice(index)];
-}
-
 export async function getLobby(lobbyId: string): Promise<Lobby> {
   const { data, error } = await supabase
     .from('lobbies')
@@ -518,13 +506,6 @@ export async function startGame(
     .update({ game_state: gameState, status: 'playing' })
     .eq('id', lobbyId);
   if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
-}
-
-/** The slot at which `year` keeps a sorted (ascending) timeline sorted. */
-function sortedInsertIndex(timeline: GameCard[], year: number): number {
-  let i = 0;
-  while (i < timeline.length && timeline[i].year <= year) i++;
-  return i;
 }
 
 /**

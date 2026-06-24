@@ -25,6 +25,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
+import { STEAL_WINDOW_MS } from '../game/constants';
 import { COLORS } from '../theme/colors';
 import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../types/game';
 import type { GameStackParamList } from '../types/navigation';
@@ -37,7 +38,6 @@ type LocalPhase =
   | 'stealSelect'
   | 'stealPlace';
 
-const STEAL_WINDOW_MS = 5000;
 const STEAL_GRACE_MS = 700;
 
 function yearRange(timeline: GameCard[]): string {

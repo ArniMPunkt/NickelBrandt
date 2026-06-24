@@ -28,9 +28,10 @@ import type { GameCard } from '../types/game';
 
 const MB_BASE = 'https://musicbrainz.org/ws/2';
 
-// REQUIRED by MusicBrainz. PLACEHOLDER: replace the contact below with your own
-// email / project URL before sharing builds.
-const USER_AGENT = 'NickelBrandt/1.0 ( kontakt@beispiel.de )';
+// REQUIRED by MusicBrainz: app name + version + a reachable contact (URL or email).
+// TODO(contact): the GitHub URL identifies the project; swap in a contact email
+// you actually monitor before any public/wider release.
+const USER_AGENT = 'NickelBrandt/1.0 ( https://github.com/ArniMPunkt/NickelBrandt )';
 
 // Default "significant deviation" threshold (years). Adjustable.
 export const YEAR_DIFF_THRESHOLD = 2;

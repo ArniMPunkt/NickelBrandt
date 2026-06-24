@@ -1,13 +1,10 @@
 /**
- * Thin wrapper around react-native-spotify-remote for the technical spike.
+ * Spotify integration: App Remote playback (react-native-spotify-remote) +
+ * Web API access via a PKCE token (playlists, display name).
  *
- * Auth strategy: backend-less TOKEN flow (no tokenSwapURL / tokenRefreshURL).
- * `auth.authorize` returns a session with a ~1h access token, which is enough to
- * connect the App Remote, control playback, and call the Spotify Web API.
- *
- * Track metadata: title/artist come from the Remote PlayerState, but release
- * year and album cover URL are not in the Remote SDK, so we fetch them from the
- * Web API (GET /v1/tracks/{id}) using the same access token.
+ * Playback connects app-to-app via connectWithoutAuth() (Android ignores the
+ * token arg). Web API reads use a separate PKCE token (expo-auth-session),
+ * persisted in SecureStore. No backend.
  */
 // IMPORTANT: do NOT import react-native-spotify-remote at the top level.
 //
@@ -23,8 +20,6 @@ import { NativeModules } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
-import type { ApiConfig } from 'react-native-spotify-remote';
-import type { TrackMeta } from '../types/spotify';
 import type { GameCard } from '../types/game';
 
 // Lets expo-auth-session finish the redirect when the browser returns.
@@ -73,15 +68,6 @@ function getSDK(): typeof import('react-native-spotify-remote') {
   return sdk!;
 }
 
-/** True if the native SDK is loaded and ready to authorize. */
-export function isSdkReady(): boolean {
-  try {
-    return !!getSDK().auth;
-  } catch {
-    return false;
-  }
-}
-
 /** Lazily resolve the auth singleton, guarding against an uninitialized SDK. */
 function getAuth() {
   const auth = getSDK().auth;
@@ -99,32 +85,6 @@ function getRemote() {
 const CLIENT_ID = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? '';
 const REDIRECT_URL = process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI ?? '';
 
-const spotifyConfig: ApiConfig = {
-  clientID: CLIENT_ID,
-  redirectURL: REDIRECT_URL,
-  // TOKEN = one-time login, no backend token swap needed (Android honours this).
-  authType: 'TOKEN',
-  // IMPORTANT: the Android native module reads this with ReadableMap.getBoolean(),
-  // which throws NoSuchKeyException (a hard native crash, NOT a catchable promise
-  // rejection) if the key is absent. Always pass it explicitly.
-  showDialog: false,
-  // Scopes must cover both Web API playlist reads (otherwise getPlaylistTracks
-  // returns 403) and playback. Plain string literals (equal to the ApiScope enum
-  // values) so we don't need a runtime import of the SDK here - see the lazy
-  // require note above. app-remote-control is kept because the App Remote
-  // connection (playUri etc.) requires it; the rest fix the playlist 403.
-  scopes: [
-    'playlist-read-private',
-    'playlist-read-collaborative',
-    'streaming',
-    'user-read-playback-state',
-    'user-modify-playback-state',
-    'app-remote-control',
-  ] as unknown as ApiConfig['scopes'],
-};
-
-/** In-memory access token from the most recent authorize() call. */
-let accessToken: string | null = null;
 /** True once we have authorized AND connected the App Remote at least once. */
 let connected = false;
 /** Track ids already used this session, so the deck never repeats a track. */
@@ -195,16 +155,6 @@ export async function connect(): Promise<void> {
     }
     throw e;
   }
-
-  // --- Legacy fallback (deprecated implicit/TOKEN flow) ----------------------
-  // If a device's Spotify app is too old to support connectWithoutAuth, the
-  // previous path was (kept here for reference; Spotify is deprecating TOKEN):
-  //
-  //   const session = await getAuth().authorize(spotifyConfig);
-  //   accessToken = session.accessToken;
-  //   await getRemote().connect(session.accessToken);
-  //   connected = true;
-  //   await ensureWebApiAuthorized();
 }
 
 /**
@@ -217,7 +167,6 @@ export async function disconnect(): Promise<void> {
   try {
     await getAuth().endSession();
   } finally {
-    accessToken = null;
     connected = false;
     // Also drop the PKCE Web-API token (memory + encrypted storage) so a
     // reconnect re-authorizes cleanly.
@@ -451,59 +400,6 @@ export function pause(): Promise<void> {
   return getRemote().pause();
 }
 
-export function resume(): Promise<void> {
-  return getRemote().resume();
-}
-
-/** Whether playback is currently paused (from the live player state). */
-export async function isPaused(): Promise<boolean> {
-  const state = await getRemote().getPlayerState();
-  return state.isPaused;
-}
-
-/**
- * Subscribe to player state changes (used to keep the play/pause button in sync).
- * Returns an unsubscribe function.
- */
-export function onPlayerStateChanged(
-  cb: (isPausedNow: boolean) => void
-): () => void {
-  const handler = (state: { isPaused: boolean }) => cb(state.isPaused);
-  getRemote().addListener('playerStateChanged', handler);
-  return () => {
-    getRemote().removeListener('playerStateChanged', handler);
-  };
-}
-
-/** Extract the bare track id from "spotify:track:<id>" or a raw id. */
-function trackIdFromUri(uriOrId: string): string {
-  const parts = uriOrId.split(':');
-  return parts[parts.length - 1];
-}
-
-/**
- * The access token to use for Web API calls.
- *
- * Source of truth is the SDK's live session (getAuth().getSession()), i.e. the
- * EXACT same token the App Remote was connected with. We fall back to the token
- * captured during connect(). This guarantees Web API and playback never use a
- * different/stale token.
- */
-async function getApiToken(): Promise<string> {
-  try {
-    const session = await getAuth().getSession();
-    if (session?.accessToken) {
-      accessToken = session.accessToken;
-    }
-  } catch {
-    // getSession may be unavailable before connect(); fall back to cached token.
-  }
-  if (!accessToken) {
-    throw new Error('Not authorized yet - connect to Spotify first.');
-  }
-  return accessToken;
-}
-
 /** Build a readable error from an already-read Web API response body. */
 function buildWebApiError(status: number, context: string, body: string): Error {
   if (status === 403) {
@@ -531,61 +427,13 @@ async function webApiError(res: Response, context: string): Promise<Error> {
   return buildWebApiError(res.status, context, body);
 }
 
-/**
- * Fetch title / artist / release year / cover URL for a track via the Web API.
- * Requires a prior connect() so we have an access token.
- */
-export async function getTrackMeta(uriOrId: string): Promise<TrackMeta> {
-  const token = await getApiToken();
-  const id = trackIdFromUri(uriOrId);
-  const res = await fetch(`https://api.spotify.com/v1/tracks/${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    throw await webApiError(res, 'track');
-  }
-  const data = await res.json();
-  const releaseDate: string = data?.album?.release_date ?? '';
-  const images: Array<{ url: string }> = data?.album?.images ?? [];
-  return {
-    title: data?.name ?? 'Unknown',
-    artist: data?.artists?.[0]?.name ?? 'Unknown',
-    // Spotify returns "YYYY", "YYYY-MM" or "YYYY-MM-DD" - take the year.
-    year: releaseDate.substring(0, 4),
-    coverUrl: images[0]?.url,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Game helpers
 // ---------------------------------------------------------------------------
 
-/** True if authorize()+connect() has already succeeded this session. */
-export function isConnected(): boolean {
-  return connected;
-}
-
-/**
- * Authorize + connect the App Remote only if not already connected.
- * Safe to call before loading a playlist / starting a game.
- */
-export async function ensureConnected(): Promise<void> {
-  if (connected) return;
-  await connect();
-}
-
 /** Mark a track as played so it is not offered again (cross-game dedup). */
 export function markTrackPlayed(trackId: string): void {
   playedTrackIds.add(trackId);
-}
-
-export function isTrackPlayed(trackId: string): boolean {
-  return playedTrackIds.has(trackId);
-}
-
-/** Clear the played-track history (e.g. when explicitly starting fresh). */
-export function resetPlayedTracks(): void {
-  playedTrackIds.clear();
 }
 
 /**
@@ -707,16 +555,6 @@ export async function getUserPlaylists(): Promise<PlaylistSummary[]> {
       });
     }
     if (items.length < PAGE || !data?.next) break;
-  }
-  return out;
-}
-
-/** Fisher-Yates shuffle returning a new array (does not mutate the input). */
-export function shuffleDeck<T>(tracks: T[]): T[] {
-  const out = tracks.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
 }

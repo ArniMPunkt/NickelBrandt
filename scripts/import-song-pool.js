@@ -215,8 +215,8 @@ async function spotifySearch(title, artist) {
 // MusicBrainz year verification — slim copy of src/services/musicbrainz.ts
 // ===========================================================================
 const MB_BASE = 'https://musicbrainz.org/ws/2';
-// REQUIRED by MusicBrainz. Replace the contact with your own before heavy use.
-const MB_USER_AGENT = 'NickelBrandt-PoolImport/1.0 ( kontakt@beispiel.de )';
+// TODO(contact): swap the GitHub URL for a monitored contact email before wider use.
+const MB_USER_AGENT = 'NickelBrandt-PoolImport/1.0 ( https://github.com/ArniMPunkt/NickelBrandt )';
 const MB_WINDOW_MS = 18000;
 const MB_MAX_PER_WINDOW = 13; // ~13% under the official 15/18s
 const MB_CONCURRENCY = 5;
