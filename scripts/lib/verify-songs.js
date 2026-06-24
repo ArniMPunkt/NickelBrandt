@@ -47,26 +47,42 @@ async function fetchWithTimeout(url, opts = {}, ms = HTTP_TIMEOUT_MS) {
 }
 
 const MAX_RETRIES = 5; // attempts on HTTP 429 before giving up on this request
-const DEFAULT_RETRY_AFTER_S = 5; // wait if a 429 has no Retry-After header
+const DEFAULT_RETRY_AFTER_S = 5; // wait if a 429 has no / unparseable Retry-After
+const MAX_RETRY_WAIT_S = 60; // hard upper bound per wait, regardless of the header
+
+/**
+ * Turn a raw Retry-After header into a sane wait (seconds). Retry-After is a
+ * count of SECONDS; a non-numeric value (e.g. an HTTP-date) or missing header
+ * falls back to the default. The result is CAPPED at MAX_RETRY_WAIT_S so a bogus
+ * or punitive header value can never cause an hours-long wait.
+ * Returns { waitS, reported, capped }.
+ */
+function computeRetryWaitS(rawHeader) {
+  const parsed = parseInt(rawHeader || '', 10);
+  const reported = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_RETRY_AFTER_S;
+  const capped = reported > MAX_RETRY_WAIT_S;
+  return { waitS: capped ? MAX_RETRY_WAIT_S : reported, reported, capped };
+}
 
 /**
  * fetch() with timeout AND automatic retry on HTTP 429 (Too Many Requests):
- * reads Retry-After, waits, retries up to MAX_RETRIES. Returns the Response for
- * any non-429 status (incl. 401/4xx/5xx — the caller decides). After MAX_RETRIES
- * of 429s it throws an Error with `.rateLimited = true` so the caller can mark
- * just THIS item as failed and continue. `label` is used in the wait log;
- * `onRetry()` fires once per wait (so callers can count "needed a retry").
+ * reads Retry-After (capped), waits, retries up to MAX_RETRIES. Returns the
+ * Response for any non-429 status (incl. 401/4xx/5xx — the caller decides). After
+ * MAX_RETRIES of 429s it throws an Error with `.rateLimited = true` so the caller
+ * can mark just THIS item as failed and continue. `label` is used in the wait
+ * log; `onRetry()` fires once per wait (so callers can count "needed a retry").
  */
 async function fetchWithRetry(url, opts = {}, { label = '', onRetry } = {}) {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const res = await fetchWithTimeout(url, opts);
     if (res.status !== 429) return res;
-    const raRaw = parseInt(res.headers.get('retry-after') || '', 10);
-    const waitS = Number.isFinite(raRaw) && raRaw >= 0 ? raRaw : DEFAULT_RETRY_AFTER_S;
+    const rawHeader = res.headers.get('retry-after');
+    const { waitS, reported, capped } = computeRetryWaitS(rawHeader);
     if (attempt >= MAX_RETRIES) break;
     if (onRetry) onRetry(attempt, waitS);
+    const note = capped ? ` (Spotify nennt ${reported}s, begrenze auf ${MAX_RETRY_WAIT_S}s)` : '';
     console.log(
-      `[429] ${label || url}: Rate-Limit – warte ${waitS}s, dann erneut (Versuch ${attempt}/${MAX_RETRIES})…`
+      `[429] ${label || url}: Rate-Limit – Retry-After roh="${rawHeader}" → warte ${waitS}s${note}, dann erneut (Versuch ${attempt}/${MAX_RETRIES})…`
     );
     await sleep(waitS * 1000);
   }
@@ -391,4 +407,4 @@ async function verifySongs(inputs, opts = {}) {
   return { results, stats };
 }
 
-module.exports = { readInputCsv, spotifySearch, mbVerifyYears, verifySongs };
+module.exports = { readInputCsv, spotifySearch, mbVerifyYears, verifySongs, computeRetryWaitS };
