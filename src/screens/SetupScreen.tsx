@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
-import type { PlaylistSummary } from '../services/spotify';
+import { loadDeckSource, sourceId, type DeckSource } from '../services/deck';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
@@ -40,7 +40,7 @@ export default function SetupScreen() {
   const { settings } = useSettings();
 
   const [names, setNames] = useState<string[]>(['', '']);
-  const [playlist, setPlaylist] = useState<PlaylistSummary | null>(null);
+  const [source, setSource] = useState<DeckSource | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [checkVisible, setCheckVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -74,8 +74,8 @@ export default function SetupScreen() {
       setError('Bitte für jeden Spieler einen Namen eingeben.');
       return;
     }
-    if (!playlist) {
-      setError('Bitte eine Playlist auswählen.');
+    if (!source) {
+      setError('Bitte eine Playlist oder einen Themen-Pool auswählen.');
       return;
     }
     if (!Spotify.isReadyToPlay()) {
@@ -88,10 +88,10 @@ export default function SetupScreen() {
 
     setLoading(true);
     try {
-      const tracks = await Spotify.getPlaylistTracks(playlist.id);
+      const tracks = await loadDeckSource(source);
       if (tracks.length < trimmed.length + 1) {
         setError(
-          `Playlist hat nur ${tracks.length} verwendbare Tracks - zu wenige für ${trimmed.length} Spieler.`
+          `${source.kind === 'pool' ? 'Pool' : 'Playlist'} hat nur ${tracks.length} verwendbare Tracks - zu wenige für ${trimmed.length} Spieler.`
         );
         return;
       }
@@ -102,7 +102,7 @@ export default function SetupScreen() {
           playerNames: trimmed,
           settings: {
             cardsToWin: settings.cardsToWin,
-            playlistId: playlist.id,
+            playlistId: sourceId(source),
             hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
             chipsEnabled: settings.chipsEnabled,
           },
@@ -162,23 +162,23 @@ export default function SetupScreen() {
         </Pressable>
       )}
 
-      <Text style={styles.label}>PLAYLIST</Text>
-      {playlist ? (
+      <Text style={styles.label}>MUSIK</Text>
+      {source ? (
         <View style={styles.selectedCard}>
-          {playlist.imageUrl ? (
-            <Image source={{ uri: playlist.imageUrl }} style={styles.selectedCover} />
+          {source.kind === 'playlist' && source.playlist.imageUrl ? (
+            <Image source={{ uri: source.playlist.imageUrl }} style={styles.selectedCover} />
           ) : (
             <View style={[styles.selectedCover, styles.selectedCoverFallback]}>
-              <Text style={styles.selectedGlyph}>💿</Text>
+              <Text style={styles.selectedGlyph}>{source.kind === 'pool' ? '🎵' : '💿'}</Text>
             </View>
           )}
           <View style={styles.selectedText}>
             <Text style={styles.selectedLabel}>Ausgewählt</Text>
             <Text style={styles.selectedName} numberOfLines={1}>
-              {playlist.name}
+              {source.kind === 'playlist' ? source.playlist.name : source.pool.name}
             </Text>
             <Text style={styles.selectedMeta} numberOfLines={1}>
-              {playlist.trackCount} Songs
+              {source.kind === 'playlist' ? `${source.playlist.trackCount} Songs` : 'Themen-Pool'}
             </Text>
           </View>
           <Pressable style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
@@ -186,14 +186,14 @@ export default function SetupScreen() {
           </Pressable>
         </View>
       ) : null}
-      {playlist && (
+      {source?.kind === 'playlist' && (
         <Pressable style={styles.checkBtn} onPress={() => setCheckVisible(true)}>
           <Text style={styles.checkBtnText}>🔍 Playlist prüfen (Jahre)</Text>
         </Pressable>
       )}
-      {!playlist && (
+      {!source && (
         <Pressable style={styles.pickBtn} onPress={() => setPickerVisible(true)}>
-          <Text style={styles.pickBtnText}>Playlist auswählen 🎵</Text>
+          <Text style={styles.pickBtnText}>Playlist oder Pool wählen 🎵</Text>
         </Pressable>
       )}
 
@@ -228,17 +228,17 @@ export default function SetupScreen() {
     <PlaylistPicker
       visible={pickerVisible}
       onClose={() => setPickerVisible(false)}
-      onSelect={(p) => {
-        setPlaylist(p);
+      onSelect={(s) => {
+        setSource(s);
         setError(null);
       }}
     />
-    {playlist && (
+    {source?.kind === 'playlist' && (
       <PlaylistCheckModal
         visible={checkVisible}
         onClose={() => setCheckVisible(false)}
-        playlistId={playlist.id}
-        playlistName={playlist.name}
+        playlistId={source.playlist.id}
+        playlistName={source.playlist.name}
       />
     )}
    </View>

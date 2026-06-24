@@ -63,6 +63,14 @@ export interface Lobby {
   game_state: OnlineGameState | null;
 }
 
+/** A pre-made themed song pool (reference data in Supabase, read-only for the app). */
+export interface SongPool {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
+
 export interface LobbyPlayer {
   id: string;
   lobby_id: string;

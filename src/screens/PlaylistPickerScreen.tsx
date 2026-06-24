@@ -1,7 +1,8 @@
 /**
- * PlaylistPicker - a modal that lists the connected user's Spotify playlists and
- * returns the chosen one. Uses Spotify.getUserPlaylists() (existing PKCE token);
- * no new auth flow. Client-side name search; loading / error / empty states.
+ * PlaylistPicker - a modal to choose the game's song source: either a connected
+ * Spotify playlist OR a pre-made themed song pool (segmented control at the top).
+ * Returns a DeckSource. Used by both Hot-Seat (SetupScreen) and Online (LobbyScreen).
+ * Client-side name search; loading / error / empty states per mode.
  */
 import { useCallback, useState } from 'react';
 import {
@@ -17,9 +18,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
+import * as Online from '../services/supabase';
 import type { PlaylistSummary } from '../services/spotify';
+import type { SongPool } from '../types/online';
+import type { DeckSource } from '../services/deck';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
+
+type Mode = 'playlist' | 'pool';
 
 export function PlaylistPicker({
   visible,
@@ -28,22 +34,25 @@ export function PlaylistPicker({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSelect: (playlist: PlaylistSummary) => void;
+  onSelect: (source: DeckSource) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<Mode>('playlist');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
+  const [pools, setPools] = useState<SongPool[]>([]);
   const [query, setQuery] = useState('');
   // The "Playlist prüfen" check can be opened for ANY row without selecting it.
   const [checkTarget, setCheckTarget] = useState<PlaylistSummary | null>(null);
   const [checkVisible, setCheckVisible] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (m: Mode) => {
     setLoading(true);
     setError(null);
     try {
-      setPlaylists(await Spotify.getUserPlaylists());
+      if (m === 'playlist') setPlaylists(await Spotify.getUserPlaylists());
+      else setPools(await Online.getSongPools());
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
@@ -51,13 +60,23 @@ export function PlaylistPicker({
     }
   }, []);
 
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? playlists.filter((p) => p.name.toLowerCase().includes(q))
-    : playlists;
+  const switchMode = (m: Mode) => {
+    if (m === mode) return;
+    setMode(m);
+    setQuery('');
+    load(m);
+  };
 
-  const choose = (p: PlaylistSummary) => {
-    onSelect(p);
+  const q = query.trim().toLowerCase();
+  const filteredPlaylists = q ? playlists.filter((p) => p.name.toLowerCase().includes(q)) : playlists;
+  const filteredPools = q ? pools.filter((p) => p.name.toLowerCase().includes(q)) : pools;
+
+  const choosePlaylist = (p: PlaylistSummary) => {
+    onSelect({ kind: 'playlist', playlist: p });
+    onClose();
+  };
+  const choosePool = (p: SongPool) => {
+    onSelect({ kind: 'pool', pool: p });
     onClose();
   };
 
@@ -66,8 +85,8 @@ export function PlaylistPicker({
     setCheckVisible(true);
   };
 
-  const renderItem = ({ item }: { item: PlaylistSummary }) => (
-    <Pressable style={styles.row} onPress={() => choose(item)}>
+  const renderPlaylist = ({ item }: { item: PlaylistSummary }) => (
+    <Pressable style={styles.row} onPress={() => choosePlaylist(item)}>
       {item.imageUrl ? (
         <Image source={{ uri: item.imageUrl }} style={styles.cover} />
       ) : (
@@ -84,15 +103,110 @@ export function PlaylistPicker({
         </Text>
       </View>
       {/* Separate tap target: opens the year check WITHOUT selecting the row. */}
-      <Pressable
-        style={styles.checkBtn}
-        onPress={() => openCheck(item)}
-        hitSlop={8}
-      >
+      <Pressable style={styles.checkBtn} onPress={() => openCheck(item)} hitSlop={8}>
         <Text style={styles.checkIcon}>🔍</Text>
       </Pressable>
     </Pressable>
   );
+
+  const renderPool = ({ item }: { item: SongPool }) => (
+    <Pressable style={styles.row} onPress={() => choosePool(item)}>
+      <View style={[styles.cover, styles.coverFallback]}>
+        <Text style={styles.coverGlyph}>🎵</Text>
+      </View>
+      <View style={styles.rowText}>
+        <Text style={styles.rowName} numberOfLines={1}>
+          {item.name}
+        </Text>
+        {!!item.description && (
+          <Text style={styles.rowMeta} numberOfLines={2}>
+            {item.description}
+          </Text>
+        )}
+      </View>
+    </Pressable>
+  );
+
+  const renderList = () => {
+    if (loading) {
+      return (
+        <View style={styles.centered}>
+          <ActivityIndicator color={COLORS.secondary} size="large" />
+          <Text style={styles.muted}>{mode === 'playlist' ? 'Lade deine Playlists…' : 'Lade Themen-Pools…'}</Text>
+        </View>
+      );
+    }
+    if (error) {
+      return (
+        <View style={styles.centered}>
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText} selectable>
+              {error}
+            </Text>
+          </View>
+          {mode === 'playlist' && (
+            <Text style={styles.muted}>Nicht verbunden? Verbinde dich im Tab „Einstellungen".</Text>
+          )}
+          <Pressable style={styles.retryBtn} onPress={() => load(mode)}>
+            <Text style={styles.retryText}>Erneut versuchen</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (mode === 'playlist') {
+      if (playlists.length === 0) {
+        return (
+          <View style={styles.centered}>
+            <Text style={styles.emptyGlyph}>💿</Text>
+            <Text style={styles.muted}>
+              Keine Playlists gefunden. Erstelle eine in Spotify und versuche es erneut.
+            </Text>
+          </View>
+        );
+      }
+      if (filteredPlaylists.length === 0) {
+        return (
+          <View style={styles.centered}>
+            <Text style={styles.muted}>Keine Playlist passt zu „{query}".</Text>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={filteredPlaylists}
+          keyExtractor={(item) => item.id}
+          renderItem={renderPlaylist}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+        />
+      );
+    }
+    // pool mode
+    if (pools.length === 0) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.emptyGlyph}>🎵</Text>
+          <Text style={styles.muted}>Keine Themen-Pools verfügbar.</Text>
+        </View>
+      );
+    }
+    if (filteredPools.length === 0) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.muted}>Kein Pool passt zu „{query}".</Text>
+        </View>
+      );
+    }
+    return (
+      <FlatList
+        data={filteredPools}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPool}
+        contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+      />
+    );
+  };
 
   return (
     <Modal
@@ -100,21 +214,42 @@ export function PlaylistPicker({
       animationType="slide"
       onRequestClose={onClose}
       onShow={() => {
+        setMode('playlist');
         setQuery('');
-        load();
+        load('playlist');
       }}
     >
       <View style={[styles.modal, { paddingTop: insets.top + 8 }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Playlist wählen</Text>
+          <Text style={styles.title}>Songs wählen</Text>
           <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={12}>
             <Text style={styles.closeText}>✕</Text>
           </Pressable>
         </View>
 
+        {/* Segmented control: Spotify playlist vs. themed pool */}
+        <View style={styles.segment}>
+          <Pressable
+            style={[styles.segmentBtn, mode === 'playlist' && styles.segmentBtnActive]}
+            onPress={() => switchMode('playlist')}
+          >
+            <Text style={[styles.segmentText, mode === 'playlist' && styles.segmentTextActive]}>
+              Spotify-Playlist
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.segmentBtn, mode === 'pool' && styles.segmentBtnActive]}
+            onPress={() => switchMode('pool')}
+          >
+            <Text style={[styles.segmentText, mode === 'pool' && styles.segmentTextActive]}>
+              Themen-Pool
+            </Text>
+          </Pressable>
+        </View>
+
         <TextInput
           style={styles.search}
-          placeholder="Playlist suchen…"
+          placeholder={mode === 'playlist' ? 'Playlist suchen…' : 'Pool suchen…'}
           placeholderTextColor={COLORS.textMuted}
           value={query}
           onChangeText={setQuery}
@@ -122,45 +257,7 @@ export function PlaylistPicker({
           autoCorrect={false}
         />
 
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={COLORS.secondary} size="large" />
-            <Text style={styles.muted}>Lade deine Playlists…</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.centered}>
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText} selectable>
-                {error}
-              </Text>
-            </View>
-            <Text style={styles.muted}>
-              Nicht verbunden? Verbinde dich im Tab „Einstellungen".
-            </Text>
-            <Pressable style={styles.retryBtn} onPress={load}>
-              <Text style={styles.retryText}>Erneut versuchen</Text>
-            </Pressable>
-          </View>
-        ) : playlists.length === 0 ? (
-          <View style={styles.centered}>
-            <Text style={styles.emptyGlyph}>💿</Text>
-            <Text style={styles.muted}>
-              Keine Playlists gefunden. Erstelle eine in Spotify und versuche es erneut.
-            </Text>
-          </View>
-        ) : filtered.length === 0 ? (
-          <View style={styles.centered}>
-            <Text style={styles.muted}>Keine Playlist passt zu „{query}".</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            keyboardShouldPersistTaps="handled"
-          />
-        )}
+        {renderList()}
 
         {checkTarget && (
           <PlaylistCheckModal
@@ -194,6 +291,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeText: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
+
+  segment: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 10,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 4,
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentBtnActive: { backgroundColor: COLORS.secondary },
+  segmentText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '800' },
+  segmentTextActive: { color: COLORS.background },
 
   search: {
     marginHorizontal: 20,

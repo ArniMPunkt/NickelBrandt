@@ -1,6 +1,13 @@
 /**
  * NickelBrandt — one-off song-pool import / verification script.
  *
+ * ⚠️ DEPRECATED / DO NOT USE FOR NEW POOLS. This single-pass script verifies AND
+ * writes to the DB in one go, which proved too unsafe (wrong years slipped in
+ * before they could be reviewed). It is superseded by the two-stage process:
+ *   1) scripts/precheck-song-pool.js  -> verify only, write a local review CSV
+ *   2) scripts/upload-song-pool.js    -> upload the reviewed CSV to the DB
+ * Kept here only for reference. Use the two scripts above instead.
+ *
  * Takes a CSV of rough song suggestions, verifies each against Spotify (does the
  * track exist? what is its id + ISRC?), re-checks the real release year against
  * MusicBrainz, and writes the verified rows into Supabase (song_pools +

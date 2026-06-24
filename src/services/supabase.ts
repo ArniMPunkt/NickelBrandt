@@ -17,7 +17,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
 import { MAX_CHIPS } from '../types/game';
-import type { GameCard, Lobby, LobbyPlayer, OnlineGameState } from '../types/online';
+import type { GameCard, Lobby, LobbyPlayer, OnlineGameState, SongPool } from '../types/online';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -367,6 +367,55 @@ export function subscribeToLobbyPlayers(
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+// --- Themed song pools (pre-made reference data) ----------------------------
+// Read-only for the app via the anon key (migration 004 grants SELECT to anon).
+// Used as an alternative deck source to a Spotify playlist (Hot-Seat + Online).
+
+/** Fetch the list of available themed song pools (name + description only). */
+export async function getSongPools(): Promise<SongPool[]> {
+  const { data, error } = await supabase
+    .from('song_pools')
+    .select('id, name, description, created_at')
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`Themen-Pools konnten nicht geladen werden: ${error.message}`);
+  console.log(`[LobbyDebug] getSongPools -> ${(data ?? []).length} pools`);
+  return (data ?? []) as SongPool[];
+}
+
+/**
+ * Load all songs of a pool as GameCards (to be shuffled like a playlist deck).
+ * Uses the verified release_year directly (no runtime MusicBrainz). Cover art is
+ * not stored in the pool, so coverUrl is left undefined (the UI shows a fallback).
+ */
+export async function getPoolSongs(poolId: string): Promise<GameCard[]> {
+  const { data, error } = await supabase
+    .from('pool_songs')
+    .select('title, artist, spotify_track_id, release_year, isrc')
+    .eq('pool_id', poolId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`Pool-Songs konnten nicht geladen werden: ${error.message}`);
+  const rows = (data ?? []) as Array<{
+    title: string;
+    artist: string;
+    spotify_track_id: string;
+    release_year: number;
+    isrc: string | null;
+  }>;
+  console.log(`[LobbyDebug] getPoolSongs pool=${poolId} -> ${rows.length} songs`);
+  return rows.map((r) => {
+    const uri = `spotify:track:${r.spotify_track_id}`;
+    return {
+      id: uri,
+      trackUri: uri,
+      title: r.title,
+      artist: r.artist,
+      year: r.release_year,
+      coverUrl: undefined,
+      isrc: r.isrc ?? undefined,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------

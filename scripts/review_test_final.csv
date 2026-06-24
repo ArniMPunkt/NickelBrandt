@@ -1,0 +1,20 @@
+title,artist,csv_year,mb_year,mb_year_source,diff,spotify_track_id,spotify_match_name,spotify_match_artist,isrc,spotify_found,final_year
+Ice Ice Baby,Vanilla Ice,1990,2008,musicbrainz,18,3XVozq1aeqsJwpXrEZrDJ9,Ice Ice Baby,Vanilla Ice,USA560845821,true,1990
+Macarena,Los Del Rio,1996,1993,musicbrainz,3,6mhw2fEPH4fMF0wolNm96e,Macarena,Los Del Rio,ES5109500538,true,1996
+One Sweet Day,Mariah Carey,1992,1995,musicbrainz,3,7ySbfLwdCwl1EM0zNCJZ38,One Sweet Day,Mariah Carey,USSM19501117,true,1995
+All Star,Smash Mouth,1999,1997,musicbrainz,2,3cfOd4CMv2snFaKAnMdnvK,All Star,Smash Mouth,USIR19902220,true,1997
+Y.M.C.A.,Village People,1978,1979,musicbrainz,1,2MtwLMtwLU17payh5C4fYG,Y.M.C.A,Village People,KSA012262491,true,1979
+Billie Jean,Michael Jackson,1983,1982,musicbrainz,1,7J1uxwnxfQLu4APicE5Rnj,Billie Jean,Michael Jackson,USSM19902991,true,1982
+Take On Me,a-ha,1985,1984,musicbrainz,1,2WfaOiMkCvy7F5fcp2zZ8L,Take on Me,a-ha,USWB19901214,true,1984
+Material Girl,Madonna,1985,1984,musicbrainz,1,7bkyXSi4GtVfD7itZRUR3e,Material Girl,Madonna,USWB10002746,true,1984
+Walk Like an Egyptian,The Bangles,1986,1985,musicbrainz,1,1Jwc3ODLQxtbnS8M9TflSP,Walk Like an Egyptian,The Bangles,USSM18500592,true,1985
+Push It,Salt-N-Pepa,1987,1986,musicbrainz,1,6sT9MWlJManry3EQwf4V80,Push It,Salt-N-Pepa,USIR20180482,true,1986
+Eternal Flame,The Bangles,1989,1988,musicbrainz,1,5MoDQWMDMaAGDEiWsJfeCi,Eternal Flame,The Bangles,USSM18800153,true,1988
+Black Velvet,Alannah Myles,1990,1989,musicbrainz,1,1KU5EHSz04JhGg3rReGJ0N,Black Velvet,Alannah Myles,USAT20103053,true,1989
+Under the Bridge,Red Hot Chili Peppers,1992,1991,musicbrainz,1,3d9DChrdc6BOeFsbrZ3Is0,Under the Bridge,Red Hot Chili Peppers,USWB19901576,true,1991
+Creep,Radiohead,1993,1992,musicbrainz,1,70LcF31zb1H0PyJoS1Sx1r,Creep,Radiohead,GBAYE9200070,true,1992
+The Sign,Ace of Base,1994,1993,musicbrainz,1,0hrBpAOgrt8RXigk83LLNE,The Sign,Ace of Base,SEVJH0803404,true,1993
+Don't Speak,No Doubt,1996,1995,musicbrainz,1,6urCAbunOQI4bLhmGpX7iS,Don't Speak,No Doubt,USIR19500279,true,1995
+My Heart Will Go On,Celine Dion,1997,1996,musicbrainz,1,33LC84JgLvK2KuW43MfaNq,"My Heart Will Go On - Love Theme from ""Titanic""",Céline Dion,CAC229700120,true,1996
+Bohemian Rhapsody,Queen,1975,1975,musicbrainz,0,3z8h0TU7ReDPLIbEnYhWZb,Bohemian Rhapsody,Queen,GBUM71029604,true,1975
+Dancing Queen,ABBA,1976,1976,musicbrainz,0,0GjEhVFGZW8afUYGChu3Rr,Dancing Queen,ABBA,SEAYD7601020,true,1976

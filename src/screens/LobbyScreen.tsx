@@ -24,7 +24,7 @@ import { PlaylistPicker } from './PlaylistPickerScreen';
 import { COLORS } from '../theme/colors';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { LobbyPlayer } from '../types/online';
-import type { PlaylistSummary } from '../services/spotify';
+import { loadDeckSource, type DeckSource } from '../services/deck';
 
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'Lobby'>;
 type LobbyRoute = RouteProp<OnlineStackParamList, 'Lobby'>;
@@ -177,11 +177,11 @@ export default function LobbyScreen() {
     setPickerVisible(true);
   };
 
-  const onPlaylistChosen = async (playlist: PlaylistSummary) => {
+  const onSourceChosen = async (source: DeckSource) => {
     setStarting(true);
     setError(null);
     try {
-      const cards = await Spotify.getPlaylistTracks(playlist.id);
+      const cards = await loadDeckSource(source);
       await Online.startGame(lobbyId, cards, {
         cardsToWin: settings.cardsToWin,
         hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
@@ -259,7 +259,7 @@ export default function LobbyScreen() {
       <PlaylistPicker
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
-        onSelect={onPlaylistChosen}
+        onSelect={onSourceChosen}
       />
     </ScrollView>
   );
