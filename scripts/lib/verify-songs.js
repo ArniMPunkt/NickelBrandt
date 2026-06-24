@@ -49,6 +49,10 @@ async function fetchWithTimeout(url, opts = {}, ms = HTTP_TIMEOUT_MS) {
 const MAX_RETRIES = 5; // attempts on HTTP 429 before giving up on this request
 const DEFAULT_RETRY_AFTER_S = 5; // wait if a 429 has no / unparseable Retry-After
 const MAX_RETRY_WAIT_S = 60; // hard upper bound per wait, regardless of the header
+// A Retry-After above this is not a transient burst limit but a multi-minute/hour
+// COOLDOWN penalty. Retrying every 60s would grind for ages, so we abort the whole
+// run immediately instead. Normal transient 429s are ~1-30s.
+const PENALTY_RETRY_AFTER_S = 120;
 
 /**
  * Turn a raw Retry-After header into a sane wait (seconds). Retry-After is a
@@ -78,6 +82,16 @@ async function fetchWithRetry(url, opts = {}, { label = '', onRetry } = {}) {
     if (res.status !== 429) return res;
     const rawHeader = res.headers.get('retry-after');
     const { waitS, reported, capped } = computeRetryWaitS(rawHeader);
+    // Penalty-level Retry-After -> a real cooldown. Don't retry for ages; abort.
+    if (reported > PENALTY_RETRY_AFTER_S) {
+      const e = new Error(
+        `Spotify-Cooldown aktiv (Retry-After ${reported}s ≈ ${Math.round(reported / 60)} min). ` +
+          'Das ist kein Code-Fehler – bitte später erneut versuchen.'
+      );
+      e.penalty = true;
+      e.retryAfterS = reported;
+      throw e;
+    }
     if (attempt >= MAX_RETRIES) break;
     if (onRetry) onRetry(attempt, waitS);
     const note = capped ? ` (Spotify nennt ${reported}s, begrenze auf ${MAX_RETRY_WAIT_S}s)` : '';
@@ -361,6 +375,7 @@ async function verifySongs(inputs, opts = {}) {
         },
       });
     } catch (e) {
+      if (e && e.penalty) throw e; // hard cooldown -> abort the whole run
       err = e;
     }
     if (retriedThisSong) stats.retried += 1;
@@ -407,4 +422,11 @@ async function verifySongs(inputs, opts = {}) {
   return { results, stats };
 }
 
-module.exports = { readInputCsv, spotifySearch, mbVerifyYears, verifySongs, computeRetryWaitS };
+module.exports = {
+  readInputCsv,
+  spotifySearch,
+  mbVerifyYears,
+  verifySongs,
+  computeRetryWaitS,
+  fetchWithRetry,
+};

@@ -53,16 +53,30 @@ async function main() {
   const inputs = readInputCsv(inputCsv);
   console.log(`\nLoaded ${inputs.length} song suggestion(s) from ${inputCsv}\n`);
 
-  const { results, stats } = await verifySongs(inputs, {
-    onSpotify: (i, total, row, r) => {
-      const status = r.spotifyFound
-        ? `ok -> ${r.spName} — ${r.spArtist}`
-        : r.failed
-          ? 'FEHLGESCHLAGEN (Anfrage, nach Retries)'
-          : 'NOT FOUND';
-      console.log(`Spotify ${i}/${total}: ${row.title} — ${row.artist} … ${status}`);
-    },
-  });
+  let verifyOut;
+  try {
+    verifyOut = await verifySongs(inputs, {
+      onSpotify: (i, total, row, r) => {
+        const status = r.spotifyFound
+          ? `ok -> ${r.spName} — ${r.spArtist}`
+          : r.failed
+            ? 'FEHLGESCHLAGEN (Anfrage, nach Retries)'
+            : 'NOT FOUND';
+        console.log(`Spotify ${i}/${total}: ${row.title} — ${row.artist} … ${status}`);
+      },
+    });
+  } catch (e) {
+    if (e && e.penalty) {
+      console.error(`\n⛔ ${e.message}`);
+      console.error(
+        'Es wurde KEINE Review-CSV geschrieben. Prüfe mit "node scripts/check-spotify-token.js", ' +
+          'ob der Cooldown vorbei ist, und starte dann erneut.'
+      );
+      process.exit(1);
+    }
+    throw e;
+  }
+  const { results, stats } = verifyOut;
   console.log(`\nVerified release years via MusicBrainz. Building review CSV…`);
 
   // Build review rows + a numeric sort key.
