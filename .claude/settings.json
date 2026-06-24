@@ -6,7 +6,9 @@
       "Write",
       "Edit",
       "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1)",
-      "PowerShell(npx expo install expo-splash-screen 2>&1)"
+      "PowerShell(npx expo install expo-splash-screen 2>&1)",
+      "PowerShell(npx expo install @react-native-async-storage/async-storage 2>&1)",
+      "PowerShell(node -e \"console.log\\('async-storage', require\\('./node_modules/@react-native-async-storage/async-storage/package.json'\\).version\\)\")"
     ],
     "deny": [
       "Bash(rm -rf /*)",

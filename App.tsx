@@ -9,17 +9,19 @@
  *
  * Stack headers are hidden - each screen renders its own header/safe area.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GameProvider } from './src/context/GameContext';
 import { SettingsProvider } from './src/context/SettingsContext';
 import { initSpotifyAuth } from './src/services/spotify';
 import { initPlayerId, initResumableLobby } from './src/services/supabase';
+import OnboardingScreen, { ONBOARDING_KEY } from './src/screens/OnboardingScreen';
 import SetupScreen from './src/screens/SetupScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import HandoffScreen from './src/screens/HandoffScreen';
@@ -85,6 +87,10 @@ function SettingsTabIcon({ focused }: { focused: boolean }) {
 }
 
 export default function App() {
+  // null = still reading the flag; show a plain background (matches the splash) to
+  // avoid a flash before we know whether to show onboarding.
+  const [onboardingSeen, setOnboardingSeen] = useState<boolean | null>(null);
+
   // Load persisted Spotify tokens + online player id from encrypted storage, then
   // check whether the last active lobby is still resumable (player id must be
   // loaded first, so this runs after initPlayerId).
@@ -94,12 +100,21 @@ export default function App() {
       await initPlayerId().catch(() => {});
       await initResumableLobby().catch(() => {});
     })();
+    // First-launch onboarding flag (fail open to the app on any storage error).
+    AsyncStorage.getItem(ONBOARDING_KEY)
+      .then((v) => setOnboardingSeen(v === '1'))
+      .catch(() => setOnboardingSeen(true));
   }, []);
 
   return (
     <SafeAreaProvider>
       <SettingsProvider>
       <GameProvider>
+        {onboardingSeen === null ? (
+          <View style={styles.loading} />
+        ) : !onboardingSeen ? (
+          <OnboardingScreen onDone={() => setOnboardingSeen(true)} />
+        ) : (
         <NavigationContainer>
           <Tab.Navigator
             screenOptions={{
@@ -134,6 +149,7 @@ export default function App() {
             />
           </Tab.Navigator>
         </NavigationContainer>
+        )}
       </GameProvider>
       </SettingsProvider>
       <StatusBar style="light" />
@@ -143,4 +159,5 @@ export default function App() {
 
 const styles = StyleSheet.create({
   tabIcon: { fontSize: 20 },
+  loading: { flex: 1, backgroundColor: COLORS.background },
 });
