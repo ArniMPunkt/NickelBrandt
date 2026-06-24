@@ -17,7 +17,63 @@ if (typeof fetch === 'undefined') {
   process.exit(1);
 }
 
+// Prefer IPv4 first. A common cause of `fetch()` hanging on the very first
+// connection is the host resolving to an IPv6 address that can't be routed;
+// undici then waits a very long time. This makes connects reliable.
+try {
+  require('dns').setDefaultResultOrder('ipv4first');
+} catch {
+  // older Node without the API -> ignore
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const HTTP_TIMEOUT_MS = 20000;
+
+/** fetch() with a hard timeout, so a stalled request fails loudly instead of hanging. */
+async function fetchWithTimeout(url, opts = {}, ms = HTTP_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      throw new Error(`HTTP request timed out after ${ms}ms: ${url}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const MAX_RETRIES = 5; // attempts on HTTP 429 before giving up on this request
+const DEFAULT_RETRY_AFTER_S = 5; // wait if a 429 has no Retry-After header
+
+/**
+ * fetch() with timeout AND automatic retry on HTTP 429 (Too Many Requests):
+ * reads Retry-After, waits, retries up to MAX_RETRIES. Returns the Response for
+ * any non-429 status (incl. 401/4xx/5xx — the caller decides). After MAX_RETRIES
+ * of 429s it throws an Error with `.rateLimited = true` so the caller can mark
+ * just THIS item as failed and continue. `label` is used in the wait log;
+ * `onRetry()` fires once per wait (so callers can count "needed a retry").
+ */
+async function fetchWithRetry(url, opts = {}, { label = '', onRetry } = {}) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetchWithTimeout(url, opts);
+    if (res.status !== 429) return res;
+    const raRaw = parseInt(res.headers.get('retry-after') || '', 10);
+    const waitS = Number.isFinite(raRaw) && raRaw >= 0 ? raRaw : DEFAULT_RETRY_AFTER_S;
+    if (attempt >= MAX_RETRIES) break;
+    if (onRetry) onRetry(attempt, waitS);
+    console.log(
+      `[429] ${label || url}: Rate-Limit – warte ${waitS}s, dann erneut (Versuch ${attempt}/${MAX_RETRIES})…`
+    );
+    await sleep(waitS * 1000);
+  }
+  const e = new Error(`Rate-limit (429) nach ${MAX_RETRIES} Versuchen: ${label || url}`);
+  e.rateLimited = true;
+  throw e;
+}
 
 // ---------------------------------------------------------------------------
 // Input CSV (title,artist,estimated_year)
@@ -58,21 +114,28 @@ function readInputCsv(csvPath, fs = require('fs')) {
 // ===========================================================================
 // Spotify — Client Credentials flow (server-to-server, no user login)
 // ===========================================================================
-const SPOTIFY_STAGGER_MS = 150;
+// ~4 requests/s. Spotify's limit is a rolling ~30s window; a slower stagger
+// reduces how often we hit 429 on 200+ song lists (the retry wrapper covers the
+// rest). The extra time is modest (~1s per 4 songs).
+const SPOTIFY_STAGGER_MS = 250;
 
 let _tok = { value: null, exp: 0 };
 async function getSpotifyToken() {
   if (_tok.value && Date.now() < _tok.exp - 60000) return _tok.value;
   const id = need('SPOTIFY_CLIENT_ID');
   const secret = need('SPOTIFY_CLIENT_SECRET');
-  const res = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
+  const res = await fetchWithRetry(
+    'https://accounts.spotify.com/api/token',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
     },
-    body: 'grant_type=client_credentials',
-  });
+    { label: 'Token-Abruf' }
+  );
   if (!res.ok) throw new Error(`Spotify token request failed ${res.status}: ${await res.text()}`);
   const data = await res.json();
   _tok = { value: data.access_token, exp: Date.now() + (data.expires_in ?? 3600) * 1000 };
@@ -81,27 +144,31 @@ async function getSpotifyToken() {
 
 const spotifyClean = (s) => s.replace(/"/g, ' ').trim();
 
-/** Search a track by title + artist; returns the top match object or null. */
-async function spotifySearch(title, artist) {
+/**
+ * Search a track by title + artist; returns the top match object or null.
+ * 429s are handled by fetchWithRetry; the small outer loop only handles a 401
+ * (expired token -> refresh once). `onRetry` is forwarded so the caller can count
+ * songs that needed a rate-limit wait. Throws (with .rateLimited) if 429 persists.
+ */
+async function spotifySearch(title, artist, { onRetry } = {}) {
   const q = `track:"${spotifyClean(title)}" artist:"${spotifyClean(artist)}"`;
   const url = `https://api.spotify.com/v1/search?type=track&limit=5&q=${encodeURIComponent(q)}`;
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const token = await getSpotifyToken();
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetchWithRetry(
+      url,
+      { headers: { Authorization: `Bearer ${token}` } },
+      { label: `${title} — ${artist}`, onRetry }
+    );
     if (res.status === 401) {
-      _tok = { value: null, exp: 0 };
-      continue;
-    }
-    if (res.status === 429) {
-      const ra = parseInt(res.headers.get('retry-after') || '2', 10);
-      await sleep((ra + 1) * 1000);
+      _tok = { value: null, exp: 0 }; // expired -> refresh + retry once
       continue;
     }
     if (!res.ok) throw new Error(`Spotify search failed ${res.status}: ${await res.text()}`);
     const data = await res.json();
     return (data?.tracks?.items ?? [])[0] ?? null;
   }
-  throw new Error('Spotify search failed after retries (rate limit / auth).');
+  throw new Error('Spotify search failed (401 after token refresh).');
 }
 
 // ===========================================================================
@@ -137,7 +204,7 @@ async function mbFetch(url) {
     await mbAcquireSlot();
     let res;
     try {
-      res = await fetch(url, { headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' } });
+      res = await fetchWithTimeout(url, { headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' } });
     } catch (e) {
       lastErr = e;
       if (attempt < MB_MAX_RETRIES) {
@@ -254,23 +321,36 @@ async function mbVerifyYears(tracks) {
 // ===========================================================================
 /**
  * Verify a list of {title, artist, estimatedYear} inputs.
- * Returns one result per input (order preserved):
- *   { input, spotifyFound, trackId, spName, spArtist, isrc, mbYear }
- * where mbYear is the RAW MusicBrainz year (number) or null (no MB hit). The
- * caller decides any csv-estimate fallback. No dedup here — every input is kept.
+ * Returns { results, stats }:
+ *   results[]: { input, spotifyFound, trackId, spName, spArtist, isrc, mbYear, failed }
+ *     - mbYear: RAW MusicBrainz year (number) or null (no MB hit).
+ *     - failed: true when the Spotify request itself errored (e.g. 429 after all
+ *       retries / network) — distinct from "found no match". No dedup; every input
+ *       is kept.
+ *   stats: { retried, failed[] } for the summary.
  */
 async function verifySongs(inputs, opts = {}) {
   const onSpotify = opts.onSpotify || (() => {});
   const results = [];
+  const stats = { retried: 0, failed: [] };
   for (let i = 0; i < inputs.length; i++) {
     const row = inputs[i];
     let track = null;
     let err = null;
+    let retriedThisSong = false;
     try {
-      track = await spotifySearch(row.title, row.artist);
+      track = await spotifySearch(row.title, row.artist, {
+        onRetry: () => {
+          retriedThisSong = true;
+        },
+      });
     } catch (e) {
       err = e;
     }
+    if (retriedThisSong) stats.retried += 1;
+    const failed = !!err; // request failed (couldn't verify), not just "no match"
+    if (failed) stats.failed.push({ title: row.title, artist: row.artist });
+
     const r = track
       ? {
           input: row,
@@ -280,10 +360,20 @@ async function verifySongs(inputs, opts = {}) {
           spArtist: track.artists && track.artists[0] ? track.artists[0].name : row.artist,
           isrc: (track.external_ids && track.external_ids.isrc) || null,
           mbYear: null,
+          failed: false,
         }
-      : { input: row, spotifyFound: false, trackId: null, spName: null, spArtist: null, isrc: null, mbYear: null };
+      : {
+          input: row,
+          spotifyFound: false,
+          trackId: null,
+          spName: null,
+          spArtist: null,
+          isrc: null,
+          mbYear: null,
+          failed,
+        };
     results.push(r);
-    onSpotify(i + 1, inputs.length, row, r, err);
+    onSpotify(i + 1, inputs.length, row, r, err, retriedThisSong);
     await sleep(SPOTIFY_STAGGER_MS);
   }
 
@@ -298,7 +388,7 @@ async function verifySongs(inputs, opts = {}) {
   foundIdx.forEach((i, j) => {
     results[i].mbYear = years[j];
   });
-  return results;
+  return { results, stats };
 }
 
 module.exports = { readInputCsv, spotifySearch, mbVerifyYears, verifySongs };

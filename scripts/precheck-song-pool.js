@@ -53,9 +53,13 @@ async function main() {
   const inputs = readInputCsv(inputCsv);
   console.log(`\nLoaded ${inputs.length} song suggestion(s) from ${inputCsv}\n`);
 
-  const results = await verifySongs(inputs, {
+  const { results, stats } = await verifySongs(inputs, {
     onSpotify: (i, total, row, r) => {
-      const status = r.spotifyFound ? `ok -> ${r.spName} — ${r.spArtist}` : 'NOT FOUND';
+      const status = r.spotifyFound
+        ? `ok -> ${r.spName} — ${r.spArtist}`
+        : r.failed
+          ? 'FEHLGESCHLAGEN (Anfrage, nach Retries)'
+          : 'NOT FOUND';
       console.log(`Spotify ${i}/${total}: ${row.title} — ${row.artist} … ${status}`);
     },
   });
@@ -138,6 +142,12 @@ async function main() {
   console.log(`diff = 0 (auto-befüllt, ohne Rückfrage übernehmbar): ${autoFilled}`);
   console.log(`diff >= 1 / unbestimmt (im Review anzuschauen):       ${needsReview}`);
   console.log(`Nicht bei Spotify gefunden (übersprungen beim Upload): ${notFound}`);
+  console.log(`Songs mit Rate-Limit-Retry (429, letztlich egal ob ok): ${stats.retried}`);
+  console.log(`Endgültig fehlgeschlagen nach ${5} Versuchen:           ${stats.failed.length}`);
+  if (stats.failed.length) {
+    for (const f of stats.failed) console.log(`   ✗ ${f.title} — ${f.artist}`);
+    console.log('   (diese erneut laufen lassen, sobald das Rate-Limit abgeklungen ist)');
+  }
   console.log(`Review-CSV geschrieben:                 ${outputCsv}`);
   console.log(line);
   console.log('Nächster Schritt: final_year-Spalte im Review prüfen/befüllen, dann upload-song-pool.js.');
