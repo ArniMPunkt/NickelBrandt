@@ -36,6 +36,8 @@ const COLUMNS = [
   'spotify_track_id',
   'spotify_match_name',
   'spotify_match_artist',
+  'match_method',
+  'similarity_score',
   'isrc',
   'spotify_found',
   'final_year',
@@ -57,8 +59,10 @@ async function main() {
   try {
     verifyOut = await verifySongs(inputs, {
       onSpotify: (i, total, row, r) => {
+        const tag =
+          r.matchMethod + (r.similarityScore != null ? ` ~${r.similarityScore.toFixed(2)}` : '');
         const status = r.spotifyFound
-          ? `ok -> ${r.spName} — ${r.spArtist}`
+          ? `ok [${tag}] -> ${r.spName} — ${r.spArtist}`
           : r.failed
             ? 'FEHLGESCHLAGEN (Anfrage, nach Retries)'
             : 'NOT FOUND';
@@ -128,6 +132,8 @@ async function main() {
         spotify_track_id: r.trackId || '',
         spotify_match_name: r.spName || '',
         spotify_match_artist: r.spArtist || '',
+        match_method: r.matchMethod || '',
+        similarity_score: r.similarityScore != null ? r.similarityScore.toFixed(2) : '',
         isrc: r.isrc || '',
         spotify_found: r.spotifyFound ? 'true' : 'false',
         final_year: finalYear,

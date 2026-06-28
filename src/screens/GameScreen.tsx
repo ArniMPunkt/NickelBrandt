@@ -338,7 +338,7 @@ export default function GameScreen() {
   const handleNext = async () => {
     await Spotify.pause().catch(() => {});
     if (state.winner) {
-      navigation.navigate('Result');
+      navigation.navigate('Victory'); // celebration first, then Result (stats)
       return;
     }
     dispatch({ type: 'NEXT_PLAYER' });

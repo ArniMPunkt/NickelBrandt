@@ -26,6 +26,7 @@ import SetupScreen from './src/screens/SetupScreen';
 import IntroScreen from './src/screens/IntroScreen';
 import HandoffScreen from './src/screens/HandoffScreen';
 import GameScreen from './src/screens/GameScreen';
+import VictoryScreen from './src/screens/VictoryScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnlineHomeScreen from './src/screens/OnlineHomeScreen';
@@ -52,6 +53,7 @@ function GameStack() {
       <GameStackNav.Screen name="Intro" component={IntroScreen} />
       <GameStackNav.Screen name="Handoff" component={HandoffScreen} />
       <GameStackNav.Screen name="Game" component={GameScreen} />
+      <GameStackNav.Screen name="Victory" component={VictoryScreen} />
       <GameStackNav.Screen name="Result" component={ResultScreen} />
     </GameStackNav.Navigator>
   );

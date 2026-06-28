@@ -174,21 +174,103 @@ async function getSpotifyToken() {
 
 const spotifyClean = (s) => s.replace(/"/g, ' ').trim();
 
+// Multi-artist separators per the spec: &, und, feat. (+ ft./featuring). The
+// word-separators require surrounding whitespace so they don't match inside a
+// name ("feature", "Fundbüro"); `,` and `/` are deliberately NOT separators to
+// avoid breaking single artists like "Tyler, The Creator" or "AC/DC".
+const ARTIST_SEP = /\s+(?:feat\.?|ft\.?|featuring|und)\s+|\s*&\s*/i;
+const hasMultiArtist = (artist) => ARTIST_SEP.test(artist);
+const firstArtist = (artist) => artist.split(ARTIST_SEP)[0].trim();
+const splitArtists = (artist) => artist.split(ARTIST_SEP).map((s) => s.trim()).filter(Boolean);
+
+// --- Fallback similarity guard ---------------------------------------------
+// Free-text fallback searches almost always return SOMETHING — often the wrong
+// song. A fallback hit is only accepted if BOTH the artist and the title
+// plausibly match. Small + dependency-free.
+const TITLE_SIM_THRESHOLD = 0.6; // lenient: substring/exact already cover suffixes
+
+/** Lowercase, strip diacritics, drop punctuation, collapse whitespace. */
+function normalize(s) {
+  const decomposed = String(s ?? '').toLowerCase().normalize('NFD');
+  let out = '';
+  for (const ch of decomposed) {
+    const c = ch.codePointAt(0);
+    if (c >= 0x300 && c <= 0x36f) continue; // skip combining diacritics (ä->a, é->e)
+    out += ch;
+  }
+  return out.replace(/[^a-z0-9]+/g, ' ').trim(); // punctuation -> space
+}
+
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+/** 0..1 string similarity (1 = identical). */
+function simRatio(a, b) {
+  const maxLen = Math.max(a.length, b.length);
+  return maxLen === 0 ? 1 : 1 - levenshtein(a, b) / maxLen;
+}
+
+/** At least one query artist matches a candidate artist (exact or substring). */
+function artistMatches(queryArtist, candidateNames) {
+  const qs = splitArtists(queryArtist).map(normalize).filter(Boolean);
+  const cs = candidateNames.map(normalize).filter(Boolean);
+  for (const q of qs) {
+    for (const c of cs) {
+      if (q === c || q.includes(c) || c.includes(q)) return true;
+    }
+  }
+  return false;
+}
+
+/** Title match: exact, substring containment, or Levenshtein >= threshold. */
+function titleMatch(queryTitle, candidateTitle) {
+  const a = normalize(queryTitle);
+  const b = normalize(candidateTitle);
+  if (!a || !b) return { ok: false, score: 0 };
+  if (a === b) return { ok: true, score: 1 };
+  if (a.includes(b) || b.includes(a)) return { ok: true, score: 0.9 }; // "MfG" vs "MfG Unplugged"
+  const score = simRatio(a, b);
+  return { ok: score >= TITLE_SIM_THRESHOLD, score };
+}
+
 /**
- * Search a track by title + artist; returns the top match object or null.
- * 429s are handled by fetchWithRetry; the small outer loop only handles a 401
- * (expired token -> refresh once). `onRetry` is forwarded so the caller can count
- * songs that needed a rate-limit wait. Throws (with .rateLimited) if 429 persists.
+ * Decide whether a FALLBACK candidate is a plausible match. Returns
+ * { ok, score } where score is the title similarity (0..1).
  */
-async function spotifySearch(title, artist, { onRetry } = {}) {
-  const q = `track:"${spotifyClean(title)}" artist:"${spotifyClean(artist)}"`;
+function fallbackAccept(queryTitle, queryArtist, track) {
+  const candNames = (track.artists || []).map((x) => x.name);
+  const artistOk = artistMatches(queryArtist, candNames);
+  const t = titleMatch(queryTitle, track.name);
+  return { ok: artistOk && t.ok, score: t.score };
+}
+
+/**
+ * Run ONE Spotify search for a raw query string `q`; returns the top track or
+ * null. 429s are handled by fetchWithRetry; the small loop only handles a 401
+ * (expired token -> refresh once). Throws (with .rateLimited) if 429 persists.
+ */
+async function spotifySearchQuery(q, { label, onRetry } = {}) {
   const url = `https://api.spotify.com/v1/search?type=track&limit=5&q=${encodeURIComponent(q)}`;
   for (let attempt = 0; attempt < 2; attempt++) {
     const token = await getSpotifyToken();
     const res = await fetchWithRetry(
       url,
       { headers: { Authorization: `Bearer ${token}` } },
-      { label: `${title} — ${artist}`, onRetry }
+      { label, onRetry }
     );
     if (res.status === 401) {
       _tok = { value: null, exp: 0 }; // expired -> refresh + retry once
@@ -199,6 +281,142 @@ async function spotifySearch(title, artist, { onRetry } = {}) {
     return (data?.tracks?.items ?? [])[0] ?? null;
   }
   throw new Error('Spotify search failed (401 after token refresh).');
+}
+
+/**
+ * Search with progressively looser fallbacks. Returns { track, method, score }:
+ *   - 'strict'                : track:"T" artist:"A"  (exact field filters; trusted)
+ *   - 'fallback_loose'        : free text  "T A"       (if strict found nothing)
+ *   - 'fallback_first_artist' : free text  "T <first>" (only if A contains a
+ *                               multi-artist separator &/und/feat.)
+ * STRICT hits are accepted as-is. FALLBACK hits must pass the similarity guard
+ * (artist + title), otherwise the candidate is rejected and the next stage tried;
+ * if none pass we honestly return "not found". `score` is the title similarity for
+ * a fallback hit (null for strict / not found). Each stage is one staggered HTTP
+ * request. Throws on hard errors.
+ */
+async function searchWithFallbacks(title, artist, { onRetry } = {}) {
+  const label = `${title} — ${artist}`;
+  const t = spotifyClean(title);
+  const a = spotifyClean(artist);
+
+  const stages = [
+    { method: 'strict', q: `track:"${t}" artist:"${a}"` },
+    { method: 'fallback_loose', q: `${t} ${a}` },
+  ];
+  if (hasMultiArtist(artist)) {
+    const first = spotifyClean(firstArtist(artist));
+    if (first && first.toLowerCase() !== a.toLowerCase()) {
+      stages.push({ method: 'fallback_first_artist', q: `${t} ${first}` });
+    }
+  }
+
+  for (const stage of stages) {
+    await sleep(SPOTIFY_STAGGER_MS); // stagger per attempt (one request per stage)
+    const track = await spotifySearchQuery(stage.q, { label, onRetry });
+    if (!track) continue;
+    if (stage.method === 'strict') return { track, method: 'strict', score: null };
+    // Fallback: guard against the wrong song slipping through.
+    const acc = fallbackAccept(title, artist, track);
+    if (acc.ok) return { track, method: stage.method, score: acc.score };
+    // rejected -> try the next, looser stage
+  }
+  return { track: null, method: null, score: null };
+}
+
+// ===========================================================================
+// ISRC pre-stage: get a cross-platform ISRC for free (no Spotify quota), then
+// query Spotify by exact ISRC instead of fuzzy text -> more precise + fewer
+// Spotify text searches on the hard songs.
+//
+// NOTE on iTunes: the iTunes Search API does NOT return an ISRC (verified live on
+// guaranteed-present tracks), so it is deliberately NOT used as an ISRC source —
+// it would cost one request per song for zero ISRC gain. Deezer's /search returns
+// the `isrc` directly (undocumented but stable), so it is the one we use.
+// ===========================================================================
+const DEEZER_STAGGER_MS = 300; // ~3 req/s; Deezer tolerates ~50/5s. Own throttle.
+let _deezerLast = 0;
+async function deezerThrottle() {
+  const wait = DEEZER_STAGGER_MS - (Date.now() - _deezerLast);
+  if (wait > 0) await sleep(wait);
+  _deezerLast = Date.now();
+}
+
+// Light, NON-aggressive handling (timeout + a couple of soft retries). Any
+// failure returns null so the caller simply falls through to the Spotify text
+// search — Deezer is a best-effort accelerator, never a hard dependency.
+async function deezerFetch(url) {
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    await deezerThrottle();
+    let res;
+    try {
+      res = await fetchWithTimeout(url);
+    } catch {
+      if (attempt < 2) {
+        await sleep(1500);
+        continue;
+      }
+      return null;
+    }
+    if (res.status === 429) {
+      if (attempt < 2) {
+        await sleep(2000);
+        continue;
+      }
+      return null;
+    }
+    if (!res.ok) return null;
+    return res.json().catch(() => null);
+  }
+  return null;
+}
+
+/**
+ * Deezer (free, unauthenticated) ISRC source. /search returns `isrc` on each
+ * track, so one request gives a cross-platform ISRC. We only trust a result that
+ * passes the same similarity guard (artist + title). Returns the ISRC or null.
+ */
+async function getIsrcFromDeezer(title, artist) {
+  const q = `${spotifyClean(title)} ${spotifyClean(artist)}`;
+  const data = await deezerFetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=5`);
+  const items = (data && data.data) || [];
+  for (const it of items) {
+    if (!it || !it.isrc) continue;
+    const candArtists = [it.artist && it.artist.name].filter(Boolean);
+    if (artistMatches(artist, candArtists) && titleMatch(title, it.title || '').ok) {
+      return String(it.isrc).toUpperCase();
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolve a track to a Spotify match. Order:
+ *   1) Deezer -> ISRC (no Spotify quota). If found, Spotify search by exact ISRC,
+ *      kept honest with the similarity safety net -> method 'deezer_isrc'.
+ *   2) Otherwise the existing text search (strict -> loose -> first_artist).
+ * Returns { track, method, score }.
+ */
+async function resolveTrack(title, artist, { onRetry } = {}) {
+  let isrc = null;
+  try {
+    isrc = await getIsrcFromDeezer(title, artist);
+  } catch {
+    isrc = null; // Deezer hiccup -> fall through, never block the run
+  }
+  if (isrc) {
+    await sleep(SPOTIFY_STAGGER_MS);
+    const track = await spotifySearchQuery(`isrc:${isrc}`, {
+      label: `${title} — ${artist} [isrc]`,
+      onRetry,
+    });
+    if (track) {
+      const acc = fallbackAccept(title, artist, track); // safety net even for ISRC
+      if (acc.ok) return { track, method: 'deezer_isrc', score: acc.score };
+    }
+    // ISRC route didn't confirm -> fall through to text search
+  }
+  return searchWithFallbacks(title, artist, { onRetry });
 }
 
 // ===========================================================================
@@ -367,14 +585,19 @@ async function verifySongs(inputs, opts = {}) {
   for (let i = 0; i < inputs.length; i++) {
     const row = inputs[i];
     let track = null;
+    let method = null;
+    let score = null;
     let err = null;
     let retriedThisSong = false;
     try {
-      track = await spotifySearch(row.title, row.artist, {
+      const res = await resolveTrack(row.title, row.artist, {
         onRetry: () => {
           retriedThisSong = true;
         },
       });
+      track = res.track;
+      method = res.method;
+      score = res.score;
     } catch (e) {
       if (e && e.penalty) throw e; // hard cooldown -> abort the whole run
       err = e;
@@ -393,6 +616,8 @@ async function verifySongs(inputs, opts = {}) {
           isrc: (track.external_ids && track.external_ids.isrc) || null,
           mbYear: null,
           failed: false,
+          matchMethod: method,
+          similarityScore: score,
         }
       : {
           input: row,
@@ -403,10 +628,12 @@ async function verifySongs(inputs, opts = {}) {
           isrc: null,
           mbYear: null,
           failed,
+          matchMethod: null,
+          similarityScore: null,
         };
     results.push(r);
     onSpotify(i + 1, inputs.length, row, r, err, retriedThisSong);
-    await sleep(SPOTIFY_STAGGER_MS);
+    // Stagger now happens per attempt inside searchWithFallbacks (rate-limit aware).
   }
 
   // MusicBrainz year check for the Spotify-found rows.
@@ -425,7 +652,9 @@ async function verifySongs(inputs, opts = {}) {
 
 module.exports = {
   readInputCsv,
-  spotifySearch,
+  resolveTrack,
+  searchWithFallbacks,
+  getIsrcFromDeezer,
   mbVerifyYears,
   verifySongs,
   computeRetryWaitS,

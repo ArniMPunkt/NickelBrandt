@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
+import { VictoryCelebration } from '../components/VictoryCelebration';
 import { COLORS } from '../theme/colors';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
 import type { OnlineStackParamList } from '../types/navigation';
@@ -134,6 +135,9 @@ export default function OnlineGameScreen() {
   // Handle a host-ended lobby exactly once.
   const endedRef = useRef(false);
   const [codeVisible, setCodeVisible] = useState(false);
+  // Victory screen shows first when the game finishes (server-driven phase, so all
+  // devices show it together); each player then taps through to the stats locally.
+  const [showStats, setShowStats] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -379,6 +383,16 @@ export default function OnlineGameScreen() {
   // ----- Finished: game over (winner) -----
   if (phase === 'finished' && gs.winnerId) {
     const winner = players.find((p) => p.player_id === gs.winnerId);
+    // Celebration first (shown on every device when phase flips to 'finished'),
+    // then the stats below once the player taps "Weiter zur Statistik".
+    if (!showStats) {
+      return (
+        <VictoryCelebration
+          winnerName={winner ? winner.player_name : '—'}
+          onContinue={() => setShowStats(true)}
+        />
+      );
+    }
     return (
       <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}>
         <Text style={styles.trophy}>🏆</Text>

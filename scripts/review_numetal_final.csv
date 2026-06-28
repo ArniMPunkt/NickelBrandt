@@ -1,0 +1,208 @@
+title,artist,csv_year,mb_year,mb_year_source,diff,spotify_track_id,spotify_match_name,spotify_match_artist,isrc,spotify_found,final_year
+Jumpin' Jack Flash,The Rolling Stones,1968,2021,musicbrainz,53,1uBsu3PbD2909UBIfEMLvK,Jumpin' Jack Flash,The Rolling Stones,USA171810060,true,1968
+Still Loving You,Scorpions,1984,2007,musicbrainz,23,0RdUX4WE0fO30VnlUbDVL6,Still Loving You,Scorpions,DEE861101524,true,1984
+Holy Wars,Megadeth,1990,2004,musicbrainz,14,5LyRtsQLhcXmy50VXhQXXS,Holy Wars...The Punishment Due - 2004 Remix,Megadeth,USCA20400647,true,1990
+Symphony of Destruction,Megadeth,1992,2004,musicbrainz,12,51TG9W3y9qyO8BY5RXKgnZ,Symphony Of Destruction,Megadeth,USCA20400616,true,1992
+Adrenaline,Shinedown,2003,2012,musicbrainz,9,5oJrV0mGkw9dilk96X3W0c,Adrenaline,Shinedown,USAT21200232,true,2012
+Drowning,Crazy Town,1999,2002,musicbrainz,3,6UI5070fXjclDkp1obCmFm,Drowning,Crazy Town,USSM10211634,true,2002
+Simple Man,Shinedown,2007,2004,musicbrainz,3,7gmfoXsjwQYn6HeHUYRpY2,Simple Man,Shinedown,USAT20400835,true,2004
+Funk #49,The James Gang,1970,1973,musicbrainz,3,5h6SovHOYpIMlAkafxcbq3,Funk #49,James Gang,USMC17344505,true,1973
+Broken Home,Papa Roach,2002,2000,musicbrainz,2,1s4BLQm5rznGLrNZd0GlwM,Broken Home,Papa Roach,USDW10021715,true,2000
+Voices,Disturbed,2002,2000,musicbrainz,2,1jPgyViNE7djYSr1xEPlPJ,Voices,Disturbed,USGI19900179,true,2000
+Detroit Rock City,KISS,1976,1978,musicbrainz,2,0PQ51hZtABYRaXNHkVpAfD,Detroit Rock City,KISS,USPR37707201,true,1978
+Remedy,Seether,2003,2005,musicbrainz,2,5ynxx6zC4dgzsMHLYQ04Dc,Remedy,Seether,USWU30500016,true,2005
+Black and White,Static-X,1999,2001,musicbrainz,2,1GwiQCsJ0wEtzQTnblUSnH,Black and White,Static-X,USWB10100409,true,2001
+Bring Me to Life,Evanescence,2003,2002,musicbrainz,1,0COqiPhxzoWICwFCS4eZcp,Bring Me To Life,Evanescence,USWU30200093,true,2002
+Like a Stone,Audioslave,2003,2002,musicbrainz,1,2MrWu3Gt6ucsOHC6eE8oLV,Like a Stone,Audioslave,USSM10211587,true,2002
+Show Me How to Live,Audioslave,2003,2002,musicbrainz,1,4j4GOtjzdDux57p39vJPnz,Show Me How to Live,Audioslave,USSM10211589,true,2002
+No Excuses,Alice in Chains,1994,1993,musicbrainz,1,4PtZE0h5oyPhCtPjg3NeYQ,No Excuses,Alice In Chains,USSM19303748,true,1993
+Smooth Criminal,Alien Ant Farm,2001,2000,musicbrainz,1,5z6xHjCZr7a7AIcy8sPBKy,Smooth Criminal,Alien Ant Farm,USDW10022224,true,2000
+Movies,Alien Ant Farm,2001,2000,musicbrainz,1,0DVxWV6V1nWa7Ml68Frd3D,Movies,Alien Ant Farm,USDW10022217,true,2000
+Butterfly,Crazy Town,2000,1999,musicbrainz,1,6GQ3WTaNHMFlVmN4burGat,Butterfly,Crazy Town,USSM19911429,true,1999
+Enter Sandman,Metallica,1991,1990,musicbrainz,1,3DwQ7AH3xGD9h65ezslm6q,Enter Sandman - Remastered 2021,Metallica,QMKHM1900001,true,1990
+Nothing Else Matters,Metallica,1991,1990,musicbrainz,1,6QAsrXPnMSXIbV0yEJHlEX,Nothing Else Matters - Remastered 2021,Metallica,QMKHM1900008,true,1990
+Sad But True,Metallica,1991,1990,musicbrainz,1,5ltXoDLlI0rFZAmOXbAp5T,Sad But True - Remastered 2021,Metallica,QMKHM1900002,true,1990
+Long Cool Woman,The Hollies,1972,1971,musicbrainz,1,1J5XEPamp7iQaCU0aFuMnd,Long Cool Woman (In a Black Dress) - 1999 Remaster,The Hollies,GBGYU9900019,true,1971
+Magic Man,Heart,1976,1975,musicbrainz,1,4sUlsy0tPv9n5nqrqeA0lE,Magic Man,Heart,USCA28600005,true,1975
+Crazy on You,Heart,1976,1975,musicbrainz,1,5zH710lFSLtkHbMkslLDjR,Crazy On You,Heart,USCA28600007,true,1975
+Black,Sevendust,1997,1996,musicbrainz,1,5DoTRJlzMaGAMHPTDrfvfW,Black,Sevendust,USA371067164,true,1996
+Push,Static-X,1999,1998,musicbrainz,1,6O7pihLJgeqxUnG7u9oYL2,Push It,Static-X,USWB19800988,true,1998
+Stairway to Heaven,Led Zeppelin,1971,1971,musicbrainz,0,5CQ30WqJwcep0pYcV4AMNc,Stairway to Heaven - Remaster,Led Zeppelin,USAT21300959,true,1971
+Whole Lotta Love,Led Zeppelin,1969,1969,musicbrainz,0,0hCB0YR03f6AmQaHbwWDe8,Whole Lotta Love - 1990 Remaster,Led Zeppelin,USAT29900471,true,1969
+Kashmir,Led Zeppelin,1975,1975,musicbrainz,0,6Vjk8MNXpQpi0F4BefdTyq,Kashmir - Remaster,Led Zeppelin,USAT21300969,true,1975
+Black Dog,Led Zeppelin,1971,1971,musicbrainz,0,3qT4bUD1MaWpGrTwcvguhb,Black Dog - Remaster,Led Zeppelin,USAT21300956,true,1971
+Smoke on the Water,Deep Purple,1972,1972,musicbrainz,0,5MMnwYs0hIxkENRsbkWJ2G,Smoke On The Water - Remastered 2012,Deep Purple,GBDXG1200006,true,1972
+Highway Star,Deep Purple,1972,1972,musicbrainz,0,3uMmllZo1AfoEnVT4ENCD3,Highway Star - Remastered 2012,Deep Purple,GBDXG1200002,true,1972
+Child in Time,Deep Purple,1970,1970,musicbrainz,0,573Z2Dty5epeNgKsgoDOlr,Child in Time - 1995 Remaster,Deep Purple,GBDXG0600118,true,1970
+Paranoid,Black Sabbath,1970,1970,musicbrainz,0,3hwuHzRicnu6Ji9i1JLzor,Paranoid,Black Sabbath,GBAJE7000057,true,1970
+Iron Man,Black Sabbath,1970,1970,musicbrainz,0,0vJYFKg9z1IvZiQUyX19cD,Iron Man (2012 Remaster),Black Sabbath,USWB11304630,true,1970
+War Pigs,Black Sabbath,1970,1970,musicbrainz,0,6TYQRlRci6AkVrN9a5C7ne,War Pigs - 2009 Remaster,Black Sabbath,GBAJE7000063,true,1970
+Sweet Leaf,Black Sabbath,1971,1971,musicbrainz,0,1bJ5FuncHc6wyDHBvJ0xF6,Sweet Leaf - 2009 Remaster,Black Sabbath,GBAJE7100082,true,1971
+Bohemian Like You,The Dandy Warhols,2000,2000,musicbrainz,0,3APHT3KjbHi9OllkVQsuXF,Bohemian Like You,The Dandy Warhols,USCA20000241,true,2000
+Chop Suey!,System of a Down,2001,2001,musicbrainz,0,2DlHlPMa4M17kufBvI2lEN,Chop Suey!,System Of A Down,USSM10107256,true,2001
+Toxicity,System of a Down,2001,2001,musicbrainz,0,0snQkGI5qnAmohLE7jTsTn,Toxicity,System Of A Down,USSM10107262,true,2001
+B.Y.O.B.,System of a Down,2005,2005,musicbrainz,0,0EYOdF5FCkgOJJla8DI2Md,B.Y.O.B.,System Of A Down,USSM10501327,true,2005
+Aerials,System of a Down,2001,2001,musicbrainz,0,4e9eGQYsOiBcftrWXwsVco,Aerials,System Of A Down,USSM10107264,true,2001
+Numb,Linkin Park,2003,2003,musicbrainz,0,2nLtzopw4rPReszdYBJU6h,Numb,Linkin Park,USWB10300474,true,2003
+In the End,Linkin Park,2000,2000,musicbrainz,0,60a0Rd6pjrkxjPbaKzXjfq,In the End,Linkin Park,USWB10002407,true,2000
+Crawling,Linkin Park,2000,2000,musicbrainz,0,57BrRMwf9LrcmuOsyGilwr,Crawling,Linkin Park,USWB10002405,true,2000
+Faint,Linkin Park,2003,2003,musicbrainz,0,7AB0cUXnzuSlAnyHOqmrZr,Faint,Linkin Park,USWB10300468,true,2003
+My Immortal,Evanescence,2003,2003,musicbrainz,0,4UzVcXufOhGUwF56HT7b8M,My Immortal,Evanescence,USWU30200104,true,2003
+Going Under,Evanescence,2003,2003,musicbrainz,0,3UygY7qW2cvG9Llkay6i1i,Going Under,Evanescence,USWU30200108,true,2003
+Break Stuff,Limp Bizkit,1999,1999,musicbrainz,0,5cZqsjVs6MevCnAkasbEOX,Break Stuff,Limp Bizkit,USIR19902309,true,1999
+Rollin',Limp Bizkit,2000,2000,musicbrainz,0,3IV4swNduIRunHREK80owz,Rollin' (Air Raid Vehicle),Limp Bizkit,USIR10001170,true,2000
+My Way,Limp Bizkit,2000,2000,musicbrainz,0,2gSVKxPDww9Eep5rdvtdem,My Way,Limp Bizkit,USIR10001177,true,2000
+Nookie,Limp Bizkit,1999,1999,musicbrainz,0,1TEZWG1FdjzDdercCguTwj,Nookie,Limp Bizkit,USIR19902308,true,1999
+Freak on a Leash,Korn,1998,1998,musicbrainz,0,6W21LNLz9Sw7sUSNWMSHRu,Freak On a Leash,Korn,USSM19801755,true,1998
+Got the Life,Korn,1998,1998,musicbrainz,0,6nJPHXRpKYv2yqtalEjKy5,Got the Life,Korn,USSM19801763,true,1998
+Falling Away from Me,Korn,1999,1999,musicbrainz,0,2F6FfZ4w8z3eJpSxPotVO5,Falling Away from Me,Korn,USSM19922479,true,1999
+Here to Stay,Korn,2002,2002,musicbrainz,0,66LT15XEqCaWiMG44NGQRE,Here To Stay,Korn,USSM10200769,true,2002
+Bawitdaba,Kid Rock,1998,1998,musicbrainz,0,0f37VQs969vZUL4gVfHRV9,Bawitdaba,Kid Rock,USAT29800696,true,1998
+American Bad Ass,Kid Rock,2000,2000,musicbrainz,0,1ut6qrFOKodxA2vIs9sQW1,American Bad Ass - 2018 Remaster,Kid Rock,USWB11801844,true,2000
+Last Resort,Papa Roach,2000,2000,musicbrainz,0,5W8YXBz9MTIDyrpYaCg2Ky,Last Resort,Papa Roach,USDW10021712,true,2000
+She Loves Me Not,Papa Roach,2002,2002,musicbrainz,0,1eRgyfyizDWISeS99kwLNC,She Loves Me Not,Papa Roach,USDW10200130,true,2002
+Down with the Sickness,Disturbed,2000,2000,musicbrainz,0,40rvBMQizxkIqnjPdEWY1v,Down with the Sickness,Disturbed,USGI19900180,true,2000
+Stupify,Disturbed,2000,2000,musicbrainz,0,5IvKtrcNWBkvyW2yXZ2Y40,Stupify,Disturbed,USGI19900175,true,2000
+Cochise,Audioslave,2002,2002,musicbrainz,0,2xlG9mnVa52SKAzsxDctbM,Cochise,Audioslave,USSM10211584,true,2002
+Hate to Say I Told You So,The Hives,2000,2000,musicbrainz,0,20j7B6mL9gnNvG3ic6Vwh5,Hate To Say I Told You So,The Hives,SEVHC0007060,true,2000
+Du Hast,Rammstein,1997,1997,musicbrainz,0,5awDvzxWfd53SSrsRZ8pXO,Du hast,Rammstein,DED579704010,true,1997
+Sonne,Rammstein,2001,2001,musicbrainz,0,3gVhsZtseYtY1fMuyYq06F,Sonne,Rammstein,DEN120003766,true,2001
+Engel,Rammstein,1997,1997,musicbrainz,0,0xrkyEMkG4dVa5OMLQZOX8,Engel,Rammstein,DED579702410,true,1997
+Du Riechst So Gut,Rammstein,1995,1995,musicbrainz,0,4yUcHLkHUwAPpKN0Uvdo8I,Du riechst so gut,Rammstein,DED579504840,true,1995
+Hysteria,Muse,2003,2003,musicbrainz,0,0knbMPVHpFbsx38pLoYSRs,Hysteria,Muse,GBAHT1901186,true,2003
+Time Is Running Out,Muse,2003,2003,musicbrainz,0,0EdMqiKs9LKXhspeQhl4RZ,Time is Running Out,Muse,GBAHT1901181,true,2003
+Are You Gonna Be My Girl,Jet,2003,2003,musicbrainz,0,72zZfHPYx43shcP3eKkYi5,Are You Gonna Be My Girl,Jet,USEE10340526,true,2003
+Seven Nation Army,The White Stripes,2003,2003,musicbrainz,0,3dPQuX8Gs42Y7b454ybpMR,Seven Nation Army,The White Stripes,USVT10300001,true,2003
+Fell in Love with a Girl,The White Stripes,2001,2001,musicbrainz,0,21Qsj3cMVCx2xF2EVVNbEu,Fell In Love With a Girl,The White Stripes,GBBKS0100352,true,2001
+All My Life,Foo Fighters,2002,2002,musicbrainz,0,6tsojOQ5wHaIjKqIryLZK6,All My Life,Foo Fighters,USRW30200001,true,2002
+Learn to Fly,Foo Fighters,1999,1999,musicbrainz,0,5OQsiBsky2k2kDKy2bX2eT,Learn to Fly,Foo Fighters,USRW39900002,true,1999
+My Hero,Foo Fighters,1997,1997,musicbrainz,0,4dVbhS6OiYvFikshyaQaCN,My Hero,Foo Fighters,USRW29600007,true,1997
+Everlong,Foo Fighters,1997,1997,musicbrainz,0,5UWwZ5lm5PKu6eKsHAGxOk,Everlong,Foo Fighters,USRW29600011,true,1997
+Black Hole Sun,Soundgarden,1994,1994,musicbrainz,0,2EoOZnxNgtmZaD8uUmz2nD,Black Hole Sun,Soundgarden,USAM19400007,true,1994
+Spoonman,Soundgarden,1994,1994,musicbrainz,0,1jMaB19DiVR8OihLSuYFOt,Spoonman,Soundgarden,USAM19400008,true,1994
+Outshined,Soundgarden,1991,1991,musicbrainz,0,4VwPsMcRt1HPVKIdcwY9Uj,Outshined - Remastered 2016,Soundgarden,USAM19104304,true,1991
+Alive,Pearl Jam,1991,1991,musicbrainz,0,1L94M3KIu7QluZe63g64rv,Alive,Pearl Jam,USSM19100003,true,1991
+Even Flow,Pearl Jam,1991,1991,musicbrainz,0,6QewNVIDKdSl8Y3ycuHIei,Even Flow,Pearl Jam,USSM19100673,true,1991
+Jeremy,Pearl Jam,1991,1991,musicbrainz,0,62nQ8UZVqR2RMvkJHkcO2o,Jeremy,Pearl Jam,USSM19100674,true,1991
+Smells Like Teen Spirit,Nirvana,1991,1991,musicbrainz,0,4CeeEOM32jQcH3eN9Q2dGj,Smells Like Teen Spirit,Nirvana,USGF19942501,true,1991
+Come as You Are,Nirvana,1991,1991,musicbrainz,0,2RsAajgo0g7bMCHxwH3Sk0,Come As You Are,Nirvana,USGF19942503,true,1991
+Heart-Shaped Box,Nirvana,1993,1993,musicbrainz,0,11LmqTE2naFULdEP94AUBa,Heart-Shaped Box,Nirvana,USGF19960703,true,1993
+Lithium,Nirvana,1991,1991,musicbrainz,0,5vHLwhxxlGzmClMcxRRFPr,Lithium,Nirvana,USGF19942505,true,1991
+Man in the Box,Alice in Chains,1990,1990,musicbrainz,0,6gZVQvQZOFpzIy3HblJ20F,Man in the Box,Alice In Chains,USSM19000727,true,1990
+Would?,Alice in Chains,1992,1992,musicbrainz,0,5sFDReWLrZHLFZFjHsjUTS,Would? (2022 Remaster),Alice In Chains,USSM19200805,true,1992
+Rooster,Alice in Chains,1992,1992,musicbrainz,0,0wvIGFIgbyz4JNwQhZgTv2,Rooster (2022 Remaster),Alice In Chains,USSM19200881,true,1992
+Killing in the Name,Rage Against the Machine,1992,1992,musicbrainz,0,59WN2psjkt1tyaxjspN8fp,Killing In The Name,Rage Against The Machine,USSM11205433,true,1992
+Bulls on Parade,Rage Against the Machine,1996,1996,musicbrainz,0,0tZ3mElWcr74OOhKEiNz1x,Bulls On Parade,Rage Against The Machine,USSM19502563,true,1996
+Bombtrack,Rage Against the Machine,1992,1992,musicbrainz,0,2rBHnIxbhkMGLpqmsNX91M,Bombtrack,Rage Against The Machine,USSM11205432,true,1992
+Sleep Now in the Fire,Rage Against the Machine,1999,1999,musicbrainz,0,1MQTmpYOZ6fcMQc56Hdo7T,Sleep Now In the Fire,Rage Against The Machine,USSM19920168,true,1999
+Cult of Personality,Living Colour,1988,1988,musicbrainz,0,4WG7Z3bNM3iE4vCYcXsxNx,Cult of Personality (2023 Remaster),Living Colour,USSM18800018,true,1988
+Re-Education (Through Labor),Rise Against,2008,2008,musicbrainz,0,6c1Bdvp208X0jbLmFnWbkC,Re-Education (Through Labor),Rise Against,USUM70828859,true,2008
+Savior,Rise Against,2008,2008,musicbrainz,0,1vcxF91pWs9uNwDROuiCPB,Savior,Rise Against,USUM70832584,true,2008
+45,Shinedown,2003,2003,musicbrainz,0,420JGkyLfLUZcgBHKiIK9v,45,Shinedown,USAT20300846,true,2003
+Bother,Stone Sour,2002,2002,musicbrainz,0,0AfIsqZ4gTUg9CwwW2jLeK,Bother,Stone Sour,NLA320219861,true,2002
+Through Glass,Stone Sour,2006,2006,musicbrainz,0,5NeIONQWJ25uPylJBJiO4c,Through Glass,Stone Sour,NLA320682289,true,2006
+Wait and Bleed,Slipknot,1999,1999,musicbrainz,0,2gscB6kDOmrv1P6qs2KXE3,Wait and Bleed,Slipknot,NLA329980194,true,1999
+Spit It Out,Slipknot,1999,1999,musicbrainz,0,2W2eaLVKv9NObcLXlYRZZo,Spit It Out,Slipknot,NLA329980196,true,1999
+My Plague,Slipknot,2001,2001,musicbrainz,0,74WIE2htPZwxx4HgGhpf8i,My Plague,Slipknot,NLA320119556,true,2001
+Duality,Slipknot,2004,2004,musicbrainz,0,61mWefnWQOLf90gepjOCb3,Duality,Slipknot,NLA320420785,true,2004
+Headstrong,Trapt,2002,2002,musicbrainz,0,1AEYT6VxrxXPMoQUxsY0E4,Headstrong,Trapt,USWB10201991,true,2002
+Hemorrhage (In My Hands),Fuel,2000,2000,musicbrainz,0,5b8WcvxD3oLBxV1oJQmhgy,Hemorrhage (In My Hands),Fuel,USSM10011620,true,2000
+Shimmer,Fuel,1998,1998,musicbrainz,0,7vVYqVFAdEFbiAMh8aPFaJ,Shimmer,Fuel,USSM19702935,true,1998
+It's Been Awhile,Staind,2001,2001,musicbrainz,0,1BExV8JprNJLvLeDE9qdEW,It's Been Awhile,Staind,USEE10100288,true,2001
+Outside,Staind,2001,2001,musicbrainz,0,5D6rk7Zr7FRy5m2fDte5fp,Outside,Staind,USEE10100309,true,2001
+So Far Away,Staind,2003,2003,musicbrainz,0,6FOpPA0a80RuBqqgDozvja,So Far Away,Staind,USEE10340188,true,2003
+One,Metallica,1988,1988,musicbrainz,0,02xhLoVqpGmOqvolgrwM8w,One,Metallica,QMKHM1700138,true,1988
+Run to the Hills,Iron Maiden,1982,1982,musicbrainz,0,4Zc7TCHzuNwL0AFBlyLdyr,Run to the Hills - 2015 Remaster,Iron Maiden,GBCHB1800025,true,1982
+The Number of the Beast,Iron Maiden,1982,1982,musicbrainz,0,3nlGByvetDcS1uomAoiBmy,The Number of the Beast - 2015 Remaster,Iron Maiden,GBCHB1800024,true,1982
+Fear of the Dark,Iron Maiden,1992,1992,musicbrainz,0,6p8eFfPw3nQkf37aT3AkmK,Fear of the Dark - 2015 Remaster,Iron Maiden,GBCHB1800082,true,1992
+Holy Diver,Dio,1983,1983,musicbrainz,0,54yLLvpezvPO1lA3GspiZj,Holy Diver,Dio,NLF050390016,true,1983
+Crazy Train,Ozzy Osbourne,1980,1980,musicbrainz,0,7ACxUo21jtTHzy7ZEV56vU,Crazy Train,Ozzy Osbourne,USSM11002845,true,1980
+Mr. Crowley,Ozzy Osbourne,1980,1980,musicbrainz,0,2ov8L95QD25TLpZAZPYWXL,Mr. Crowley,Ozzy Osbourne,USSM11002849,true,1980
+Bark at the Moon,Ozzy Osbourne,1983,1983,musicbrainz,0,2E7W1X4maFFcjHrVrFA7Vs,Bark at the Moon,Ozzy Osbourne,USSM18300021,true,1983
+Free Bird,Lynyrd Skynyrd,1973,1973,musicbrainz,0,5EWPGh7jbTNO2wakv8LjUI,Free Bird,Lynyrd Skynyrd,USMC17301722,true,1973
+Sweet Home Alabama,Lynyrd Skynyrd,1974,1974,musicbrainz,0,7e89621JPkKaeDSTQ3avtg,Sweet Home Alabama,Lynyrd Skynyrd,USMC17446153,true,1974
+Simple Man,Lynyrd Skynyrd,1973,1973,musicbrainz,0,1ju7EsSGvRybSNEsRvc7qY,Simple Man,Lynyrd Skynyrd,USMC17301726,true,1973
+Comfortably Numb,Pink Floyd,1979,1979,musicbrainz,0,5HNCy40Ni5BZJFw1TKzRsC,Comfortably Numb,Pink Floyd,GBN9Y1100113,true,1979
+Another Brick in the Wall,Pink Floyd,1979,1979,musicbrainz,0,4gMgiXfqyzZLMhsksGmbQV,"Another Brick in the Wall, Pt. 2",Pink Floyd,GBN9Y1100099,true,1979
+Wish You Were Here,Pink Floyd,1975,1975,musicbrainz,0,6mFkJmJqdDVQ1REhVfGgd1,Wish You Were Here,Pink Floyd,GBN9Y1100088,true,1975
+Money,Pink Floyd,1973,1973,musicbrainz,0,0vFOzaXqZHahrZp6enQwQb,Money,Pink Floyd,GBN9Y1100081,true,1973
+Layla,Derek and the Dominos,1970,1970,musicbrainz,0,2kkvB3RNRzwjFdGhaUA0tz,Layla,Derek & The Dominos,GBUM71028890,true,1970
+Bell Bottom Blues,Derek and the Dominos,1970,1970,musicbrainz,0,2YJgM8lj4u5YEZRSHSfL60,Bell Bottom Blues,Derek & The Dominos,GBUM71028879,true,1970
+Cocaine,Eric Clapton,1977,1977,musicbrainz,0,2udGjDmpK1dH9VGyw7nrei,Cocaine,Eric Clapton,NLF057790024,true,1977
+Sunshine of Your Love,Cream,1967,1967,musicbrainz,0,6FRwDxXsvSasw0y2eDArsz,Sunshine Of Your Love,Cream,GBA076700020,true,1967
+White Room,Cream,1968,1968,musicbrainz,0,3Xls4cNOwy01dtrNXb1inG,White Room,Cream,GBA076800030,true,1968
+Purple Haze,Jimi Hendrix,1967,1967,musicbrainz,0,20US4JIykUvnFpxMXp0lWv,Purple Haze,Jimi Hendrix,USQX90900765,true,1967
+Voodoo Child,Jimi Hendrix,1968,1968,musicbrainz,0,2AxCeJ6PSsBYiTckM0HLY7,Voodoo Child (Slight Return),Jimi Hendrix,USQX90900750,true,1968
+All Along the Watchtower,Jimi Hendrix,1968,1968,musicbrainz,0,2aoo2jlRnM3A0NyLQqMN2f,All Along the Watchtower,Jimi Hendrix,USQX90900749,true,1968
+Foxey Lady,Jimi Hendrix,1967,1967,musicbrainz,0,4sQdW03IQh3tsZeBELdt5G,Foxey Lady,Jimi Hendrix,USQX90900774,true,1967
+Born to Be Wild,Steppenwolf,1968,1968,musicbrainz,0,2VPGmrcBw5X4yAu3B8UZNE,Born To Be Wild,Steppenwolf,USMC16846563,true,1968
+Magic Carpet Ride,Steppenwolf,1968,1968,musicbrainz,0,4c4jJJoaiY21t2TyRZgdWS,Magic Carpet Ride,Steppenwolf,USMC16819955,true,1968
+Bohemian Rhapsody,Queen,1975,1975,musicbrainz,0,3z8h0TU7ReDPLIbEnYhWZb,Bohemian Rhapsody,Queen,GBUM71029604,true,1975
+We Will Rock You,Queen,1977,1977,musicbrainz,0,4pbJqGIASGPr0ZpGpnWkDn,We Will Rock You - Remastered 2011,Queen,GBUM71029618,true,1977
+Another One Bites the Dust,Queen,1980,1980,musicbrainz,0,5vdp5UmvTsnMEMESIF2Ym7,Another One Bites The Dust - Remastered 2011,Queen,GBUM71029605,true,1980
+Fat Bottomed Girls,Queen,1978,1978,musicbrainz,0,6IAVxNFi1W88UhDeyvOsdo,Fat Bottomed Girls - 2011 Remaster,Queen,GBUM71029607,true,1978
+Baba O'Riley,The Who,1971,1971,musicbrainz,0,3qiyyUfYe7CRYLucrPmulD,Baba O'Riley,The Who,GBAKW7100001,true,1971
+My Generation,The Who,1965,1965,musicbrainz,0,2EMmHEhCZSMMEM85HTFJvj,My Generation,The Who,GBAKW6500004,true,1965
+Won't Get Fooled Again,The Who,1971,1971,musicbrainz,0,0cJPLFrlV7TTCyPLupHzcH,Won't Get Fooled Again - Original Album Version,The Who,GBAKW7100100,true,1971
+Pinball Wizard,The Who,1969,1969,musicbrainz,0,6LbbHFEajG9e4m0G3L47c4,Pinball Wizard,The Who,GBAKW6900102,true,1969
+Paint It Black,The Rolling Stones,1966,1966,musicbrainz,0,63T7DJ1AFDD6Bn8VzG6JE8,"Paint It, Black",The Rolling Stones,USA176610020,true,1966
+Sympathy for the Devil,The Rolling Stones,1968,1968,musicbrainz,0,75zMKn5euxQdlkZgu4P42J,Sympathy For The Devil,The Rolling Stones,USA176810010,true,1968
+Gimme Shelter,The Rolling Stones,1969,1969,musicbrainz,0,6H3kDe7CGoWYBabAeVWGiD,Gimme Shelter,The Rolling Stones,USA176910020,true,1969
+Back in Black,AC/DC,1980,1980,musicbrainz,0,08mG3Y1vljYA6bvDt4Wqkj,Back In Black,AC/DC,AUAP08000046,true,1980
+Highway to Hell,AC/DC,1979,1979,musicbrainz,0,2zYzyRzz6pRmhPzyfMEC8s,Highway to Hell,AC/DC,AUAP07900028,true,1979
+Thunderstruck,AC/DC,1990,1990,musicbrainz,0,57bgtoPSgt236HzfBOd8kj,Thunderstruck,AC/DC,AUAP09000014,true,1990
+You Shook Me All Night Long,AC/DC,1980,1980,musicbrainz,0,2SiXAy7TuUkycRVbbWDEpo,You Shook Me All Night Long,AC/DC,AUAP08000047,true,1980
+Carry On Wayward Son,Kansas,1976,1976,musicbrainz,0,4DMKwE2E2iYDKY01C335Uw,Carry on Wayward Son,Kansas,USSM17600874,true,1976
+Dust in the Wind,Kansas,1977,1977,musicbrainz,0,6zeE5tKyr8Nu882DQhhSQI,Dust in the Wind,Kansas,USSM10103196,true,1977
+More Than a Feeling,Boston,1976,1976,musicbrainz,0,1QEEqeFIZktqIpPI4jSVSF,More Than a Feeling,Boston,USSM17600941,true,1976
+Don't Fear the Reaper,Blue Oyster Cult,1976,1976,musicbrainz,0,5QTxFnGygVM4jFQiBovmRo,(Don't Fear) The Reaper,Blue Öyster Cult,USSM17600477,true,1976
+Godzilla,Blue Oyster Cult,1977,1977,musicbrainz,0,6N0AnkdDFZUetw8KAGHV7e,Godzilla,Blue Öyster Cult,USSM19917720,true,1977
+Roundabout,Yes,1971,1971,musicbrainz,0,0l2kEdf5XjlckyybbNjmYS,Roundabout,Yes,USEW19900103,true,1971
+Aqualung,Jethro Tull,1971,1971,musicbrainz,0,5UuikgHTxSRFRnC0zXx10i,Aqualung,Jethro Tull,GBAYK7100012,true,1971
+Locomotive Breath,Jethro Tull,1971,1971,musicbrainz,0,0MYNeFsKpzBHwrJGfWZysV,Locomotive Breath,Jethro Tull,GBAYK7100010,true,1971
+Rock and Roll All Nite,KISS,1975,1975,musicbrainz,0,1Buwv1iql0YsxftE5LHIgq,Rock And Roll All Nite - 2025 Remaster,KISS,USPR37509157,true,1975
+Strutter,KISS,1974,1974,musicbrainz,0,0UCg6lnG2MXpuEpf8Pk1MV,Strutter - Remastered 1997,KISS,USPR37409126,true,1974
+Frankenstein,Edgar Winter Group,1972,1972,musicbrainz,0,4g8ZUOxhPMXN5wVSP7gCau,Frankenstein,The Edgar Winter Group,USSM19912832,true,1972
+Radar Love,Golden Earring,1973,1973,musicbrainz,0,4Zau4QvgyxWiWQ5KQrwL43,Radar Love,Golden Earring,NLC287300054,true,1973
+La Grange,ZZ Top,1973,1973,musicbrainz,0,0u6JFVn0KHHlidZxNL9gVE,La Grange (2005 Remaster),ZZ Top,USWB10505222,true,1973
+Tush,ZZ Top,1975,1975,musicbrainz,0,55WrYzR1SHfXeeU6DJbk3Y,Tush (2006 Remaster),ZZ Top,USWB10505236,true,1975
+Sharp Dressed Man,ZZ Top,1983,1983,musicbrainz,0,0bRNszTbTFLNlunAeh7eom,Sharp Dressed Man (2008 Remaster),ZZ Top,USWB10702682,true,1983
+Owner of a Lonely Heart,Yes,1983,1983,musicbrainz,0,0GTK6TesV108Jj5D3MHsYb,Owner of a Lonely Heart,Yes,USAT20702539,true,1983
+Sweet Emotion,Aerosmith,1975,1975,musicbrainz,0,73TxYZd0lBCVRrHawrAglA,Sweet Emotion,Aerosmith,USSM19906482,true,1975
+Dream On,Aerosmith,1973,1973,musicbrainz,0,5Ih9gbqyxCzTJ43nuSuKnC,Dream On,Aerosmith,USSM10011897,true,1973
+Train Kept A-Rollin,Aerosmith,1974,1974,musicbrainz,0,6zb4VGZE20uKHc0mydFgR5,Train Kept a Rollin',Aerosmith,USSM10022913,true,1974
+Renegade,Styx,1978,1978,musicbrainz,0,1CQqupcyMg7176PPmIVmSj,Renegade,Styx,USAM17800365,true,1978
+Come Sail Away,Styx,1977,1977,musicbrainz,0,0PsbWiVtix5FoTZ1s00mEl,Come Sail Away,Styx,USUMG0000438,true,1977
+Hold the Line,Toto,1978,1978,musicbrainz,0,4aVuWgvD0X63hcOCnZtNFA,Hold the Line,TOTO,USSM17800444,true,1978
+Barracuda,Heart,1977,1977,musicbrainz,0,4KfSdst7rW39C0sfhArdrz,Barracuda,Heart,USSM10009075,true,1977
+Slow Ride,Foghat,1975,1975,musicbrainz,0,5rTe42jWw9XBMwUog24we0,Slow Ride,Foghat,USRH10175135,true,1975
+Eye of the Tiger,Survivor,1982,1982,musicbrainz,0,2HHtWyy5CgaQbC7XSoOb0e,Eye of the Tiger,Survivor,USVR19300001,true,1982
+Vehicle,The Ides of March,1970,1970,musicbrainz,0,6hnyQ0YpiO35rutiLLHLmr,Vehicle,The Ides Of March,USWB10107711,true,1970
+25 or 6 to 4,Chicago,1970,1970,musicbrainz,0,7GqIDx2QVGOpd4r1fZaUUW,25 or 6 to 4 - 2002 Remaster,Chicago,USRH10285518,true,1970
+Spinning Wheel,Blood Sweat & Tears,1968,1968,musicbrainz,0,0spSRHFS4zF4Imvz9sJcfL,Spinning Wheel,"Blood, Sweat & Tears",USSM19911961,true,1968
+Rock You Like a Hurricane,Scorpions,1984,1984,musicbrainz,0,58dBJivB6lbAY5irCuAxJX,Rock You Like a Hurricane - 2015 - Remaster,Scorpions,DELV41501024,true,1984
+No One Like You,Scorpions,1982,1982,musicbrainz,0,1grvqYbhgqJxwdzeY1vgSb,No One Like You - 2015 - Remaster,Scorpions,DELV41501039,true,1982
+Heat of the Moment,Asia,1982,1982,musicbrainz,0,1nmZ8yqKkfooOuYvtFctDp,Heat Of The Moment,Asia,USGF18200801,true,1982
+The Final Countdown,Europe,1986,1986,musicbrainz,0,3MrRksHupTVEQ7YbA0FsZK,The Final Countdown,Europe,USSM18600196,true,1986
+Tom Sawyer,Rush,1981,1981,musicbrainz,0,3QZ7uX97s82HFYSmQUAN1D,Tom Sawyer,Rush,USMR18180103,true,1981
+Limelight,Rush,1981,1981,musicbrainz,0,0K6yUnIKNsFtfIpTgGtcHm,Limelight,Rush,USMR18180106,true,1981
+YYZ,Rush,1981,1981,musicbrainz,0,3lpDrxUkr0tIe1kmJvdK7d,YYZ,Rush,USMR18180105,true,1981
+Spirit of Radio,Rush,1980,1980,musicbrainz,0,4e9hUiLsN4mx61ARosFi7p,The Spirit Of Radio,Rush,USMR18070028,true,1980
+Living After Midnight,Judas Priest,1980,1980,musicbrainz,0,0IXpUl1fn2QZcBavfuq0H4,Living After Midnight,Judas Priest,GBBBN8000005,true,1980
+Breaking the Law,Judas Priest,1980,1980,musicbrainz,0,2RaA6kIcvomt77qlIgGhCT,Breaking the Law,Judas Priest,GBBBN8000007,true,1980
+You've Got Another Thing Comin',Judas Priest,1982,1982,musicbrainz,0,4f3RDq9nYPBeR1yMSgnmBm,You've Got Another Thing Comin',Judas Priest,GBBBN8202007,true,1982
+Painkiller,Judas Priest,1990,1990,musicbrainz,0,0L7zm6afBEtrNKo6C6Gj08,Painkiller,Judas Priest,GBBBN0102557,true,1990
+Peace Sells,Megadeth,1986,1986,musicbrainz,0,5a2hIQWInPjqkkFiUEgxoX,Peace Sells - Remastered,Megadeth,USCA21101251,true,1986
+Raining Blood,Slayer,1986,1986,musicbrainz,0,4fiOTntQKr24p07FvQDHZE,Raining Blood,Slayer,USSM18600241,true,1986
+Angel of Death,Slayer,1986,1986,musicbrainz,0,5ohfpKB5tt275f4Y4lQ9F7,Angel Of Death,Slayer,USSM18600233,true,1986
+South of Heaven,Slayer,1988,1988,musicbrainz,0,3U9gogDStAfWxSm91PJuxb,South Of Heaven,Slayer,USSM18800154,true,1988
+Bodies,Drowning Pool,2001,2001,musicbrainz,0,7CpbhqKUedOIrcvc94p60Y,Bodies,Drowning Pool,USWU30006502,true,2001
+Driven Under,Seether,2002,2002,musicbrainz,0,3pavDZo8o2ctgkVhERSzy6,Driven Under,Seether,USWU30200018,true,2002
+Fine Again,Seether,2002,2002,musicbrainz,0,4eTIe5eqds88bA9ua6p5p6,Fine Again,Seether,USWU30200015,true,2002
+Animal I Have Become,Three Days Grace,2006,2006,musicbrainz,0,5eFxwmqKrHpSQDOEIFYlgY,Animal I Have Become,Three Days Grace,USJI10600117,true,2006
+I Hate Everything About You,Three Days Grace,2003,2003,musicbrainz,0,6rUp7v3l8yC4TKxAAR5Bmx,I Hate Everything About You,Three Days Grace,USJI10300075,true,2003
+The Beautiful People,Marilyn Manson,1996,1996,musicbrainz,0,2aIB1CdRRG7YLBu9hNw9nR,The Beautiful People,Marilyn Manson,USIR19601008,true,1996
+Sweet Dreams,Marilyn Manson,1995,1995,musicbrainz,0,2302lUwfZ4S4dVyPOCDFnQ,Sweet Dreams (Are Made Of This),Marilyn Manson,USIR19500314,true,1995
+Bring the Noise,Anthrax,1991,1991,musicbrainz,0,1p50Ir1Hm6Sa1urjaLGi7L,Bring The Noise,Anthrax,USIR29100046,true,1991
+Indians,Anthrax,1987,1987,musicbrainz,0,1fcyfC1KLSWVCIvALR5AxS,Indians,Anthrax,USIR28600022,true,1987
+Caught in a Mosh,Anthrax,1987,1987,musicbrainz,0,4fjWStUaP7aXdT0d3YxvPo,Caught In A Mosh,Anthrax,USIR28600018,true,1987
