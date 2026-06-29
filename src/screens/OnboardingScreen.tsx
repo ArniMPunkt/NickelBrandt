@@ -21,6 +21,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 
 export const ONBOARDING_KEY = '@nickelbrandt/onboarding_seen';
 
@@ -199,10 +200,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 26,
-    elevation: 12,
+    // shadowColor is set per-slide inline (slide.accent); this supplies the
+    // softness on iOS and drops the hard elevation shadow on Android.
+    ...glow(COLORS.secondary, { radius: 26, opacity: 0.8 }),
   },
   glyph: { fontSize: 60 },
 
@@ -262,11 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.secondary, { radius: 16, opacity: 0.8 }),
   },
   ctaText: { color: COLORS.background, fontSize: 20, fontWeight: '900', letterSpacing: 1 },
   swipeHint: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700', fontStyle: 'italic', textAlign: 'center' },

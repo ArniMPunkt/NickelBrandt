@@ -27,6 +27,7 @@ import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../types/game';
 import type { GameStackParamList } from '../types/navigation';
 
@@ -633,11 +634,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.primary,
     overflow: 'hidden',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 10,
+    ...glow(COLORS.primary, { radius: 20, opacity: 0.7 }),
   },
   flash: { ...StyleSheet.absoluteFillObject, borderRadius: 24 },
   cover: { width: 220, height: 220, borderRadius: 16, marginBottom: 10 },
@@ -695,11 +692,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 5,
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 6,
+    ...glow(COLORS.secondary, { radius: 10, opacity: 0.8 }),
   },
   insertBtnDisabled: { backgroundColor: COLORS.border, opacity: 0.35, shadowOpacity: 0, elevation: 0 },
   insertText: { color: COLORS.background, fontSize: 30, fontWeight: '900' },
@@ -713,11 +706,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.accent,
     padding: 10,
     justifyContent: 'center',
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 14,
-    elevation: 10,
+    ...glow(COLORS.accent, { radius: 14, opacity: 0.9 }),
   },
   timelineYear: {
     color: COLORS.accent,
@@ -773,11 +762,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.primary, { radius: 16, opacity: 0.9 }),
   },
   hitsterText: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 1 },
   noStealHint: {
@@ -820,11 +805,7 @@ const styles = StyleSheet.create({
   chipBtn: { flex: 1, minHeight: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   chipYes: {
     backgroundColor: COLORS.accent,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.8 }),
   },
   chipYesText: { color: COLORS.background, fontSize: 15, fontWeight: '900', textAlign: 'center' },
   chipNo: { backgroundColor: COLORS.background, borderWidth: 2, borderColor: COLORS.border },
@@ -837,11 +818,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.accent, { radius: 16, opacity: 0.8 }),
   },
   nextBtnText: { color: COLORS.background, fontSize: 20, fontWeight: '900', letterSpacing: 1 },
 });

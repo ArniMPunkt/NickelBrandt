@@ -37,6 +37,8 @@ yarn-error.*
 !.env.example
 # script secrets (Spotify client secret + Supabase service-role key) — never commit
 scripts/.env
+# cached Spotify USER tokens (Authorization-Code/PKCE flow) — never commit
+scripts/.spotify-user-token.json
 
 # typescript
 *.tsbuildinfo

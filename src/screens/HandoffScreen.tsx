@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useGame } from '../context/GameContext';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
 
 type Nav = NativeStackNavigationProp<GameStackParamList, 'Handoff'>;
@@ -134,11 +135,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 20,
-    elevation: 12,
+    ...glow(COLORS.secondary, { radius: 20, opacity: 0.9 }),
   },
   btnText: {
     color: COLORS.background,

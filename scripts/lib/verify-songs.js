@@ -390,31 +390,141 @@ async function getIsrcFromDeezer(title, artist) {
   return null;
 }
 
-/**
- * Resolve a track to a Spotify match. Order:
- *   1) Deezer -> ISRC (no Spotify quota). If found, Spotify search by exact ISRC,
- *      kept honest with the similarity safety net -> method 'deezer_isrc'.
- *   2) Otherwise the existing text search (strict -> loose -> first_artist).
- * Returns { track, method, score }.
- */
-async function resolveTrack(title, artist, { onRetry } = {}) {
-  let isrc = null;
-  try {
-    isrc = await getIsrcFromDeezer(title, artist);
-  } catch {
-    isrc = null; // Deezer hiccup -> fall through, never block the run
-  }
-  if (isrc) {
-    await sleep(SPOTIFY_STAGGER_MS);
-    const track = await spotifySearchQuery(`isrc:${isrc}`, {
-      label: `${title} — ${artist} [isrc]`,
-      onRetry,
-    });
-    if (track) {
-      const acc = fallbackAccept(title, artist, track); // safety net even for ISRC
-      if (acc.ok) return { track, method: 'deezer_isrc', score: acc.score };
+// ===========================================================================
+// Credits.fm — PRIMARY ISRC source (free, no auth). POST /v1/resolve/batch with
+// {tracks:[{name,artist}]} (NOTE: input key is `name`, not `title`). Response:
+// {total,resolved,results:[{credits_id,name,artist,isrc,credits_url}]}, positional.
+//
+// VERIFIED LIVE — Credits.fm resolves ASYNCHRONOUSLY: the first request for an
+// unseen track returns isrc:null and kicks off a background lookup; a re-query a
+// few seconds later returns the cached ISRC. So we warm up + RE-POLL the still-
+// unresolved subset for a few rounds. Each accepted ISRC is similarity-checked.
+//
+// Rate limit: 30/min without a key. We batch 50/request + stagger, so even a
+// 250-song pool needs only ~10-15 requests -> well under the cap. (A free key
+// raises this to 300/min; not needed at this scale — see summary.)
+// ===========================================================================
+const CREDITS_URL = 'https://api.credits.fm/v1/resolve/batch';
+const CREDITS_BATCH = 50;
+const CREDITS_STAGGER_MS = 2200; // <= ~27 req/min, under the 30/min no-key cap
+const CREDITS_RETRY_ROUNDS = 3; // async cache: re-poll unresolved tracks
+const CREDITS_RETRY_DELAY_MS = 3000;
+
+let _creditsLast = 0;
+async function creditsThrottle() {
+  const wait = CREDITS_STAGGER_MS - (Date.now() - _creditsLast);
+  if (wait > 0) await sleep(wait);
+  _creditsLast = Date.now();
+}
+
+/** POST one batch (<=50 {name,artist}); returns the positional results array or null. */
+async function creditsFetchBatch(tracks) {
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    await creditsThrottle();
+    let res;
+    try {
+      res = await fetchWithTimeout(CREDITS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tracks }),
+      });
+    } catch {
+      if (attempt < 2) {
+        await sleep(2000);
+        continue;
+      }
+      return null;
     }
-    // ISRC route didn't confirm -> fall through to text search
+    if (res.status === 429) {
+      if (attempt < 2) {
+        await sleep(5000);
+        continue;
+      }
+      return null;
+    }
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return (data && data.results) || null;
+  }
+  return null;
+}
+
+/**
+ * Batch-resolve ISRCs for all inputs via Credits.fm. Returns an array
+ * index -> ISRC (or null). Re-polls the unresolved subset for a few rounds to
+ * handle the async-cache behaviour. Every accepted ISRC passes the similarity
+ * guard (Credits.fm aggregates multiple sources; an ISRC can be ambiguous).
+ */
+async function creditsBatchResolve(inputs, onProgress) {
+  const isrcByIndex = new Array(inputs.length).fill(null);
+  let pending = inputs.map((_, i) => i);
+  for (let round = 0; round <= CREDITS_RETRY_ROUNDS && pending.length; round++) {
+    if (round > 0) await sleep(CREDITS_RETRY_DELAY_MS); // let background lookups finish
+    const next = [];
+    for (let s = 0; s < pending.length; s += CREDITS_BATCH) {
+      const chunk = pending.slice(s, s + CREDITS_BATCH);
+      const tracks = chunk.map((i) => ({ name: inputs[i].title, artist: inputs[i].artist }));
+      const results = await creditsFetchBatch(tracks);
+      if (!results) {
+        next.push(...chunk); // hard fail -> retry in a later round
+        continue;
+      }
+      chunk.forEach((i, k) => {
+        const r = results[k];
+        if (r && r.isrc) {
+          if (
+            artistMatches(inputs[i].artist, [r.artist].filter(Boolean)) &&
+            titleMatch(inputs[i].title, r.name || '').ok
+          ) {
+            isrcByIndex[i] = String(r.isrc).toUpperCase(); // accepted
+          }
+          // resolved but failed similarity -> reject silently (don't re-poll)
+        } else {
+          next.push(i); // not resolved yet -> re-poll next round
+        }
+      });
+    }
+    pending = next;
+    if (onProgress) onProgress(isrcByIndex.filter(Boolean).length, inputs.length, round);
+  }
+  return isrcByIndex;
+}
+
+/** Look up a Spotify track by exact ISRC; similarity-checked. -> {track,method,score} or null. */
+async function spotifyByIsrc(isrc, title, artist, method, onRetry) {
+  await sleep(SPOTIFY_STAGGER_MS);
+  const track = await spotifySearchQuery(`isrc:${isrc}`, {
+    label: `${title} — ${artist} [${method}]`,
+    onRetry,
+  });
+  if (track) {
+    const acc = fallbackAccept(title, artist, track); // safety net (ISRCs can be ambiguous)
+    if (acc.ok) return { track, method, score: acc.score };
+  }
+  return null;
+}
+
+/**
+ * Resolve ONE song to a Spotify match via a clear, sequential chain:
+ *   1) Credits.fm ISRC (from the batch pre-pass) -> Spotify by ISRC  [creditsfm_isrc]
+ *   2) Deezer ISRC (per song)                    -> Spotify by ISRC  [deezer_isrc]
+ *   3) Spotify text search (strict -> loose -> first_artist)         [last resort]
+ * Each ISRC route is similarity-checked; on a miss we fall to the next step.
+ */
+async function resolveOne(title, artist, creditsfmIsrc, { onRetry } = {}) {
+  if (creditsfmIsrc) {
+    const hit = await spotifyByIsrc(creditsfmIsrc, title, artist, 'creditsfm_isrc', onRetry);
+    if (hit) return hit;
+  }
+  let dz = null;
+  try {
+    dz = await getIsrcFromDeezer(title, artist);
+  } catch {
+    dz = null; // Deezer hiccup -> fall through, never block the run
+  }
+  if (dz) {
+    const hit = await spotifyByIsrc(dz, title, artist, 'deezer_isrc', onRetry);
+    if (hit) return hit;
   }
   return searchWithFallbacks(title, artist, { onRetry });
 }
@@ -580,8 +690,18 @@ async function mbVerifyYears(tracks) {
  */
 async function verifySongs(inputs, opts = {}) {
   const onSpotify = opts.onSpotify || (() => {});
+  const onPhase = opts.onPhase || (() => {});
   const results = [];
   const stats = { retried: 0, failed: [] };
+
+  // --- Phase A: Credits.fm batch ISRC pre-pass (primary source, no Spotify quota).
+  onPhase('credits-start', { total: inputs.length });
+  const creditsIsrc = await creditsBatchResolve(inputs, (resolved, total, round) =>
+    onPhase('credits-progress', { resolved, total, round })
+  );
+  onPhase('credits-done', { resolved: creditsIsrc.filter(Boolean).length, total: inputs.length });
+
+  // --- Phase B: per-song resolution (Credits ISRC -> Deezer ISRC -> Spotify text).
   for (let i = 0; i < inputs.length; i++) {
     const row = inputs[i];
     let track = null;
@@ -590,7 +710,7 @@ async function verifySongs(inputs, opts = {}) {
     let err = null;
     let retriedThisSong = false;
     try {
-      const res = await resolveTrack(row.title, row.artist, {
+      const res = await resolveOne(row.title, row.artist, creditsIsrc[i], {
         onRetry: () => {
           retriedThisSong = true;
         },
@@ -652,9 +772,10 @@ async function verifySongs(inputs, opts = {}) {
 
 module.exports = {
   readInputCsv,
-  resolveTrack,
+  resolveOne,
   searchWithFallbacks,
   getIsrcFromDeezer,
+  creditsBatchResolve,
   mbVerifyYears,
   verifySongs,
   computeRetryWaitS,

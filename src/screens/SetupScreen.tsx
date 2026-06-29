@@ -27,6 +27,7 @@ import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
 
 const MIN_PLAYERS = 2;
@@ -293,11 +294,7 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: COLORS.secondary,
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glow(COLORS.secondary, { radius: 12, opacity: 0.9 }),
   },
   pickBtn: {
     minHeight: 60,
@@ -307,11 +304,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 6,
+    ...glow(COLORS.secondary, { radius: 12, opacity: 0.6 }),
   },
   pickBtnText: { color: COLORS.secondary, fontWeight: '900', fontSize: 17 },
 
@@ -324,11 +317,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.accent,
     padding: 12,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 6,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.5 }),
   },
   selectedCover: { width: 52, height: 52, borderRadius: 10 },
   selectedCoverFallback: {
@@ -416,11 +405,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.secondary, { radius: 16, opacity: 0.8 }),
   },
   startBtnDisabled: { opacity: 0.5 },
   startBtnText: {

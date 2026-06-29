@@ -33,6 +33,7 @@ import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
 import type { OnlineStackParamList } from '../types/navigation';
 
@@ -696,11 +697,7 @@ const styles = StyleSheet.create({
     gap: 6,
     borderWidth: 2,
     borderColor: COLORS.primary,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 20,
-    elevation: 10,
+    ...glow(COLORS.primary, { radius: 20, opacity: 0.7 }),
   },
   cardBoxCompact: { padding: 12, gap: 2 },
   cover: { width: 200, height: 200, borderRadius: 16, marginBottom: 8 },
@@ -774,11 +771,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
     borderStyle: 'dashed',
     backgroundColor: COLORS.background,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 12,
-    elevation: 6,
+    ...glow(COLORS.primary, { radius: 12, opacity: 0.7 }),
   },
   tlYearMarked: {
     color: COLORS.primary,
@@ -813,11 +806,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.primary, { radius: 16, opacity: 0.9 }),
   },
   hitsterText: { color: COLORS.text, fontSize: 22, fontWeight: '900', letterSpacing: 1 },
   noHitsterBtn: {

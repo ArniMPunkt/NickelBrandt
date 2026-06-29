@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
 
 type Nav = NativeStackNavigationProp<GameStackParamList, 'Result'>;
@@ -239,11 +240,7 @@ const styles = StyleSheet.create({
   },
   playerBoxWinner: {
     borderColor: COLORS.accent,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 6,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.6 }),
   },
   playerHeader: {
     flexDirection: 'row',
@@ -264,11 +261,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.secondary, { radius: 16, opacity: 0.8 }),
   },
   btnText: {
     color: COLORS.background,

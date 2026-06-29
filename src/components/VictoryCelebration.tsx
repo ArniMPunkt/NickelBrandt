@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 
 const CONFETTI_COLORS = [COLORS.primary, COLORS.secondary, COLORS.accent, COLORS.correct];
 const PIECE_COUNT = 28;
@@ -95,6 +96,29 @@ function Confetti() {
   );
 }
 
+/**
+ * A reduced trophy drawn as a thin gold OUTLINE from plain Views (no emoji, no
+ * SVG dependency, no enclosing circle / halo) - the same approach as the
+ * onboarding's TwoPhones. The cup is an outlined bowl with two open bracket
+ * handles; the stem and stacked base are slim solid bars. It stands free on the
+ * dark background; the "glow" is the iOS shadow plus a gentle breath pulse
+ * (driven by the caller), so it pulses on its own without a dark backing disc.
+ */
+function Trophy() {
+  return (
+    <View style={styles.trophy}>
+      <View style={styles.cupRow}>
+        <View style={[styles.handle, styles.handleLeft]} />
+        <View style={[styles.handle, styles.handleRight]} />
+        <View style={styles.cup} />
+      </View>
+      <View style={styles.stem} />
+      <View style={styles.baseTop} />
+      <View style={styles.base} />
+    </View>
+  );
+}
+
 export function VictoryCelebration({
   winnerName,
   onContinue,
@@ -103,29 +127,83 @@ export function VictoryCelebration({
   onContinue: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const pop = useRef(new Animated.Value(0)).current;
+  // Staggered reveal: trophy lands first, then the label, then the name builds
+  // in (its glow fades up with its opacity). The confetti underneath is ambient
+  // and continuous, so it composes with the reveal without being touched.
+  const trophyIn = useRef(new Animated.Value(0)).current;
+  const labelIn = useRef(new Animated.Value(0)).current;
+  const nameIn = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(pop, { toValue: 1, friction: 5, tension: 55, useNativeDriver: true }).start();
-  }, [pop]);
+    Animated.sequence([
+      Animated.spring(trophyIn, { toValue: 1, friction: 6, tension: 60, useNativeDriver: true }),
+      Animated.timing(labelIn, {
+        toValue: 1,
+        duration: 260,
+        delay: 60,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(nameIn, {
+        toValue: 1,
+        friction: 5,
+        tension: 55,
+        delay: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
-  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
-  const translateY = pop.interpolate({ inputRange: [0, 1], outputRange: [28, 0] });
-  const glowOpacity = pop.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0.5, 0.85] });
+    // Continuous, subtle breath - reads as a soft glow pulse, no halo needed.
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [trophyIn, labelIn, nameIn, pulse]);
+
+  const trophyScale = trophyIn.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
+  const pulseOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.82] });
+
+  const labelTranslate = labelIn.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+
+  const nameScale = nameIn.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+  const nameTranslate = nameIn.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
       <Confetti />
 
       <View style={styles.center}>
-        <Text style={styles.trophy}>🏆</Text>
-        <Text style={styles.label}>GEWINNER</Text>
-        <Animated.View style={[styles.nameWrap, { opacity: pop, transform: [{ scale }, { translateY }] }]}>
-          <Animated.View style={[styles.nameGlow, { opacity: glowOpacity }]} />
-          <Text style={styles.name} numberOfLines={2} adjustsFontSizeToFit>
-            {winnerName}
-          </Text>
+        <Animated.View
+          style={{
+            opacity: Animated.multiply(trophyIn, pulseOpacity),
+            transform: [{ scale: trophyScale }, { scale: pulseScale }],
+          }}
+        >
+          <Trophy />
         </Animated.View>
+
+        <Animated.Text
+          style={[styles.label, { opacity: labelIn, transform: [{ translateY: labelTranslate }] }]}
+        >
+          GEWINNER
+        </Animated.Text>
+
+        <Animated.Text
+          style={[
+            styles.name,
+            { opacity: nameIn, transform: [{ scale: nameScale }, { translateY: nameTranslate }] },
+          ]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+        >
+          {winnerName}
+        </Animated.Text>
       </View>
 
       <Pressable style={styles.btn} onPress={onContinue}>
@@ -145,22 +223,60 @@ const styles = StyleSheet.create({
   },
   piece: { position: 'absolute', top: 0, borderRadius: 2 },
 
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  trophy: { fontSize: 76, textAlign: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  // --- Trophy: a free-standing gold outline (no circle, no halo) ---
+  trophy: { alignItems: 'center', justifyContent: 'center', marginBottom: 34 },
+  cupRow: { width: 60, alignItems: 'center', justifyContent: 'center' },
+  cup: {
+    width: 60,
+    height: 46,
+    backgroundColor: 'transparent',
+    borderWidth: 3,
+    borderColor: COLORS.accent,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.7 }),
+  },
+  // Open bracket handles ("(" / ")") hugging the cup sides - outline only.
+  handle: {
+    position: 'absolute',
+    top: 6,
+    width: 14,
+    height: 26,
+    borderColor: COLORS.accent,
+    borderTopWidth: 3,
+    borderBottomWidth: 3,
+  },
+  handleLeft: {
+    left: -12,
+    borderLeftWidth: 3,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  handleRight: {
+    right: -12,
+    borderRightWidth: 3,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  stem: { width: 7, height: 12, backgroundColor: COLORS.accent },
+  baseTop: { width: 26, height: 6, borderRadius: 3, backgroundColor: COLORS.accent, marginTop: 1 },
+  base: { width: 48, height: 9, borderRadius: 5, backgroundColor: COLORS.accent, marginTop: 3 },
+
+  // --- Label: cyan, with clear separation above the free-standing name ---
   label: {
     fontSize: 14,
     fontWeight: '800',
     color: COLORS.secondary,
-    letterSpacing: 4,
+    letterSpacing: 6,
+    marginBottom: 20,
   },
-  nameWrap: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  nameGlow: {
-    position: 'absolute',
-    width: 240,
-    height: 120,
-    borderRadius: 999,
-    backgroundColor: COLORS.primary,
-  },
+
+  // --- Winner name: free-standing text with a pink glow (wordmark style), no
+  // container/pill. The glow fades up with the text's entrance opacity. ---
   name: {
     fontSize: 52,
     lineHeight: 56,
@@ -168,9 +284,10 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     textAlign: 'center',
     letterSpacing: 0.5,
+    paddingHorizontal: 8,
     textShadowColor: COLORS.primary,
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 24,
+    textShadowRadius: 22,
   },
 
   btn: {
@@ -180,11 +297,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.secondary, { radius: 16, opacity: 0.8 }),
   },
   btnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
 });

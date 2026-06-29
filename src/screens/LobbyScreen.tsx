@@ -22,6 +22,7 @@ import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { LobbyPlayer } from '../types/online';
 import { loadDeckSource, type DeckSource } from '../services/deck';
@@ -283,11 +284,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 18,
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 16,
-    elevation: 8,
+    ...glow(COLORS.primary, { radius: 16, opacity: 0.7 }),
   },
   codeText: {
     color: COLORS.primary,
@@ -338,11 +335,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 10,
+    ...glow(COLORS.secondary, { radius: 16, opacity: 0.8 }),
   },
   startBtnText: { color: COLORS.background, fontSize: 20, fontWeight: '900', letterSpacing: 1 },
   waitText: {

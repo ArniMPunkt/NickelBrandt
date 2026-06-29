@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 
 const APP_VERSION = 'v0.1.0';
 const WIN_OPTIONS = [5, 10, 15];
@@ -298,11 +299,7 @@ const styles = StyleSheet.create({
     backgroundColor: SPOTIFY_GREEN,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: SPOTIFY_GREEN,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 8,
+    ...glow(SPOTIFY_GREEN, { radius: 12, opacity: 0.6 }),
   },
   connectBtnText: { color: COLORS.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
   dangerBtn: {

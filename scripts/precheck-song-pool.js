@@ -58,6 +58,11 @@ async function main() {
   let verifyOut;
   try {
     verifyOut = await verifySongs(inputs, {
+      onPhase: (event, info) => {
+        if (event === 'credits-start') console.log(`Credits.fm: löse ISRCs für ${info.total} Songs (Batch, async)…`);
+        else if (event === 'credits-progress') console.log(`  Credits.fm Runde ${info.round}: ${info.resolved}/${info.total} ISRCs`);
+        else if (event === 'credits-done') console.log(`Credits.fm fertig: ${info.resolved}/${info.total} ISRCs. Jetzt Spotify-Auflösung…\n`);
+      },
       onSpotify: (i, total, row, r) => {
         const tag =
           r.matchMethod + (r.similarityScore != null ? ` ~${r.similarityScore.toFixed(2)}` : '');
@@ -156,9 +161,22 @@ async function main() {
   const autoFilled = rows.filter((r) => r.row.spotify_found === 'true' && r.row.final_year !== '').length;
   const needsReview = rows.filter((r) => r.row.spotify_found === 'true' && r.row.final_year === '').length;
 
+  // Trefferquote je Quelle (welcher Resolver-Schritt griff).
+  const byMethod = {};
+  for (const r of results) {
+    const m = r.matchMethod || (r.spotifyFound ? 'unknown' : 'none');
+    byMethod[m] = (byMethod[m] || 0) + 1;
+  }
+  const m = (k) => byMethod[k] || 0;
+
   const line = '─'.repeat(60);
   console.log(`\n${line}\nPRE-CHECK ZUSAMMENFASSUNG\n${line}`);
   console.log(`Eingabe-Songs:                          ${inputs.length}`);
+  console.log(`Quelle je Treffer:`);
+  console.log(`   Credits.fm (ISRC):   ${m('creditsfm_isrc')}`);
+  console.log(`   Deezer (ISRC):       ${m('deezer_isrc')}`);
+  console.log(`   Spotify-Text strict: ${m('strict')}`);
+  console.log(`   Spotify-Text loose:  ${m('fallback_loose') + m('fallback_first_artist')}`);
   console.log(`diff = 0 (auto-befüllt, ohne Rückfrage übernehmbar): ${autoFilled}`);
   console.log(`diff >= 1 / unbestimmt (im Review anzuschauen):       ${needsReview}`);
   console.log(`Nicht bei Spotify gefunden (übersprungen beim Upload): ${notFound}`);

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { Lobby } from '../types/online';
 
@@ -232,11 +233,7 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 10,
     marginTop: 4,
-    shadowColor: COLORS.secondary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 6,
+    ...glow(COLORS.secondary, { radius: 12, opacity: 0.5 }),
   },
   resumeLabel: { color: COLORS.secondary, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
   resumeBtn: {
@@ -283,11 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
-    elevation: 8,
+    ...glow(COLORS.primary, { radius: 14, opacity: 0.7 }),
   },
   createBtnText: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
   spotifyGateHint: {
