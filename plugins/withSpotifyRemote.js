@@ -17,6 +17,10 @@
  *    `canOpenURL` checks for the Spotify app, imports RNSpotifyRemoteAuth into
  *    the generated Swift bridging header, and forwards AppDelegate openURL
  *    callbacks to the Spotify SDK while preserving Expo/RN Linking.
+ *  - iOS (simulator only): injects a Podfile post_install hook that excludes the
+ *    arm64 slice for the iphonesimulator SDK on the Spotify pod target(s), so a
+ *    local Simulator build links (SpotifyiOS.framework ships device slices only).
+ *    Device + EAS/TestFlight builds use the iphoneos SDK and are unaffected.
  *
  * Config: pass the redirect URI via the plugin props, e.g.
  *   plugins: [["./plugins/withSpotifyRemote", { redirectUri: "nickelbrandt://spotify-login-callback" }]]
@@ -38,6 +42,8 @@ const SPOTIFY_AUTH_BRIDGING_IMPORT =
   '#import <RNSpotifyRemote/RNSpotifyRemoteAuth.h>';
 const SPOTIFY_OPEN_URL_CALL =
   'RNSpotifyRemoteAuth.sharedInstance()?.application(app, open: url, options: options) ?? false';
+const SPOTIFY_SIM_EXCLUSION_MARKER =
+  '# >>> withSpotifyRemote: simulator arch exclusion';
 
 /**
  * Split a redirect URI "<scheme>://<host>" into its parts.
@@ -219,6 +225,61 @@ function withSpotifyAppDelegate(config) {
 }
 
 /**
+ * The Ruby snippet inserted into the Podfile's post_install block. It excludes
+ * arm64 for the iphonesimulator SDK on the Spotify pod target(s) only. Because
+ * the build setting is keyed to `sdk=iphonesimulator*`, it is a no-op for any
+ * device/iphoneos build (local Device run, EAS, TestFlight) — those keep the
+ * arm64 device slice and full functionality.
+ */
+function buildSimExclusionSnippet() {
+  return [
+    `    ${SPOTIFY_SIM_EXCLUSION_MARKER}`,
+    '    # SpotifyiOS.framework ships device slices only (no arm64 simulator slice),',
+    '    # so an Apple-Silicon Simulator build fails to link it. Exclude arm64 for the',
+    '    # iphonesimulator SDK on the Spotify pod target(s) -> the Simulator builds',
+    '    # x86_64 (under Rosetta) and the app runs; Spotify connect just errors there.',
+    '    # Simulator-only: device + EAS/TestFlight (iphoneos SDK) are untouched.',
+    '    installer.pods_project.targets.each do |target|',
+    "      if target.name == 'RNSpotifyRemote' || target.name.include?('Spotify')",
+    '        target.build_configurations.each do |bc|',
+    "          bc.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'",
+    '        end',
+    '      end',
+    '    end',
+    '    # <<< withSpotifyRemote',
+  ].join('\n');
+}
+
+/**
+ * iOS (simulator only): inject the arch-exclusion into the Podfile's post_install.
+ * Anchored here in the config plugin so `expo prebuild` regenerates it every time
+ * — the generated ios/ folder is never committed.
+ */
+function withSpotifySimulatorExclusion(config) {
+  return withDangerousMod(config, [
+    'ios',
+    async (cfg) => {
+      const podfilePath = path.join(cfg.modRequest.platformProjectRoot, 'Podfile');
+      let contents = fs.readFileSync(podfilePath, 'utf8');
+      if (contents.includes(SPOTIFY_SIM_EXCLUSION_MARKER)) return cfg; // idempotent
+
+      const snippet = buildSimExclusionSnippet();
+      // Expo's Podfile already has exactly one `post_install do |installer|` block
+      // (CocoaPods allows only one). Insert our loop at the top of it.
+      const anchor = /post_install do \|installer\|[^\n]*\n/;
+      if (anchor.test(contents)) {
+        contents = contents.replace(anchor, (match) => `${match}${snippet}\n`);
+      } else {
+        // Fallback: no post_install block present -> add one.
+        contents = `${contents.trimEnd()}\n\npost_install do |installer|\n${snippet}\nend\n`;
+      }
+      fs.writeFileSync(podfilePath, contents);
+      return cfg;
+    },
+  ]);
+}
+
+/**
  * @param {import('@expo/config-plugins').ExpoConfig} config
  * @param {{ redirectUri?: string }} props
  */
@@ -232,6 +293,7 @@ function withSpotifyRemote(config, props = {}) {
   config = withSpotifyUrlScheme(config, { scheme });
   config = withSpotifyBridgingHeader(config);
   config = withSpotifyAppDelegate(config);
+  config = withSpotifySimulatorExclusion(config);
   return config;
 }
 
