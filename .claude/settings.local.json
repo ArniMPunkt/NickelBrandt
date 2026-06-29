@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx expo:*)"
+      "Bash(npx expo:*)",
+      "Bash(npx expo *)",
+      "Bash(xcodebuild -workspace NickelBrandt.xcworkspace -scheme NickelBrandt -sdk iphonesimulator -showBuildSettings)",
+      "Bash(xcrun simctl *)",
+      "Bash(python3 -c ' *)",
+      "Bash(xcodebuild -workspace NickelBrandt.xcworkspace -scheme NickelBrandt -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath /tmp/NickelBrandtBuild build)",
+      "Bash(xcodebuild -workspace NickelBrandt.xcworkspace -scheme NickelBrandt -configuration Debug -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' -derivedDataPath /tmp/NickelBrandtBuild build)",
+      "Bash(xcodebuild -workspace NickelBrandt.xcworkspace -scheme NickelBrandt -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/NickelBrandtBuild build)",
+      "Bash(xcodebuild -workspace /Users/arnim/Documents/NickelBrandt/ios/NickelBrandt.xcworkspace -scheme NickelBrandt -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/NickelBrandtBuild2 build)",
+      "Bash(ls /tmp/NickelBrandtBuild/Build/Products/Debug-iphonesimulator/*.app 2>/dev/null && echo \"APP EXISTS\" || echo \"NO APP\")",
+      "Read(//private/tmp/NickelBrandtBuild/Build/Products/Debug-iphonesimulator/**)"
     ]
   }
 }
