@@ -16,7 +16,7 @@
 // and we require() the SDK lazily (on first use, well after startup) inside a
 // try/catch, so an uninitialized bridge can never crash module load.
 // NativeModules is RN core - always available, never touches the spotify SDK.
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
@@ -47,10 +47,19 @@ let sdk: typeof import('react-native-spotify-remote') | null = null;
  */
 function getSDK(): typeof import('react-native-spotify-remote') {
   if (sdk) return sdk;
+  const missingModules = [
+    !NativeModules.RNSpotifyRemoteAuth && 'RNSpotifyRemoteAuth',
+    !NativeModules.RNSpotifyRemoteAppRemote && 'RNSpotifyRemoteAppRemote',
+  ].filter(Boolean);
   if (
-    !NativeModules.RNSpotifyRemoteAuth ||
-    !NativeModules.RNSpotifyRemoteAppRemote
+    missingModules.length > 0
   ) {
+    if (Platform.OS === 'ios') {
+      throw new Error(
+        `Spotify native module missing on iOS (${missingModules.join(', ')}). ` +
+          'Rebuild the iOS app after enabling RNSpotifyRemote and test on a real device.'
+      );
+    }
     throw new Error(SDK_NOT_READY);
   }
   try {
@@ -93,14 +102,15 @@ const playedTrackIds = new Set<string>();
 /**
  * Connect to Spotify: PKCE Web API authorization + App Remote connection.
  *
- * Why no auth.authorize() here anymore: Spotify is phasing out the implicit/TOKEN
- * grant, which made the old auth.authorize() fall back to a browser email/OTP
- * login. On Android the App Remote does NOT use that token anyway - it
- * authenticates app-to-app via the installed Spotify app (clientId + redirectUri).
+ * Android avoids auth.authorize(): Spotify is phasing out the implicit/TOKEN
+ * grant, and the Android App Remote path does not use that token anyway. iOS
+ * still needs the library's authorize() result because its native bridge only
+ * exposes connect(accessToken), not connectWithoutAuth().
+ *
  * So we:
  *   1) run the modern Authorization Code + PKCE flow (also gets the user's
  *      consent for app-remote-control / streaming, pre-authorizing the remote), and
- *   2) connect the App Remote via connectWithoutAuth (no deprecated SSO).
+ *   2) connect the App Remote via the platform's available native method.
  * The PKCE token also powers the Web API (playlists). Throws on missing config /
  * cancel / Spotify app not reachable.
  */
@@ -116,13 +126,28 @@ export async function connect(): Promise<void> {
   //    also pre-authorizes the playback scopes used by the App Remote below.
   await ensureWebApiAuthorized();
 
-  // 2) App Remote, app-to-app via the installed Spotify app. The token arg is
-  //    ignored by the Android module (it builds ConnectionParams from
-  //    clientId + redirectUri); we pass '' on purpose. This avoids the
-  //    deprecated implicit-grant auth.authorize() path entirely.
+  // 2) App Remote, app-to-app via the installed Spotify app. Android exposes a
+  //    patched connectWithoutAuth() method; iOS does not, so it uses the
+  //    library's native authorize() + connect(accessToken) sequence.
   try {
+    if (Platform.OS === 'ios') {
+      const session = await getAuth().authorize({
+        clientID: CLIENT_ID,
+        redirectURL: REDIRECT_URL,
+        scopes: WEB_API_SCOPES as any,
+      });
+      if (!session?.accessToken) {
+        throw new Error(
+          'Spotify authorization did not return an access token. Check the iOS redirect callback.'
+        );
+      }
+      await getRemote().connect(session.accessToken);
+      connected = true;
+      return;
+    }
+
     // connectWithoutAuth is a native @ReactMethod not surfaced in the lib's TS
-    // types, so we access it via the (guarded) remote singleton with a cast.
+    // types, so we access it via the (guarded) Android remote singleton with a cast.
     const remote = getRemote() as unknown as {
       connectWithoutAuth: (
         token: string,
