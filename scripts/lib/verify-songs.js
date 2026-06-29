@@ -120,13 +120,18 @@ function readInputCsv(csvPath, fs = require('fs')) {
   }
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const hasHeader = header.includes('title') || header.includes('artist');
+  // spotify_track_id + isrc are OPTIONAL extra columns (present in playlist
+  // exports, absent in hand-written custom lists). When both are filled the
+  // precheck takes a fast-path; otherwise these stay null and nothing changes.
   const idx = hasHeader
     ? {
         title: header.indexOf('title'),
         artist: header.indexOf('artist'),
         year: header.findIndex((h) => h.includes('year')),
+        trackId: header.findIndex((h) => h === 'spotify_track_id' || h === 'track_id'),
+        isrc: header.indexOf('isrc'),
       }
-    : { title: 0, artist: 1, year: 2 };
+    : { title: 0, artist: 1, year: 2, trackId: -1, isrc: -1 };
   const dataRows = hasHeader ? rows.slice(1) : rows;
 
   const out = [];
@@ -135,8 +140,10 @@ function readInputCsv(csvPath, fs = require('fs')) {
     const artist = (r[idx.artist] ?? '').trim();
     const yearRaw = idx.year >= 0 ? (r[idx.year] ?? '').trim() : '';
     const estimatedYear = /^\d{4}$/.test(yearRaw) ? parseInt(yearRaw, 10) : null;
+    const trackId = idx.trackId >= 0 ? (r[idx.trackId] ?? '').trim() : '';
+    const isrc = idx.isrc >= 0 ? (r[idx.isrc] ?? '').trim() : '';
     if (!title || !artist) continue;
-    out.push({ title, artist, estimatedYear });
+    out.push({ title, artist, estimatedYear, spotifyTrackId: trackId || null, isrc: isrc || null });
   }
   return out;
 }
@@ -691,26 +698,61 @@ async function mbVerifyYears(tracks) {
 async function verifySongs(inputs, opts = {}) {
   const onSpotify = opts.onSpotify || (() => {});
   const onPhase = opts.onPhase || (() => {});
-  const results = [];
+  const results = new Array(inputs.length);
   const stats = { retried: 0, failed: [] };
 
-  // --- Phase A: Credits.fm batch ISRC pre-pass (primary source, no Spotify quota).
-  onPhase('credits-start', { total: inputs.length });
-  const creditsIsrc = await creditsBatchResolve(inputs, (resolved, total, round) =>
-    onPhase('credits-progress', { resolved, total, round })
-  );
-  onPhase('credits-done', { resolved: creditsIsrc.filter(Boolean).length, total: inputs.length });
+  // Fast-path rows already carry BOTH a Spotify track id and an ISRC (playlist
+  // imports). They skip the whole resolver chain (no Credits.fm / Deezer / Spotify
+  // search, no similarity check) and trust the given id+ISRC. The MusicBrainz year
+  // check below still runs for them, so the year is verified, not blindly taken.
+  const isFast = inputs.map((row) => !!(row.spotifyTrackId && row.isrc));
+  const fullPositions = [];
+  inputs.forEach((_, i) => {
+    if (!isFast[i]) fullPositions.push(i);
+  });
+  const fullInputs = fullPositions.map((i) => inputs[i]);
+  const origToFull = new Map(fullPositions.map((origI, k) => [origI, k]));
 
-  // --- Phase B: per-song resolution (Credits ISRC -> Deezer ISRC -> Spotify text).
+  // --- Phase A: Credits.fm batch ISRC pre-pass — ONLY for full-chain rows.
+  let creditsIsrcFull = [];
+  if (fullInputs.length > 0) {
+    onPhase('credits-start', { total: fullInputs.length });
+    creditsIsrcFull = await creditsBatchResolve(fullInputs, (resolved, total, round) =>
+      onPhase('credits-progress', { resolved, total, round })
+    );
+    onPhase('credits-done', { resolved: creditsIsrcFull.filter(Boolean).length, total: fullInputs.length });
+  }
+
+  // --- Phase B: per-song. Fast-path rows are filled directly; the rest run the
+  //     full chain (Credits ISRC -> Deezer ISRC -> Spotify text).
   for (let i = 0; i < inputs.length; i++) {
     const row = inputs[i];
+
+    if (isFast[i]) {
+      const r = {
+        input: row,
+        spotifyFound: true,
+        trackId: row.spotifyTrackId,
+        spName: row.title,
+        spArtist: row.artist,
+        isrc: row.isrc,
+        mbYear: null,
+        failed: false,
+        matchMethod: 'playlist_import',
+        similarityScore: null,
+      };
+      results[i] = r;
+      onSpotify(i + 1, inputs.length, row, r, null, false);
+      continue;
+    }
+
     let track = null;
     let method = null;
     let score = null;
     let err = null;
     let retriedThisSong = false;
     try {
-      const res = await resolveOne(row.title, row.artist, creditsIsrc[i], {
+      const res = await resolveOne(row.title, row.artist, creditsIsrcFull[origToFull.get(i)], {
         onRetry: () => {
           retriedThisSong = true;
         },
@@ -751,7 +793,7 @@ async function verifySongs(inputs, opts = {}) {
           matchMethod: null,
           similarityScore: null,
         };
-    results.push(r);
+    results[i] = r;
     onSpotify(i + 1, inputs.length, row, r, err, retriedThisSong);
     // Stagger now happens per attempt inside searchWithFallbacks (rate-limit aware).
   }

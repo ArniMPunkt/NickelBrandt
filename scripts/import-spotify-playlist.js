@@ -20,10 +20,15 @@
  *     precheck step still verifies the year via MusicBrainz.
  *
  * AUTH — this script uses an interactive USER login (Authorization Code flow with
- * PKCE), NOT Client-Credentials. Reason: since Nov 2024 Spotify forbids reading
- * playlist TRACK contents with a Client-Credentials token (HTTP 403) unless the
- * app has Extended Quota Mode; a logged-in user is allowed. (The OTHER scripts
- * stay on Client-Credentials — only this one changed.)
+ * PKCE), NOT Client-Credentials. Reason: Spotify forbids reading playlist
+ * contents with a Client-Credentials token; a logged-in user is allowed. (The
+ * OTHER scripts stay on Client-Credentials — only this one changed.)
+ *
+ * ENDPOINT (Feb 2026 Web API change): reads GET /playlists/{id}/items (the old
+ * /playlists/{id}/tracks was removed; migration deadline 9 Mar 2026). Playlist
+ * contents are returned ONLY for your own or collaborative playlists — for a
+ * foreign playlist the `items` field is absent and the script aborts with a
+ * clear message (copy the playlist into your own profile first).
  *
  * On first run the script starts a short-lived local HTTP server, prints a login
  * URL to open in your browser, catches the redirect, swaps the code for tokens
@@ -97,8 +102,11 @@ function newAcc() {
 function accumulatePage(items, acc) {
   for (const item of Array.isArray(items) ? items : []) {
     acc.seen++;
-    const t = item && item.track;
-    // Null track = removed/region-unavailable. Local file = not a Spotify track.
+    // The /items endpoint (Feb 2026) renames the wrapper's `track` field to
+    // `item`. Read `item` first, fall back to `track` so we keep working during
+    // the migration window (both shapes may appear until 9 Mar 2026).
+    const t = item && (item.item || item.track);
+    // Null entry = removed/region-unavailable. Local file = not a Spotify track.
     if (!t) {
       acc.skipped.nullTrack++;
       continue;
@@ -311,13 +319,14 @@ async function main() {
 
   const token = await getUserAccessToken();
 
-  // Trim the payload to only the fields we need. `next` is a full URL that
-  // already carries the offset (and Spotify preserves the field filter on it);
-  // even if it didn't, our parser reads the full track object fine.
+  // Feb 2026 Web API change: GET /playlists/{id}/tracks was removed and replaced
+  // by GET /playlists/{id}/items. Each page element is now `{ is_local, item }`
+  // (was `{ is_local, track }`). `next` is a full URL carrying the offset; even
+  // if it dropped the field filter our parser reads the full object anyway.
   const fields =
-    'items(is_local,track(name,id,is_local,artists(name),external_ids(isrc),album(release_date))),next,total';
+    'items(is_local,item(name,id,is_local,artists(name),external_ids(isrc),album(release_date))),next,total';
   let url =
-    `https://api.spotify.com/v1/playlists/${id}/tracks` +
+    `https://api.spotify.com/v1/playlists/${id}/items` +
     `?limit=100&fields=${encodeURIComponent(fields)}`;
 
   const acc = newAcc();
@@ -327,6 +336,17 @@ async function main() {
   while (url) {
     page++;
     const data = await fetchPage(url, token, `Playlist-Seite ${page}`);
+    // Foreign playlists return NO `items` field at all (Feb 2026 rule: contents
+    // only for own/collaborative playlists). Fail clearly instead of writing an
+    // empty CSV or crashing on undefined.
+    if (page === 1 && !Array.isArray(data.items)) {
+      throw new Error(
+        `Spotify liefert keine "items" für Playlist ${id}. Seit den Februar-2026-` +
+          'Dev-Mode-Änderungen werden Playlist-Inhalte nur für DEINE EIGENEN oder ' +
+          'kollaborative Playlists zurückgegeben. Kopiere die Playlist in dein eigenes ' +
+          'Spotify-Profil und nutze die ID der Kopie.'
+      );
+    }
     if (total === null && typeof data.total === 'number') total = data.total;
     accumulatePage(data.items, acc);
     url = data.next || null;

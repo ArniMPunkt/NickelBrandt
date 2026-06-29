@@ -15,6 +15,11 @@
  *   node scripts/precheck-song-pool.js ./scripts/pop70-90.csv ./scripts/pop70-90.review.csv
  *
  * Input CSV columns: title,artist,estimated_year   (header optional)
+ *   Optional: spotify_track_id,isrc — if BOTH are filled for a row (e.g. from a
+ *   playlist export) that row takes a fast-path: the id+ISRC are trusted as-is
+ *   (no Spotify search / similarity check), only the MusicBrainz year is still
+ *   verified. Rows without them use the full resolver chain as before. Mixed
+ *   CSVs are handled row by row.
  *
  * SECRETS: uses scripts/.env for SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET only.
  * The Supabase variables in that file are NOT used here (no DB access).
@@ -169,9 +174,15 @@ async function main() {
   }
   const m = (k) => byMethod[k] || 0;
 
+  // Fast-Path (Track-ID + ISRC schon bekannt) vs. volle Resolver-Kette.
+  const fastPath = results.filter((r) => r.matchMethod === 'playlist_import').length;
+  const fullChain = inputs.length - fastPath;
+
   const line = '─'.repeat(60);
   console.log(`\n${line}\nPRE-CHECK ZUSAMMENFASSUNG\n${line}`);
   console.log(`Eingabe-Songs:                          ${inputs.length}`);
+  console.log(`   Fast-Path (Track-ID+ISRC bekannt):   ${fastPath}`);
+  console.log(`   Volle Resolver-Kette:                ${fullChain}`);
   console.log(`Quelle je Treffer:`);
   console.log(`   Credits.fm (ISRC):   ${m('creditsfm_isrc')}`);
   console.log(`   Deezer (ISRC):       ${m('deezer_isrc')}`);
