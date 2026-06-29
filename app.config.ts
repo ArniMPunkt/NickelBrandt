@@ -50,6 +50,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     ['./plugins/withSpotifyRemote', { redirectUri: SPOTIFY_REDIRECT_URI }],
+    // Signs the Android RELEASE build with the project's own keystore (the RN
+    // template otherwise release-signs with the debug key). Reads passwords/alias
+    // from env at build time; see the plugin header.
+    './plugins/withAndroidReleaseSigning',
     // Sets C++17 on the fmt pod to fix consteval errors with newer Xcode/Clang.
     './plugins/withFmtCppStandard',
     // Needed by expo-auth-session (PKCE Web-API auth) to complete the redirect.
