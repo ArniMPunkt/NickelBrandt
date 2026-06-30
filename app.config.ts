@@ -29,9 +29,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: 'com.nickelbrandt.app',
     icon: './assets/icon.png',
+    // iOS build number (CFBundleVersion). Bump on every TestFlight/App Store build.
+    buildNumber: '2',
   },
   android: {
     package: 'com.nickelbrandt.app',
+    // Android build number (versionCode). Bump on every Play/release build.
+    versionCode: 2,
     adaptiveIcon: {
       // Solid logo-purple background behind the masked foreground. NOTE: a
       // backgroundImage would override backgroundColor, so it is intentionally

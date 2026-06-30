@@ -99,20 +99,141 @@ let connected = false;
 /** Track ids already used this session, so the deck never repeats a track. */
 const playedTrackIds = new Set<string>();
 
+// Hard bound for the App Remote native calls. The interactive PKCE browser step
+// settles on its own (cancel/dismiss); these native bridge calls can silently
+// never return (seen on iOS when the redirect doesn't come back), so we time-box
+// them rather than let the UI spin forever.
+const APP_REMOTE_TIMEOUT_MS = 20000;
+
+/**
+ * Reject if `p` doesn't settle within `ms`. The underlying promise is left to
+ * settle on its own; we simply stop waiting on it and surface a clear error.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `${label}: Zeitüberschreitung nach ${Math.round(ms / 1000)}s. Stelle sicher, dass ` +
+            'die Spotify-App installiert, geöffnet und eingeloggt ist, und versuche es erneut.'
+        )
+      );
+    }, ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      }
+    );
+  });
+}
+
+/** The "stale App Remote authorization" error we can self-heal from. */
+function isStaleAuthError(e: any): boolean {
+  return `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase().includes('not authorized');
+}
+
+/** Map a raw connect failure to a friendly, actionable message. */
+function mapConnectError(e: any): Error {
+  const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
+  if (
+    raw.includes('couldnotfindspotifyapp') ||
+    raw.includes('could not find') ||
+    raw.includes('not installed')
+  ) {
+    return new Error(
+      'Spotify app not found. Install the Spotify app and open it once, ' +
+        'then try again (the App Remote SDK talks to the running Spotify app).'
+    );
+  }
+  if (raw.includes('not authorized')) {
+    // Deliberately no "Verbindung trennen" hint: in the dead-end state the
+    // Settings button shows "verbinden" (there is no disconnect to tap). connect()
+    // self-heals (clears + re-consents) BEFORE this is shown, so reaching here
+    // means even a fresh consent was refused.
+    return new Error(
+      'Spotify-Berechtigung konnte nicht erteilt werden. Bitte stelle sicher, dass du in ' +
+        'der Spotify-App eingeloggt bist, und versuche es erneut.'
+    );
+  }
+  if (raw.includes('notloggedin') || raw.includes('not logged in')) {
+    return new Error('Not logged in to the Spotify app. Log in there, then retry.');
+  }
+  return e instanceof Error ? e : new Error(String(e));
+}
+
+/**
+ * App Remote connection (step 2 of connect), app-to-app via the installed Spotify
+ * app. Android exposes a patched connectWithoutAuth(); iOS uses the library's
+ * native authorize() + connect(accessToken). Each native call is time-boxed.
+ */
+async function connectAppRemote(): Promise<void> {
+  if (Platform.OS === 'ios') {
+    const session = await withTimeout(
+      getAuth().authorize({
+        clientID: CLIENT_ID,
+        redirectURL: REDIRECT_URL,
+        scopes: WEB_API_SCOPES as any,
+      }),
+      APP_REMOTE_TIMEOUT_MS,
+      'Spotify-Autorisierung'
+    );
+    if (!session?.accessToken) {
+      throw new Error(
+        'Spotify authorization did not return an access token. Check the iOS redirect callback.'
+      );
+    }
+    await withTimeout(
+      getRemote().connect(session.accessToken),
+      APP_REMOTE_TIMEOUT_MS,
+      'Spotify-Verbindung'
+    );
+    connected = true;
+    return;
+  }
+
+  // connectWithoutAuth is a native @ReactMethod not surfaced in the lib's TS
+  // types, so we access it via the (guarded) Android remote singleton with a cast.
+  const remote = getRemote() as unknown as {
+    connectWithoutAuth: (token: string, clientId: string, redirectUri: string) => Promise<void>;
+  };
+  await withTimeout(
+    remote.connectWithoutAuth('', CLIENT_ID, REDIRECT_URL),
+    APP_REMOTE_TIMEOUT_MS,
+    'Spotify-Verbindung'
+  );
+  connected = true;
+}
+
+/** One connect attempt: Web API authorization + App Remote connection. */
+async function connectInternal(): Promise<void> {
+  // Web API authorization (Authorization Code + PKCE). Single browser step; also
+  // pre-authorizes the playback scopes the App Remote needs below.
+  await ensureWebApiAuthorized();
+  await connectAppRemote();
+}
+
 /**
  * Connect to Spotify: PKCE Web API authorization + App Remote connection.
  *
  * Android avoids auth.authorize(): Spotify is phasing out the implicit/TOKEN
- * grant, and the Android App Remote path does not use that token anyway. iOS
- * still needs the library's authorize() result because its native bridge only
- * exposes connect(accessToken), not connectWithoutAuth().
+ * grant, and the Android App Remote path does not use that token. iOS still needs
+ * the library's authorize() result because its native bridge only exposes
+ * connect(accessToken), not connectWithoutAuth(). The PKCE token also powers the
+ * Web API (playlists). Throws on missing config / cancel / Spotify app unreachable.
  *
- * So we:
- *   1) run the modern Authorization Code + PKCE flow (also gets the user's
- *      consent for app-remote-control / streaming, pre-authorizing the remote), and
- *   2) connect the App Remote via the platform's available native method.
- * The PKCE token also powers the Web API (playlists). Throws on missing config /
- * cancel / Spotify app not reachable.
+ * SELF-HEAL (the Android dead-end): after an app restart the in-memory `connected`
+ * flag is false while the persisted refresh token still exists, so the Settings
+ * button shows "verbinden". Pressing it silently refreshes the OLD token (no new
+ * consent), so the App Remote refuses with "not authorized" - and the previous
+ * error told the user to "Verbindung trennen", which isn't even offered in that
+ * state. So on exactly that error we clear ALL auth (endSession + drop the stored
+ * token) and retry ONCE, forcing a fresh interactive consent that re-grants the
+ * playback scopes. No manual disconnect / data-clear needed.
  */
 export async function connect(): Promise<void> {
   if (!CLIENT_ID || !REDIRECT_URL) {
@@ -121,89 +242,52 @@ export async function connect(): Promise<void> {
         'EXPO_PUBLIC_SPOTIFY_REDIRECT_URI in .env, then rebuild the dev client.'
     );
   }
-
-  // 1) Web API authorization (Authorization Code + PKCE). Single browser step;
-  //    also pre-authorizes the playback scopes used by the App Remote below.
-  await ensureWebApiAuthorized();
-
-  // 2) App Remote, app-to-app via the installed Spotify app. Android exposes a
-  //    patched connectWithoutAuth() method; iOS does not, so it uses the
-  //    library's native authorize() + connect(accessToken) sequence.
   try {
-    if (Platform.OS === 'ios') {
-      const session = await getAuth().authorize({
-        clientID: CLIENT_ID,
-        redirectURL: REDIRECT_URL,
-        scopes: WEB_API_SCOPES as any,
-      });
-      if (!session?.accessToken) {
-        throw new Error(
-          'Spotify authorization did not return an access token. Check the iOS redirect callback.'
-        );
-      }
-      await getRemote().connect(session.accessToken);
-      connected = true;
-      return;
-    }
-
-    // connectWithoutAuth is a native @ReactMethod not surfaced in the lib's TS
-    // types, so we access it via the (guarded) Android remote singleton with a cast.
-    const remote = getRemote() as unknown as {
-      connectWithoutAuth: (
-        token: string,
-        clientId: string,
-        redirectUri: string
-      ) => Promise<void>;
-    };
-    await remote.connectWithoutAuth('', CLIENT_ID, REDIRECT_URL);
-    connected = true;
+    await connectInternal();
   } catch (e: any) {
-    const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
-    if (
-      raw.includes('couldnotfindspotifyapp') ||
-      raw.includes('could not find') ||
-      raw.includes('not installed')
-    ) {
-      throw new Error(
-        'Spotify app not found. Install the Spotify app and open it once, ' +
-          'then try again (the App Remote SDK talks to the running Spotify app).'
-      );
+    if (isStaleAuthError(e)) {
+      await clearAuthState();
+      try {
+        await connectInternal();
+        return;
+      } catch (retryErr: any) {
+        throw mapConnectError(retryErr);
+      }
     }
-    if (raw.includes('not authorized')) {
-      throw new Error(
-        'Spotify-Berechtigung fehlt. In den Einstellungen "Verbindung trennen" und neu ' +
-          'verbinden, damit die Wiedergabe-Berechtigung erteilt wird.'
-      );
-    }
-    if (raw.includes('notloggedin') || raw.includes('not logged in')) {
-      throw new Error('Not logged in to the Spotify app. Log in there, then retry.');
-    }
-    throw e;
+    throw mapConnectError(e);
   }
 }
 
 /**
- * End the Spotify session (clears cookies) and reset local connection state.
- * Required after changing requested scopes: it forces the next connect() to do a
- * fresh authorize() so a new token with the new scopes is issued, instead of the
- * cached one with the old scopes.
+ * Clear ALL Spotify auth state: the SDK session (cookies) AND the PKCE Web-API
+ * token (memory + encrypted storage), and reset the in-memory connected flag.
+ * Used by both disconnect() and connect()'s self-heal retry, so a reconnect
+ * always re-authorizes cleanly. Never throws (endSession failure is ignored).
  */
-export async function disconnect(): Promise<void> {
+async function clearAuthState(): Promise<void> {
   try {
     await getAuth().endSession();
-  } finally {
-    connected = false;
-    // Also drop the PKCE Web-API token (memory + encrypted storage) so a
-    // reconnect re-authorizes cleanly.
-    webApiToken = null;
-    webApiRefreshToken = null;
-    webApiTokenExpiresAt = 0;
-    try {
-      await SecureStore.deleteItemAsync(TOKEN_STORE_KEY);
-    } catch {
-      // ignore
-    }
+  } catch {
+    // ignore - we still clear the local/persisted state below
   }
+  connected = false;
+  webApiToken = null;
+  webApiRefreshToken = null;
+  webApiTokenExpiresAt = 0;
+  try {
+    await SecureStore.deleteItemAsync(TOKEN_STORE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * End the Spotify session and reset local connection state. Required after
+ * changing requested scopes: it forces the next connect() to do a fresh
+ * authorize() so a new token with the new scopes is issued.
+ */
+export async function disconnect(): Promise<void> {
+  await clearAuthState();
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import * as Spotify from '../services/spotify';
 import * as Online from '../services/supabase';
 import type { PlaylistSummary } from '../services/spotify';
@@ -24,6 +25,7 @@ import type { DeckSource } from '../services/deck';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
+import { glow } from '../theme/glow';
 
 type Mode = 'playlist' | 'pool';
 
@@ -37,9 +39,13 @@ export function PlaylistPicker({
   onSelect: (source: DeckSource) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [mode, setMode] = useState<Mode>('playlist');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Distinct from `error`: the user simply isn't connected to Spotify yet — a
+  // normal state, not a failure. Shown as a calm cyan hint, not the red box.
+  const [needsSpotify, setNeedsSpotify] = useState(false);
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [pools, setPools] = useState<SongPool[]>([]);
   const [query, setQuery] = useState('');
@@ -48,8 +54,16 @@ export function PlaylistPicker({
   const [checkVisible, setCheckVisible] = useState(false);
 
   const load = useCallback(async (m: Mode) => {
-    setLoading(true);
     setError(null);
+    setNeedsSpotify(false);
+    // Pre-check the KNOWN connection status before hitting the Web API, so a
+    // missing Spotify connection shows a friendly hint instead of a raw 403.
+    // (Pools don't need Spotify, so this only gates playlist mode.)
+    if (m === 'playlist' && !Spotify.isWebApiAuthorized()) {
+      setNeedsSpotify(true);
+      return; // no API call, no spinner
+    }
+    setLoading(true);
     try {
       if (m === 'playlist') setPlaylists(await Spotify.getUserPlaylists());
       else setPools(await Online.getSongPools());
@@ -59,6 +73,13 @@ export function PlaylistPicker({
       setLoading(false);
     }
   }, []);
+
+  // 'Einstellungen' is a sibling tab; from this nested stack screen we hop up to
+  // the tab navigator. Close the picker first so the tab is visible underneath.
+  const goToSettings = () => {
+    onClose();
+    navigation.getParent()?.navigate('Einstellungen' as never);
+  };
 
   const switchMode = (m: Mode) => {
     if (m === mode) return;
@@ -128,6 +149,23 @@ export function PlaylistPicker({
   );
 
   const renderList = () => {
+    if (needsSpotify) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.hintGlyph}>🎧</Text>
+          <View style={styles.hintBox}>
+            <Text style={styles.hintTitle}>Noch nicht mit Spotify verbunden</Text>
+            <Text style={styles.hintText}>
+              Zum Auswählen einer Playlist verbinde dich einmal mit Spotify. Themen-Pools
+              kannst du auch ohne Verbindung nutzen.
+            </Text>
+          </View>
+          <PressableButton style={styles.connectBtn} onPress={goToSettings}>
+            <Text style={styles.connectBtnText}>Zu den Einstellungen</Text>
+          </PressableButton>
+        </View>
+      );
+    }
     if (loading) {
       return (
         <View style={styles.centered}>
@@ -341,6 +379,30 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   errorText: { color: COLORS.incorrect, fontSize: 13, fontWeight: '700' },
+
+  // "Not connected" hint — calm/cyan, deliberately NOT the red error style.
+  hintGlyph: { fontSize: 56 },
+  hintBox: {
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.backgroundAlt,
+    borderColor: COLORS.secondary,
+    borderWidth: 2,
+    borderRadius: 14,
+    padding: 16,
+    gap: 8,
+  },
+  hintTitle: { color: COLORS.secondary, fontSize: 16, fontWeight: '900' },
+  hintText: { color: COLORS.text, fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  connectBtn: {
+    minHeight: 52,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...glow(COLORS.secondary, { radius: 14, opacity: 0.7 }),
+  },
+  connectBtnText: { color: COLORS.background, fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
   retryBtn: {
     minHeight: 48,
     paddingHorizontal: 24,

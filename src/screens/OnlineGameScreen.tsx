@@ -252,13 +252,19 @@ export default function OnlineGameScreen() {
     !isActive && (phase === 'card_drawn' || phase === 'hitster_window');
   const compactCard = showActiveTimeline;
 
-  // Host plays the current track when a new card is drawn; pause when finished.
+  // Host-only audio. Start the track when a new card is drawn and let it keep
+  // playing through the steal window, the reveal and the "Nickel?" decision. Only
+  // pause when the GAME is over (winnerId set) — NOT on a normal round-end
+  // ('finished' without a winner). 'finished' is the round-result phase entered
+  // right after the host's Nickel decision (confirmGuess), so pausing on every
+  // 'finished' stopped the song mid-round; the song should run continuously until
+  // the next card's playUri replaces it.
   useEffect(() => {
     if (!isHost) return;
     if (phase === 'card_drawn' && card) Spotify.playUri(card.trackUri).catch(() => {});
-    if (phase === 'finished') Spotify.pause().catch(() => {});
+    if (phase === 'finished' && gs?.winnerId) Spotify.pause().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, phase, isHost]);
+  }, [card?.id, phase, isHost, gs?.winnerId]);
 
   // Cosmetic countdown bar while the steal window is open (each device animates).
   useEffect(() => {

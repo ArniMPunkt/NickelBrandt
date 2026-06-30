@@ -11,7 +11,19 @@
       "Bash(xcodebuild -workspace NickelBrandt.xcworkspace -scheme NickelBrandt -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/NickelBrandtBuild build)",
       "Bash(xcodebuild -workspace /Users/arnim/Documents/NickelBrandt/ios/NickelBrandt.xcworkspace -scheme NickelBrandt -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/NickelBrandtBuild2 build)",
       "Bash(ls /tmp/NickelBrandtBuild/Build/Products/Debug-iphonesimulator/*.app 2>/dev/null && echo \"APP EXISTS\" || echo \"NO APP\")",
-      "Read(//private/tmp/NickelBrandtBuild/Build/Products/Debug-iphonesimulator/**)"
+      "Read(//private/tmp/NickelBrandtBuild/Build/Products/Debug-iphonesimulator/**)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(cut:*)",
+      "Bash(ls:*)",
+      "Bash(echo:*)"
     ]
   }
 }
