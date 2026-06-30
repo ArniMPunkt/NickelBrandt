@@ -10,7 +10,6 @@ import { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Easing,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -19,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
+import { PressableButton } from './PressableButton';
 
 const CONFETTI_COLORS = [COLORS.primary, COLORS.secondary, COLORS.accent, COLORS.correct];
 const PIECE_COUNT = 28;
@@ -206,9 +206,9 @@ export function VictoryCelebration({
         </Animated.Text>
       </View>
 
-      <Pressable style={styles.btn} onPress={onContinue}>
+      <PressableButton style={styles.btn} onPress={onContinue}>
         <Text style={styles.btnText}>WEITER ZUR STATISTIK</Text>
-      </Pressable>
+      </PressableButton>
     </View>
   );
 }

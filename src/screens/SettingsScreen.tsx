@@ -13,7 +13,6 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -24,6 +23,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
@@ -123,21 +123,21 @@ export default function SettingsScreen() {
           </View>
         )}
         {connected ? (
-          <Pressable style={styles.dangerBtn} onPress={disconnect} disabled={busy}>
+          <PressableButton style={styles.dangerBtn} onPress={disconnect} disabled={busy}>
             {busy ? (
               <ActivityIndicator color={COLORS.incorrect} />
             ) : (
               <Text style={styles.dangerText}>Verbindung trennen</Text>
             )}
-          </Pressable>
+          </PressableButton>
         ) : (
-          <Pressable style={[styles.connectBtn, busy && styles.disabled]} onPress={connect} disabled={busy}>
+          <PressableButton style={[styles.connectBtn, busy && styles.disabled]} onPress={connect} disabled={busy}>
             {busy ? (
               <ActivityIndicator color={COLORS.text} />
             ) : (
               <Text style={styles.connectBtnText}>Mit Spotify verbinden</Text>
             )}
-          </Pressable>
+          </PressableButton>
         )}
       </View>
 
@@ -149,13 +149,13 @@ export default function SettingsScreen() {
           {WIN_OPTIONS.map((opt) => {
             const active = settings.cardsToWin === opt;
             return (
-              <Pressable
+              <PressableButton
                 key={opt}
                 style={[styles.winOpt, active && styles.winOptActive]}
                 onPress={() => update({ cardsToWin: opt })}
               >
                 <Text style={[styles.winOptText, active && styles.winOptTextActive]}>{opt}</Text>
-              </Pressable>
+              </PressableButton>
             );
           })}
         </View>
@@ -218,9 +218,9 @@ export default function SettingsScreen() {
       {/* ---- Data ---- */}
       <Text style={styles.section}>DATEN</Text>
       <View style={styles.card}>
-        <Pressable style={styles.placeholderBtn} onPress={resetStats}>
+        <PressableButton style={styles.placeholderBtn} onPress={resetStats}>
           <Text style={styles.placeholderText}>Spielstatistiken zurücksetzen</Text>
-        </Pressable>
+        </PressableButton>
         <Text style={styles.placeholderHint}>Noch nicht verfügbar</Text>
       </View>
     </ScrollView>

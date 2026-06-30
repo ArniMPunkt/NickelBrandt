@@ -12,7 +12,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -20,6 +19,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
@@ -104,13 +104,13 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
     <View style={styles.screen}>
       {/* Skip (top-right) - hidden on the last slide where the CTA lives. */}
       {page < lastPage && (
-        <Pressable
+        <PressableButton
           style={[styles.skip, { top: insets.top + 8 }]}
           onPress={finish}
           hitSlop={12}
         >
           <Text style={styles.skipText}>Überspringen</Text>
-        </Pressable>
+        </PressableButton>
       )}
 
       <Animated.ScrollView
@@ -171,9 +171,9 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
         <View style={styles.ctaSlot}>
           {page === lastPage ? (
-            <Pressable style={styles.cta} onPress={finish}>
+            <PressableButton style={styles.cta} onPress={finish}>
               <Text style={styles.ctaText}>LOS GEHT’S</Text>
-            </Pressable>
+            </PressableButton>
           ) : (
             <Text style={styles.swipeHint}>Wische weiter →</Text>
           )}

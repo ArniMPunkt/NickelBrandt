@@ -18,7 +18,6 @@ import {
   Animated,
   AppState,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,6 +31,7 @@ import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
@@ -96,13 +96,13 @@ function TimelineStrip({
         return (
           <View key={`slot-${slot}`} style={styles.slotWrap}>
             {onInsert ? (
-              <Pressable
+              <PressableButton
                 style={[styles.insertBtn, !enabled && styles.insertBtnDisabled]}
                 onPress={enabled ? () => onInsert(slot) : undefined}
                 disabled={!enabled}
               >
                 <Text style={styles.insertText}>+</Text>
-              </Pressable>
+              </PressableButton>
             ) : (
               <View style={styles.insertSpacer} />
             )}
@@ -412,7 +412,7 @@ export default function OnlineGameScreen() {
               </Text>
             </View>
           ))}
-        <Pressable
+        <PressableButton
           style={styles.primaryBtn}
           onPress={() => {
             Online.clearLastLobbyId().catch(() => {});
@@ -420,7 +420,7 @@ export default function OnlineGameScreen() {
           }}
         >
           <Text style={styles.primaryBtnText}>Zurück</Text>
-        </Pressable>
+        </PressableButton>
       </ScrollView>
     );
   }
@@ -440,13 +440,13 @@ export default function OnlineGameScreen() {
           <Text style={styles.deckLabel}>im Deck</Text>
         </View>
         <View style={styles.headerActions}>
-          <Pressable style={styles.iconBtn} onPress={() => setCodeVisible((v) => !v)} hitSlop={8}>
+          <PressableButton style={styles.iconBtn} onPress={() => setCodeVisible((v) => !v)} hitSlop={8}>
             <Text style={styles.iconBtnText}>ⓘ</Text>
-          </Pressable>
+          </PressableButton>
           {isHost && (
-            <Pressable style={styles.iconBtn} onPress={onEndLobby} hitSlop={8}>
+            <PressableButton style={styles.iconBtn} onPress={onEndLobby} hitSlop={8}>
               <Text style={styles.iconBtnText}>⋯</Text>
-            </Pressable>
+            </PressableButton>
           )}
         </View>
       </View>
@@ -537,12 +537,12 @@ export default function OnlineGameScreen() {
                 <Text style={styles.hint}>Du hast „Kein Hitster" gewählt. ✓</Text>
               ) : (
                 <>
-                  <Pressable style={styles.hitsterBtn} onPress={onHitster}>
+                  <PressableButton style={styles.hitsterBtn} onPress={onHitster}>
                     <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
-                  </Pressable>
-                  <Pressable style={styles.noHitsterBtn} onPress={onPassHitster}>
+                  </PressableButton>
+                  <PressableButton style={styles.noHitsterBtn} onPress={onPassHitster}>
                     <Text style={styles.noHitsterText}>Kein Hitster</Text>
-                  </Pressable>
+                  </PressableButton>
                 </>
               )
             ) : (
@@ -594,12 +594,12 @@ export default function OnlineGameScreen() {
           <View style={styles.hostBox}>
             <Text style={styles.hostTitle}>Titel + Interpret richtig erkannt?</Text>
             <View style={styles.hostRow}>
-              <Pressable style={[styles.hostBtn, styles.hostYes]} onPress={() => hostConfirm(true)}>
+              <PressableButton style={[styles.hostBtn, styles.hostYes]} onPress={() => hostConfirm(true)}>
                 <Text style={styles.hostYesText}>Ja, Nickel! 🪙</Text>
-              </Pressable>
-              <Pressable style={[styles.hostBtn, styles.hostNo]} onPress={() => hostConfirm(false)}>
+              </PressableButton>
+              <PressableButton style={[styles.hostBtn, styles.hostNo]} onPress={() => hostConfirm(false)}>
                 <Text style={styles.hostNoText}>Nein</Text>
-              </Pressable>
+              </PressableButton>
             </View>
           </View>
         ) : (
@@ -609,9 +609,9 @@ export default function OnlineGameScreen() {
       {/* ---- finished (round, not game): host draws next ---- */}
       {phase === 'finished' &&
         (isHost ? (
-          <Pressable style={styles.primaryBtn} onPress={hostNext}>
+          <PressableButton style={styles.primaryBtn} onPress={hostNext}>
             <Text style={styles.primaryBtnText}>Nächste Karte ziehen</Text>
-          </Pressable>
+          </PressableButton>
         ) : (
           <Text style={styles.hint}>Warte auf den Host…</Text>
         ))}

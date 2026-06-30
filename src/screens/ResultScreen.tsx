@@ -6,7 +6,6 @@
 import { useEffect, useRef } from 'react';
 import {
   Animated,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
@@ -172,9 +172,9 @@ export default function ResultScreen() {
         );
       })}
 
-      <Pressable style={styles.btn} onPress={newGame}>
+      <PressableButton style={styles.btn} onPress={newGame}>
         <Text style={styles.btnText}>NEUES SPIEL</Text>
-      </Pressable>
+      </PressableButton>
     </ScrollView>
   );
 }

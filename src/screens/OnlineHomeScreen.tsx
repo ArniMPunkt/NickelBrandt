@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
@@ -123,15 +123,15 @@ export default function OnlineHomeScreen() {
       {resumable && (
         <View style={styles.resumeBox}>
           <Text style={styles.resumeLabel}>DU WARST IN EINER LOBBY</Text>
-          <Pressable style={styles.resumeBtn} onPress={resumeLobby}>
+          <PressableButton style={styles.resumeBtn} onPress={resumeLobby}>
             <Text style={styles.resumeBtnText}>
               {resumable.status === 'playing' ? '▶ Zurück ins Spiel' : '↩ Zurück zur Lobby'}{' '}
               {resumable.code}
             </Text>
-          </Pressable>
-          <Pressable onPress={ignoreResume} hitSlop={8}>
+          </PressableButton>
+          <PressableButton onPress={ignoreResume} hitSlop={8}>
             <Text style={styles.resumeIgnore}>Ignorieren</Text>
-          </Pressable>
+          </PressableButton>
         </View>
       )}
 
@@ -154,7 +154,7 @@ export default function OnlineHomeScreen() {
         maxLength={20}
       />
 
-      <Pressable
+      <PressableButton
         style={[styles.createBtn, (!configured || busy || !spotifyAuthorized) && styles.disabled]}
         onPress={createLobby}
         disabled={!configured || !!busy || !spotifyAuthorized}
@@ -164,7 +164,7 @@ export default function OnlineHomeScreen() {
         ) : (
           <Text style={styles.createBtnText}>Lobby erstellen</Text>
         )}
-      </Pressable>
+      </PressableButton>
       {configured && !spotifyAuthorized && (
         <Text style={styles.spotifyGateHint}>
           Zum Erstellen zuerst mit Spotify verbinden (siehe Tab „Einstellungen"). Zum
@@ -189,7 +189,7 @@ export default function OnlineHomeScreen() {
         autoCorrect={false}
         maxLength={6}
       />
-      <Pressable
+      <PressableButton
         style={[styles.joinBtn, (!configured || busy) && styles.disabled]}
         onPress={joinLobby}
         disabled={!configured || !!busy}
@@ -199,7 +199,7 @@ export default function OnlineHomeScreen() {
         ) : (
           <Text style={styles.joinBtnText}>Lobby beitreten</Text>
         )}
-      </Pressable>
+      </PressableButton>
 
       {error && (
         <View style={styles.errorBox}>

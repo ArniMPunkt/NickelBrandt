@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +20,7 @@ import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
@@ -232,7 +232,7 @@ export default function LobbyScreen() {
       )}
 
       {isHost ? (
-        <Pressable
+        <PressableButton
           style={[styles.startBtn, starting && styles.disabled]}
           onPress={onStartPressed}
           disabled={starting}
@@ -242,19 +242,19 @@ export default function LobbyScreen() {
           ) : (
             <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
           )}
-        </Pressable>
+        </PressableButton>
       ) : (
         <Text style={styles.waitText}>Warte auf Host…</Text>
       )}
 
       {isHost ? (
-        <Pressable style={styles.endBtn} onPress={endLobby}>
+        <PressableButton style={styles.endBtn} onPress={endLobby}>
           <Text style={styles.endBtnText}>Lobby beenden</Text>
-        </Pressable>
+        </PressableButton>
       ) : (
-        <Pressable style={styles.leaveBtn} onPress={leave}>
+        <PressableButton style={styles.leaveBtn} onPress={leave}>
           <Text style={styles.leaveBtnText}>Lobby verlassen</Text>
-        </Pressable>
+        </PressableButton>
       )}
 
       <PlaylistPicker

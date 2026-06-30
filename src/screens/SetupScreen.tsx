@@ -9,7 +9,6 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,6 +25,7 @@ import { loadDeckSource, sourceId, type DeckSource } from '../services/deck';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
@@ -148,20 +148,20 @@ export default function SetupScreen() {
               maxLength={20}
             />
             {names.length > MIN_PLAYERS && (
-              <Pressable
+              <PressableButton
                 style={styles.removeBtn}
                 onPress={() => removePlayer(i)}
               >
                 <Text style={styles.removeBtnText}>✕</Text>
-              </Pressable>
+              </PressableButton>
             )}
           </View>
         );
       })}
       {names.length < MAX_PLAYERS && (
-        <Pressable style={styles.addBtn} onPress={addPlayer}>
+        <PressableButton style={styles.addBtn} onPress={addPlayer}>
           <Text style={styles.addBtnText}>+  Spieler hinzufügen</Text>
-        </Pressable>
+        </PressableButton>
       )}
 
       <Text style={styles.label}>MUSIK</Text>
@@ -183,20 +183,20 @@ export default function SetupScreen() {
               {source.kind === 'playlist' ? `${source.playlist.trackCount} Songs` : 'Themen-Pool'}
             </Text>
           </View>
-          <Pressable style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
+          <PressableButton style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
             <Text style={styles.changeBtnText}>Ändern</Text>
-          </Pressable>
+          </PressableButton>
         </View>
       ) : null}
       {source?.kind === 'playlist' && (
-        <Pressable style={styles.checkBtn} onPress={() => setCheckVisible(true)}>
+        <PressableButton style={styles.checkBtn} onPress={() => setCheckVisible(true)}>
           <Text style={styles.checkBtnText}>🔍 Playlist prüfen (Jahre)</Text>
-        </Pressable>
+        </PressableButton>
       )}
       {!source && (
-        <Pressable style={styles.pickBtn} onPress={() => setPickerVisible(true)}>
+        <PressableButton style={styles.pickBtn} onPress={() => setPickerVisible(true)}>
           <Text style={styles.pickBtnText}>Playlist oder Pool wählen 🎵</Text>
-        </Pressable>
+        </PressableButton>
       )}
 
       <Text style={styles.rulesNote}>
@@ -210,7 +210,7 @@ export default function SetupScreen() {
         </View>
       )}
 
-      <Pressable
+      <PressableButton
         style={[styles.startBtn, (loading || !spotifyAuthorized) && styles.startBtnDisabled]}
         onPress={startGame}
         disabled={loading || !spotifyAuthorized}
@@ -220,7 +220,7 @@ export default function SetupScreen() {
         ) : (
           <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
         )}
-      </Pressable>
+      </PressableButton>
       {!spotifyAuthorized && (
         <Text style={styles.spotifyGateHint}>
           Bitte zuerst mit Spotify verbinden (siehe Tab „Einstellungen").

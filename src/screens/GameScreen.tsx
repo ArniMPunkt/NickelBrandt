@@ -14,7 +14,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../types/game';
@@ -127,13 +127,13 @@ function TimelineStrip({
         return (
         <View key={`slot-${slot}`} style={styles.slotWrap}>
           {onInsert ? (
-            <Pressable
+            <PressableButton
               style={[styles.insertBtn, !enabled && styles.insertBtnDisabled]}
               onPress={enabled ? () => onInsert(slot) : undefined}
               disabled={!enabled}
             >
               <Text style={styles.insertText}>+</Text>
-            </Pressable>
+            </PressableButton>
           ) : (
             <View style={styles.insertSpacer} />
           )}
@@ -495,18 +495,18 @@ export default function GameScreen() {
             <View style={styles.chipQ}>
               <Text style={styles.chipQTitle}>Titel und Interpret richtig erkannt?</Text>
               <View style={styles.chipQRow}>
-                <Pressable style={[styles.chipBtn, styles.chipYes]} onPress={awardChip}>
+                <PressableButton style={[styles.chipBtn, styles.chipYes]} onPress={awardChip}>
                   <Text style={styles.chipYesText}>Ja, Nickel verdient! 🪙</Text>
-                </Pressable>
-                <Pressable style={[styles.chipBtn, styles.chipNo]} onPress={denyChip}>
+                </PressableButton>
+                <PressableButton style={[styles.chipBtn, styles.chipNo]} onPress={denyChip}>
                   <Text style={styles.chipNoText}>Nein</Text>
-                </Pressable>
+                </PressableButton>
               </View>
             </View>
           ) : (
-            <Pressable style={styles.nextBtn} onPress={handleNext}>
+            <PressableButton style={styles.nextBtn} onPress={handleNext}>
               <Text style={styles.nextBtnText}>{state.winner ? 'ERGEBNIS ANSEHEN' : 'WEITER'}</Text>
-            </Pressable>
+            </PressableButton>
           )}
         </>
       )}
@@ -536,9 +536,9 @@ export default function GameScreen() {
           <View style={styles.barTrack}>
             <Animated.View style={[styles.barFill, { width: barWidth }]} />
           </View>
-          <Pressable style={styles.hitsterBtn} onPress={onHitster}>
+          <PressableButton style={styles.hitsterBtn} onPress={onHitster}>
             <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
-          </Pressable>
+          </PressableButton>
           <Text style={styles.hint}>Sonst wird gleich automatisch aufgedeckt…</Text>
         </View>
       )}
@@ -555,12 +555,12 @@ export default function GameScreen() {
         <View>
           <Text style={styles.sectionLabel}>WER RUFT „HITSTER!"?</Text>
           {eligibleStealers.map((p) => (
-            <Pressable key={p.id} style={styles.selectRow} onPress={() => onSelectStealer(p.id)}>
+            <PressableButton key={p.id} style={styles.selectRow} onPress={() => onSelectStealer(p.id)}>
               <Text style={styles.selectName} numberOfLines={1}>
                 {p.name}
               </Text>
               <Text style={styles.selectChips}>🪙 {p.chips}</Text>
-            </Pressable>
+            </PressableButton>
           ))}
         </View>
       )}

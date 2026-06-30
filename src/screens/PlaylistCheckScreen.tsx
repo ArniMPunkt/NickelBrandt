@@ -12,7 +12,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
 import * as MusicBrainz from '../services/musicbrainz';
 import { YEAR_DIFF_THRESHOLD, type TrackYearCheck } from '../services/musicbrainz';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 
 type Phase = 'loading' | 'checking' | 'done' | 'error';
@@ -107,9 +107,9 @@ export function PlaylistCheckModal({
               {playlistName}
             </Text>
           </View>
-          <Pressable style={styles.closeBtn} onPress={close} hitSlop={12}>
+          <PressableButton style={styles.closeBtn} onPress={close} hitSlop={12}>
             <Text style={styles.closeText}>✕</Text>
-          </Pressable>
+          </PressableButton>
         </View>
 
         {/* ---- Loading tracks ---- */}
@@ -151,9 +151,9 @@ export function PlaylistCheckModal({
                 {error}
               </Text>
             </View>
-            <Pressable style={styles.retryBtn} onPress={run}>
+            <PressableButton style={styles.retryBtn} onPress={run}>
               <Text style={styles.retryText}>Erneut versuchen</Text>
-            </Pressable>
+            </PressableButton>
           </View>
         )}
 
@@ -196,12 +196,12 @@ export function PlaylistCheckModal({
 
             {clean.length > 0 && (
               <>
-                <Pressable style={styles.cleanToggle} onPress={() => setShowClean((v) => !v)}>
+                <PressableButton style={styles.cleanToggle} onPress={() => setShowClean((v) => !v)}>
                   <Text style={styles.cleanToggleText}>
                     {showClean ? '▾' : '▸'} {clean.length} Tracks ohne Auffälligkeiten
                     {noMatchCount > 0 ? ` (davon ${noMatchCount} ohne MusicBrainz-Treffer)` : ''}
                   </Text>
-                </Pressable>
+                </PressableButton>
                 {showClean &&
                   clean.map((r) => (
                     <View key={r.card.id} style={styles.cleanRow}>

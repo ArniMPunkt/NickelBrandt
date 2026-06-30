@@ -10,7 +10,6 @@ import {
   FlatList,
   Image,
   Modal,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -23,6 +22,7 @@ import type { PlaylistSummary } from '../services/spotify';
 import type { SongPool } from '../types/online';
 import type { DeckSource } from '../services/deck';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 
 type Mode = 'playlist' | 'pool';
@@ -86,7 +86,7 @@ export function PlaylistPicker({
   };
 
   const renderPlaylist = ({ item }: { item: PlaylistSummary }) => (
-    <Pressable style={styles.row} onPress={() => choosePlaylist(item)}>
+    <PressableButton style={styles.row} onPress={() => choosePlaylist(item)}>
       {item.imageUrl ? (
         <Image source={{ uri: item.imageUrl }} style={styles.cover} />
       ) : (
@@ -103,14 +103,14 @@ export function PlaylistPicker({
         </Text>
       </View>
       {/* Separate tap target: opens the year check WITHOUT selecting the row. */}
-      <Pressable style={styles.checkBtn} onPress={() => openCheck(item)} hitSlop={8}>
+      <PressableButton style={styles.checkBtn} onPress={() => openCheck(item)} hitSlop={8}>
         <Text style={styles.checkIcon}>🔍</Text>
-      </Pressable>
-    </Pressable>
+      </PressableButton>
+    </PressableButton>
   );
 
   const renderPool = ({ item }: { item: SongPool }) => (
-    <Pressable style={styles.row} onPress={() => choosePool(item)}>
+    <PressableButton style={styles.row} onPress={() => choosePool(item)}>
       <View style={[styles.cover, styles.coverFallback]}>
         <Text style={styles.coverGlyph}>🎵</Text>
       </View>
@@ -124,7 +124,7 @@ export function PlaylistPicker({
           </Text>
         )}
       </View>
-    </Pressable>
+    </PressableButton>
   );
 
   const renderList = () => {
@@ -147,9 +147,9 @@ export function PlaylistPicker({
           {mode === 'playlist' && (
             <Text style={styles.muted}>Nicht verbunden? Verbinde dich im Tab „Einstellungen".</Text>
           )}
-          <Pressable style={styles.retryBtn} onPress={() => load(mode)}>
+          <PressableButton style={styles.retryBtn} onPress={() => load(mode)}>
             <Text style={styles.retryText}>Erneut versuchen</Text>
-          </Pressable>
+          </PressableButton>
         </View>
       );
     }
@@ -222,29 +222,29 @@ export function PlaylistPicker({
       <View style={[styles.modal, { paddingTop: insets.top + 8 }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Songs wählen</Text>
-          <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={12}>
+          <PressableButton style={styles.closeBtn} onPress={onClose} hitSlop={12}>
             <Text style={styles.closeText}>✕</Text>
-          </Pressable>
+          </PressableButton>
         </View>
 
         {/* Segmented control: Spotify playlist vs. themed pool */}
         <View style={styles.segment}>
-          <Pressable
+          <PressableButton
             style={[styles.segmentBtn, mode === 'playlist' && styles.segmentBtnActive]}
             onPress={() => switchMode('playlist')}
           >
             <Text style={[styles.segmentText, mode === 'playlist' && styles.segmentTextActive]}>
               Spotify-Playlist
             </Text>
-          </Pressable>
-          <Pressable
+          </PressableButton>
+          <PressableButton
             style={[styles.segmentBtn, mode === 'pool' && styles.segmentBtnActive]}
             onPress={() => switchMode('pool')}
           >
             <Text style={[styles.segmentText, mode === 'pool' && styles.segmentTextActive]}>
               Themen-Pool
             </Text>
-          </Pressable>
+          </PressableButton>
         </View>
 
         <TextInput

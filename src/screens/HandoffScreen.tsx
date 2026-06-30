@@ -5,10 +5,11 @@
  * track. UI only - game logic unchanged.
  */
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useGame } from '../context/GameContext';
+import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
@@ -63,9 +64,9 @@ export default function HandoffScreen() {
       <View style={[styles.screen, styles.centered]}>
         <Text style={styles.endTitle}>Deck leer</Text>
         <Text style={styles.handoff}>Das Spiel ist zu Ende.</Text>
-        <Pressable style={styles.btn} onPress={endGame}>
+        <PressableButton style={styles.btn} onPress={endGame}>
           <Text style={styles.btnText}>ERGEBNIS ANSEHEN</Text>
-        </Pressable>
+        </PressableButton>
       </View>
     );
   }
@@ -81,9 +82,9 @@ export default function HandoffScreen() {
       <Animated.View
         style={[styles.btnWrap, { transform: [{ scale: pulse }] }]}
       >
-        <Pressable style={styles.btn} onPress={ready}>
+        <PressableButton style={styles.btn} onPress={ready}>
           <Text style={styles.btnText}>BEREIT</Text>
-        </Pressable>
+        </PressableButton>
       </Animated.View>
     </View>
   );

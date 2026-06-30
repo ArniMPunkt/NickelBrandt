@@ -15,7 +15,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GameProvider } from './src/context/GameContext';
 import { SettingsProvider } from './src/context/SettingsContext';
@@ -88,6 +88,53 @@ function SettingsTabIcon({ focused }: { focused: boolean }) {
   return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>⚙️</Text>;
 }
 
+/**
+ * The bottom-tab root. Split into its own component so it can read the bottom
+ * safe-area inset (useSafeAreaInsets only works *inside* SafeAreaProvider).
+ *
+ * We set an explicit tab-bar height, which would otherwise disable React
+ * Navigation's automatic safe-area handling — so we add the bottom inset back
+ * ourselves. Without this the labels sit in the home-indicator / gesture-bar
+ * zone and the OS indicator line cuts through the text.
+ */
+function RootTabs() {
+  const insets = useSafeAreaInsets();
+  return (
+    <NavigationContainer>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: COLORS.primary,
+          tabBarInactiveTintColor: COLORS.textMuted,
+          tabBarStyle: {
+            backgroundColor: COLORS.backgroundAlt,
+            borderTopColor: COLORS.border,
+            borderTopWidth: 1,
+            // Reserve room for the label + icon AND the bottom safe area, so the
+            // labels never overlap the home indicator / gesture bar.
+            height: 64 + insets.bottom,
+            paddingBottom: insets.bottom + 10,
+            paddingTop: 8,
+          },
+          tabBarLabelStyle: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
+        }}
+      >
+        <Tab.Screen name="Hot-Seat" component={GameStack} options={{ tabBarIcon: HotSeatTabIcon }} />
+        <Tab.Screen
+          name="Mit Freunden"
+          component={OnlineStack}
+          options={{ tabBarIcon: FriendsTabIcon }}
+        />
+        <Tab.Screen
+          name="Einstellungen"
+          component={SettingsScreen}
+          options={{ tabBarIcon: SettingsTabIcon }}
+        />
+      </Tab.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   // null = still reading the flag; show a plain background (matches the splash) to
   // avoid a flash before we know whether to show onboarding.
@@ -117,40 +164,7 @@ export default function App() {
         ) : !onboardingSeen ? (
           <OnboardingScreen onDone={() => setOnboardingSeen(true)} />
         ) : (
-        <NavigationContainer>
-          <Tab.Navigator
-            screenOptions={{
-              headerShown: false,
-              tabBarActiveTintColor: COLORS.primary,
-              tabBarInactiveTintColor: COLORS.textMuted,
-              tabBarStyle: {
-                backgroundColor: COLORS.backgroundAlt,
-                borderTopColor: COLORS.border,
-                borderTopWidth: 1,
-                height: 64,
-                paddingBottom: 8,
-                paddingTop: 6,
-              },
-              tabBarLabelStyle: { fontSize: 13, fontWeight: '800' },
-            }}
-          >
-            <Tab.Screen
-              name="Hot-Seat"
-              component={GameStack}
-              options={{ tabBarIcon: HotSeatTabIcon }}
-            />
-            <Tab.Screen
-              name="Mit Freunden"
-              component={OnlineStack}
-              options={{ tabBarIcon: FriendsTabIcon }}
-            />
-            <Tab.Screen
-              name="Einstellungen"
-              component={SettingsScreen}
-              options={{ tabBarIcon: SettingsTabIcon }}
-            />
-          </Tab.Navigator>
-        </NavigationContainer>
+          <RootTabs />
         )}
       </GameProvider>
       </SettingsProvider>
