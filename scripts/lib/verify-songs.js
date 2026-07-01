@@ -106,6 +106,62 @@ async function fetchWithRetry(url, opts = {}, { label = '', onRetry } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Reusable sliding-window rate limiter (extracted from the MusicBrainz slot
+// logic so every API source can have its own instance). Each limiter keeps its
+// own timestamp array: acquire() blocks until a slot is free within the window.
+// ---------------------------------------------------------------------------
+function createRateLimiter(windowMs, maxPerWindow) {
+  const times = [];
+  return {
+    async acquire() {
+      for (;;) {
+        const now = Date.now();
+        while (times.length && now - times[0] >= windowMs) times.shift();
+        if (times.length < maxPerWindow) {
+          times.push(now);
+          return;
+        }
+        await sleep(windowMs - (now - times[0]) + 20);
+      }
+    },
+  };
+}
+
+/**
+ * Source-agnostic fetch: fetchWithTimeout + an optional rate-limiter slot + a
+ * simple backoff retry on 429/503/network errors. Returns the Response (caller
+ * checks res.ok / parses); throws after `maxRetries` exhausted. Modeled on the
+ * MusicBrainz mbFetch pattern but not tied to any one API.
+ */
+async function fetchSource(url, opts = {}, { rateLimiter = null, maxRetries = 2, backoffMs = 2000, label = '' } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (rateLimiter) await rateLimiter.acquire();
+    let res;
+    try {
+      res = await fetchWithTimeout(url, opts);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxRetries) {
+        await sleep(backoffMs);
+        continue;
+      }
+      throw lastErr;
+    }
+    if (res.status === 429 || res.status === 503) {
+      lastErr = new Error(`${label || url}: HTTP ${res.status}`);
+      if (attempt < maxRetries) {
+        await sleep(backoffMs);
+        continue;
+      }
+      throw lastErr;
+    }
+    return res;
+  }
+  throw lastErr ?? new Error(`${label || url}: request failed`);
+}
+
+// ---------------------------------------------------------------------------
 // Input CSV (title,artist,estimated_year)
 // ---------------------------------------------------------------------------
 function readInputCsv(csvPath, fs = require('fs')) {
@@ -341,47 +397,49 @@ async function searchWithFallbacks(title, artist, { onRetry } = {}) {
 // it would cost one request per song for zero ISRC gain. Deezer's /search returns
 // the `isrc` directly (undocumented but stable), so it is the one we use.
 // ===========================================================================
-const DEEZER_STAGGER_MS = 300; // ~3 req/s; Deezer tolerates ~50/5s. Own throttle.
-let _deezerLast = 0;
-async function deezerThrottle() {
-  const wait = DEEZER_STAGGER_MS - (Date.now() - _deezerLast);
-  if (wait > 0) await sleep(wait);
-  _deezerLast = Date.now();
+// Deezer has NO documented rate limit, so we throttle conservatively via the
+// shared sliding-window limiter (~2 req/s). This is deliberately slower per song
+// than before, because we now make a SECOND call per matched track to fetch its
+// release_date (verified live: /search returns `isrc` but NOT release_date; that
+// lives on /track/{id}). "Lieber zu langsam als zu schnell."
+const DEEZER_WINDOW_MS = 1000;
+const DEEZER_MAX_PER_WINDOW = 2;
+const DEEZER_CONCURRENCY = 5; // limiter serializes the actual rate anyway
+const deezerLimiter = createRateLimiter(DEEZER_WINDOW_MS, DEEZER_MAX_PER_WINDOW);
+
+// Light, NON-aggressive handling (timeout + rate-limiter + soft retries via the
+// shared fetchSource). Any failure returns null so the caller simply falls
+// through — Deezer is a best-effort accelerator, never a hard dependency.
+async function deezerFetch(url) {
+  try {
+    const res = await fetchSource(url, {}, {
+      rateLimiter: deezerLimiter,
+      maxRetries: 2,
+      backoffMs: 1500,
+      label: 'Deezer',
+    });
+    if (!res.ok) return null;
+    return await res.json().catch(() => null);
+  } catch {
+    return null;
+  }
 }
 
-// Light, NON-aggressive handling (timeout + a couple of soft retries). Any
-// failure returns null so the caller simply falls through to the Spotify text
-// search — Deezer is a best-effort accelerator, never a hard dependency.
-async function deezerFetch(url) {
-  for (let attempt = 0; attempt <= 2; attempt++) {
-    await deezerThrottle();
-    let res;
-    try {
-      res = await fetchWithTimeout(url);
-    } catch {
-      if (attempt < 2) {
-        await sleep(1500);
-        continue;
-      }
-      return null;
-    }
-    if (res.status === 429) {
-      if (attempt < 2) {
-        await sleep(2000);
-        continue;
-      }
-      return null;
-    }
-    if (!res.ok) return null;
-    return res.json().catch(() => null);
-  }
-  return null;
+/** Release year for a Deezer track id via /track/{id} (album.release_date). */
+async function deezerYearForTrack(trackId) {
+  if (!trackId) return null;
+  const data = await deezerFetch(`https://api.deezer.com/track/${trackId}`);
+  const date = (data && (data.release_date || (data.album && data.album.release_date))) || null;
+  if (!date) return null;
+  const y = parseInt(String(date).slice(0, 4), 10);
+  return Number.isFinite(y) && y > 0 ? y : null;
 }
 
 /**
- * Deezer (free, unauthenticated) ISRC source. /search returns `isrc` on each
- * track, so one request gives a cross-platform ISRC. We only trust a result that
- * passes the same similarity guard (artist + title). Returns the ISRC or null.
+ * Deezer (free, unauthenticated) lookup. /search returns `isrc` per track; we
+ * only trust a result that passes the similarity guard (artist + title), then do
+ * a second /track/{id} call for the release year. Returns { isrc, year } or null.
+ * (Extended from ISRC-only: it now also carries the year, analogous to mbYear.)
  */
 async function getIsrcFromDeezer(title, artist) {
   const q = `${spotifyClean(title)} ${spotifyClean(artist)}`;
@@ -391,10 +449,291 @@ async function getIsrcFromDeezer(title, artist) {
     if (!it || !it.isrc) continue;
     const candArtists = [it.artist && it.artist.name].filter(Boolean);
     if (artistMatches(artist, candArtists) && titleMatch(title, it.title || '').ok) {
-      return String(it.isrc).toUpperCase();
+      const isrc = String(it.isrc).toUpperCase();
+      const year = await deezerYearForTrack(it.id);
+      return { isrc, year };
     }
   }
   return null;
+}
+
+/** tracks: [{title, artist}] -> (number|null)[] Deezer release year, for display. */
+async function deezerVerifyYears(tracks) {
+  const years = new Array(tracks.length).fill(null);
+  for (let g = 0; g < tracks.length; g += DEEZER_CONCURRENCY) {
+    const group = tracks.slice(g, g + DEEZER_CONCURRENCY).map((t, k) => ({ t, i: g + k }));
+    await Promise.all(
+      group.map(async ({ t, i }) => {
+        const r = await getIsrcFromDeezer(t.title, t.artist).catch(() => null);
+        years[i] = r ? r.year : null;
+      })
+    );
+  }
+  return years;
+}
+
+// ===========================================================================
+// Discogs — third year source. Master-release `year` = earliest known release
+// year (collector-curated), like MusicBrainz' first-release-date. Verified from
+// the Discogs API docs: auth header is `Authorization: Discogs token=<TOKEN>`, a
+// descriptive User-Agent is REQUIRED (else 403 risk), and /database/search takes
+// type=master + artist + track. Optional source: no token -> silently skipped.
+// Rate limit: 60/min authenticated -> we stay under at 50/min.
+// ===========================================================================
+const DISCOGS_BASE = 'https://api.discogs.com';
+const DISCOGS_USER_AGENT = 'NickelBrandt-PoolImport/1.0 (+https://github.com/ArniMPunkt/NickelBrandt)';
+const DISCOGS_CONCURRENCY = 5; // limiter serializes the actual rate
+const discogsLimiter = createRateLimiter(60000, 50);
+
+/**
+ * Discogs master-release year for a song via GET /database/search
+ * (type=master, artist, track). Takes the year of the first result that has one
+ * (results are relevance-ordered). No similarity check, no type=release fallback
+ * in this step. Returns the year or null (also null when DISCOGS_TOKEN is unset).
+ */
+/**
+ * Discogs master candidate + artist plausibility. A master search result's
+ * `title` is usually "Artist - Album" (no track title is exposed on master
+ * results), so we artist-match on its leading part. Returns { year, reason }:
+ * reason is null (ok), 'no_result', or 'artist_mismatch'. Uses DISCOGS_TOKEN if
+ * set (60/min); otherwise unauthenticated (lower limit, but currently works).
+ */
+async function getDiscogsCandidate(title, artist) {
+  const token = process.env.DISCOGS_TOKEN;
+  const headers = { 'User-Agent': DISCOGS_USER_AGENT, Accept: 'application/json' };
+  if (token) headers.Authorization = `Discogs token=${token}`;
+  const params = new URLSearchParams({ type: 'master', artist, track: title, per_page: '5' });
+  try {
+    const res = await fetchSource(
+      `${DISCOGS_BASE}/database/search?${params.toString()}`,
+      { headers },
+      { rateLimiter: discogsLimiter, maxRetries: 2, backoffMs: 2000, label: 'Discogs' }
+    );
+    if (!res.ok) return { year: null, reason: 'no_result' };
+    const data = await res.json().catch(() => null);
+    const results = (data && data.results) || [];
+    let sawYear = false;
+    for (const r of results) {
+      const y = r && r.year != null ? parseInt(String(r.year).slice(0, 4), 10) : NaN;
+      if (!(Number.isFinite(y) && y > 0)) continue;
+      sawYear = true;
+      const candArtist = String(r.title || '').split(' - ')[0]; // "Artist - Album"
+      if (artistMatches(artist, [candArtist])) return { year: y, reason: null };
+    }
+    return { year: null, reason: sawYear ? 'artist_mismatch' : 'no_result' };
+  } catch {
+    return { year: null, reason: 'no_result' };
+  }
+}
+
+/** Discogs master year (artist-plausibility-filtered) or null. */
+async function getDiscogsYear(title, artist) {
+  return (await getDiscogsCandidate(title, artist)).year;
+}
+
+/** tracks: [{title, artist}] -> (number|null)[] Discogs master year, for display. */
+async function discogsVerifyYears(tracks) {
+  const years = new Array(tracks.length).fill(null);
+  for (let g = 0; g < tracks.length; g += DISCOGS_CONCURRENCY) {
+    const group = tracks.slice(g, g + DISCOGS_CONCURRENCY).map((t, k) => ({ t, i: g + k }));
+    await Promise.all(
+      group.map(async ({ t, i }) => {
+        years[i] = await getDiscogsYear(t.title, t.artist).catch(() => null);
+      })
+    );
+  }
+  return years;
+}
+
+// ===========================================================================
+// MusicBrainz-first year consensus (TEST-ONLY prep — NOT wired into final_year).
+// MB is the primary trust anchor when its match is PLAUSIBLE (right artist/title,
+// not a live/remaster/cover/karaoke/tribute variant). Deezer/Discogs only confirm
+// or WARN: a plausible source more than 1 year EARLIER than MB flags a review;
+// they never overrule MB. ±1 year is treated as agreement.
+// ===========================================================================
+// NOTE: deliberately NOT "edit"/"single version"/"radio edit" — those are the same
+// release year as the original, so excluding them only creates false review cases.
+const MB_VARIANT_RE =
+  /\b(live|remaster(ed)?|karaoke|tribute|cover|acoustic|instrumental|demo|re-?recorded|rerecord(ed)?|made famous by|session)\b/i;
+function hasVariantMarker(text) {
+  return MB_VARIANT_RE.test(String(text || ''));
+}
+
+/**
+ * MusicBrainz candidate WITH plausibility. Prefers the ISRC lookup (returns the
+ * exact recording), falling back to a title/artist text search when no ISRC —
+ * the text search is noisy for heavily-bootlegged songs (see the SLTS diagnosis:
+ * its top results are almost all live recordings, and the studio original may not
+ * even appear). Plausibility = artist-credit matches, title matches, and neither
+ * title nor disambiguation carries a live/remaster/cover/karaoke/tribute marker.
+ *
+ * Returns { status, year, recordingId, artistCredit, title, firstReleaseDate,
+ * disambiguation, reason }. status: 'mb_ok' | 'mb_match_uncertain' | 'mb_no_match'.
+ */
+function recToCand(rec) {
+  return {
+    recordingId: rec.id,
+    title: rec.title || '',
+    artistCredit: (rec['artist-credit'] || []).map((a) => a.name).join(', '),
+    firstReleaseDate: rec['first-release-date'] || '',
+    year: mbYearFromDate(rec['first-release-date']),
+    disambiguation: rec.disambiguation || '',
+  };
+}
+
+/** Apply the plausibility filter to a set of MB recordings -> candidate result. */
+function pickPlausible(title, artist, recs) {
+  if (!recs || !recs.length) return { status: 'mb_no_match', year: null, reason: 'no_recording' };
+  const cands = recs.map(recToCand);
+  const artistTitleOk = (c) => artistMatches(artist, [c.artistCredit]) && titleMatch(title, c.title).ok;
+  const plausible = cands.filter(
+    (c) => artistTitleOk(c) && !hasVariantMarker(`${c.title} ${c.disambiguation}`)
+  );
+  if (!plausible.length) {
+    return {
+      status: 'mb_match_uncertain',
+      ...cands[0],
+      reason: cands.some(artistTitleOk) ? 'live_or_variant_only' : 'artist_or_title_mismatch',
+    };
+  }
+  const withYear = plausible.filter((c) => c.year != null);
+  if (!withYear.length) return { status: 'mb_match_uncertain', ...plausible[0], reason: 'no_year' };
+  // Earliest first-release-date among plausible = the original.
+  const chosen = withYear.sort((a, b) => a.year - b.year)[0];
+  return { status: 'mb_ok', ...chosen, reason: null };
+}
+
+/** Single-song candidate (ISRC or text). Used for one-off lookups (e.g. tests). */
+async function mbCandidate(title, artist, isrc) {
+  let recs = [];
+  if (isrc) {
+    const d = await mbFetch(
+      `${MB_BASE}/recording?query=isrc:${encodeURIComponent(isrc)}&fmt=json&limit=10`
+    ).catch(() => null);
+    recs = (d && d.recordings) || [];
+  }
+  if (!recs.length) {
+    const q = `recording:"${mbEscapeLucene(title)}" AND artist:"${mbEscapeLucene(artist)}"`;
+    const d = await mbFetch(
+      `${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=15`
+    ).catch(() => null);
+    recs = (d && d.recordings) || [];
+  }
+  return pickPlausible(title, artist, recs);
+}
+
+/** ISRCs -> Map(ISRC -> recording), earliest first-release-date wins per ISRC. */
+async function mbIsrcRecordingBatch(isrcs) {
+  const out = new Map();
+  if (!isrcs.length) return out;
+  const wanted = new Set(isrcs.map((s) => s.toUpperCase()));
+  const q = isrcs.map((c) => `isrc:${c}`).join(' OR ');
+  let data;
+  try {
+    data = await mbFetch(`${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=100`);
+  } catch {
+    return out;
+  }
+  for (const rec of (data && data.recordings) || []) {
+    for (const isrc of rec.isrcs || []) {
+      const key = String(isrc).toUpperCase();
+      if (!wanted.has(key)) continue;
+      const prev = out.get(key);
+      if (!prev) out.set(key, rec);
+      else {
+        const py = mbYearFromDate(prev['first-release-date']);
+        const cy = mbYearFromDate(rec['first-release-date']);
+        if (cy != null && (py == null || cy < py)) out.set(key, rec);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Batch MB candidate pass — restores the fast path. ISRC rows go through batched
+ * OR-queries (MB_ISRC_BATCH per request, MB_CONCURRENCY in parallel); the
+ * plausibility fields (artist-credit, title, disambiguation, first-release-date)
+ * all come back IN the batch response (verified), so no per-song follow-up. Only
+ * no-ISRC / ISRC-miss rows fall back to a per-song text search.
+ */
+async function mbCandidatesBatch(tracks) {
+  const out = new Array(tracks.length).fill(null);
+  const withIsrc = [];
+  const withoutIsrc = [];
+  tracks.forEach((t, i) => (t.isrc ? withIsrc : withoutIsrc).push(i));
+
+  const batches = [];
+  for (let k = 0; k < withIsrc.length; k += MB_ISRC_BATCH) batches.push(withIsrc.slice(k, k + MB_ISRC_BATCH));
+  const isrcMisses = [];
+  for (let g = 0; g < batches.length; g += MB_CONCURRENCY) {
+    const group = batches.slice(g, g + MB_CONCURRENCY);
+    await Promise.all(
+      group.map(async (idxs) => {
+        const recMap = await mbIsrcRecordingBatch(idxs.map((i) => tracks[i].isrc));
+        for (const i of idxs) {
+          const rec = recMap.get(String(tracks[i].isrc).toUpperCase());
+          if (!rec) {
+            isrcMisses.push(i);
+            continue;
+          }
+          out[i] = pickPlausible(tracks[i].title, tracks[i].artist, [rec]);
+        }
+      })
+    );
+  }
+
+  const fallback = [...withoutIsrc, ...isrcMisses];
+  for (let s = 0; s < fallback.length; s += MB_CONCURRENCY) {
+    const group = fallback.slice(s, s + MB_CONCURRENCY);
+    await Promise.all(
+      group.map(async (i) => {
+        out[i] = await mbCandidate(tracks[i].title, tracks[i].artist, null);
+      })
+    );
+  }
+  return out;
+}
+
+/**
+ * MB-first consensus over the already-plausibility-filtered years. mbStatus comes
+ * from mbCandidate; deezerYear/discogsYear are null when their own plausibility
+ * filter rejected the match. Returns { status, chosen, earlier? }.
+ *   mb_no_match / mb_match_uncertain        -> chosen null (always a review case)
+ *   any other source >1yr earlier than MB   -> review_needed_other_source_earlier
+ *   MB earliest-or-equal to both            -> mb_anchor_ok, chosen = mbYear
+ *   only a ±1 difference, no >1yr-earlier    -> minor_difference, chosen = mbYear
+ */
+function yearConsensus({ mbStatus, mbYear, deezerYear, discogsYear }) {
+  if (mbStatus === 'mb_no_match') return { status: 'mb_no_match', chosen: null };
+  if (mbStatus === 'mb_match_uncertain') return { status: 'mb_match_uncertain', chosen: null };
+  const others = [
+    ['deezer', deezerYear],
+    ['discogs', discogsYear],
+  ].filter(([, y]) => y != null);
+  const earlier = others.filter(([, y]) => mbYear - y > 1);
+  if (earlier.length) {
+    return {
+      status: 'review_needed_other_source_earlier',
+      chosen: null,
+      earlier: earlier.map(([s]) => s),
+    };
+  }
+  if (others.every(([, y]) => y >= mbYear)) return { status: 'mb_anchor_ok', chosen: mbYear };
+  return { status: 'minor_difference', chosen: mbYear };
+}
+
+/** Human-readable notes for the review CSV, from the per-source outcomes. */
+function buildNotes(mb, deezerYear, discogsYear, discogsReason, con) {
+  const n = [];
+  if (mb.status === 'mb_no_match') n.push('mb_no_match');
+  else if (mb.status === 'mb_match_uncertain') n.push(mb.reason || 'mb_match_uncertain');
+  if (deezerYear == null) n.push('deezer:no_year');
+  if (discogsReason === 'skipped_deezer_confirmed') n.push('discogs skipped (deezer confirmed)');
+  else if (discogsReason) n.push(`discogs:${discogsReason}`);
+  if (con.earlier) n.push(`earlier:${con.earlier.join('+')}`);
+  return n.join('; ');
 }
 
 // ===========================================================================
@@ -529,8 +868,8 @@ async function resolveOne(title, artist, creditsfmIsrc, { onRetry } = {}) {
   } catch {
     dz = null; // Deezer hiccup -> fall through, never block the run
   }
-  if (dz) {
-    const hit = await spotifyByIsrc(dz, title, artist, 'deezer_isrc', onRetry);
+  if (dz && dz.isrc) {
+    const hit = await spotifyByIsrc(dz.isrc, title, artist, 'deezer_isrc', onRetry);
     if (hit) return hit;
   }
   return searchWithFallbacks(title, artist, { onRetry });
@@ -549,25 +888,12 @@ const MB_ISRC_BATCH = 12;
 const MB_MAX_RETRIES = 2;
 const MB_BACKOFF_MS = 2500;
 
-const mbRequestTimes = [];
-async function mbAcquireSlot() {
-  for (;;) {
-    const now = Date.now();
-    while (mbRequestTimes.length && now - mbRequestTimes[0] >= MB_WINDOW_MS) {
-      mbRequestTimes.shift();
-    }
-    if (mbRequestTimes.length < MB_MAX_PER_WINDOW) {
-      mbRequestTimes.push(now);
-      return;
-    }
-    await sleep(MB_WINDOW_MS - (now - mbRequestTimes[0]) + 20);
-  }
-}
+const mbLimiter = createRateLimiter(MB_WINDOW_MS, MB_MAX_PER_WINDOW);
 
 async function mbFetch(url) {
   let lastErr;
   for (let attempt = 0; attempt <= MB_MAX_RETRIES; attempt++) {
-    await mbAcquireSlot();
+    await mbLimiter.acquire();
     let res;
     try {
       res = await fetchWithTimeout(url, { headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' } });
@@ -700,6 +1026,7 @@ async function verifySongs(inputs, opts = {}) {
   const onPhase = opts.onPhase || (() => {});
   const results = new Array(inputs.length);
   const stats = { retried: 0, failed: [] };
+  const tResolveStart = Date.now();
 
   // Fast-path rows already carry BOTH a Spotify track id and an ISRC (playlist
   // imports). They skip the whole resolver chain (no Credits.fm / Deezer / Spotify
@@ -737,6 +1064,8 @@ async function verifySongs(inputs, opts = {}) {
         spArtist: row.artist,
         isrc: row.isrc,
         mbYear: null,
+        deezerYear: null,
+        discogsYear: null,
         failed: false,
         matchMethod: 'playlist_import',
         similarityScore: null,
@@ -777,6 +1106,8 @@ async function verifySongs(inputs, opts = {}) {
           spArtist: track.artists && track.artists[0] ? track.artists[0].name : row.artist,
           isrc: (track.external_ids && track.external_ids.isrc) || null,
           mbYear: null,
+          deezerYear: null,
+          discogsYear: null,
           failed: false,
           matchMethod: method,
           similarityScore: score,
@@ -789,6 +1120,8 @@ async function verifySongs(inputs, opts = {}) {
           spArtist: null,
           isrc: null,
           mbYear: null,
+          deezerYear: null,
+          discogsYear: null,
           failed,
           matchMethod: null,
           similarityScore: null,
@@ -798,17 +1131,90 @@ async function verifySongs(inputs, opts = {}) {
     // Stagger now happens per attempt inside searchWithFallbacks (rate-limit aware).
   }
 
-  // MusicBrainz year check for the Spotify-found rows.
+  const resolveMs = Date.now() - tResolveStart;
+
+  // ===== Year consensus (MusicBrainz-anchored) for the Spotify-found rows =====
   const foundIdx = results.map((r, i) => (r.spotifyFound ? i : -1)).filter((i) => i >= 0);
   const tracks = foundIdx.map((i) => ({
     title: results[i].spName || results[i].input.title,
     artist: results[i].spArtist || results[i].input.artist,
     isrc: results[i].isrc,
   }));
-  const years = await mbVerifyYears(tracks);
-  foundIdx.forEach((i, j) => {
-    results[i].mbYear = years[j];
+
+  // MB-batch pass + Deezer pass run CONCURRENTLY (own rate limiters), so neither
+  // waits for the other to fully finish. Each is timed independently (they overlap,
+  // so the wall-clock cost of this stage is ~max(mbMs, deezerMs), not the sum).
+  let mbMs = 0;
+  let deezerMs = 0;
+  const [mbCands, dzYears] = await Promise.all([
+    (async () => {
+      const s = Date.now();
+      const r = await mbCandidatesBatch(tracks);
+      mbMs = Date.now() - s;
+      return r;
+    })(),
+    (async () => {
+      const s = Date.now();
+      const r = await deezerVerifyYears(tracks);
+      deezerMs = Date.now() - s;
+      return r;
+    })(),
+  ]);
+
+  // Discogs ONLY when Deezer doesn't already settle it: MB plausible AND
+  // (Deezer missing OR Deezer >1yr earlier than MB). Otherwise skip (Deezer
+  // confirms MB / equal / later). mb-not-ok rows are review cases regardless.
+  const dcYear = new Array(tracks.length).fill(null);
+  const dcReason = new Array(tracks.length).fill(null);
+  const needIdx = [];
+  tracks.forEach((_, j) => {
+    const mb = mbCands[j] || { status: 'mb_no_match' };
+    if (mb.status !== 'mb_ok' || mb.year == null) return;
+    const dz = dzYears[j];
+    if (dz != null && mb.year - dz <= 1) {
+      dcReason[j] = 'skipped_deezer_confirmed';
+      return;
+    }
+    needIdx.push(j);
   });
+  const tDc = Date.now();
+  for (let s = 0; s < needIdx.length; s += DISCOGS_CONCURRENCY) {
+    const grp = needIdx.slice(s, s + DISCOGS_CONCURRENCY);
+    await Promise.all(
+      grp.map(async (j) => {
+        const c = await getDiscogsCandidate(tracks[j].title, tracks[j].artist).catch(() => ({ year: null, reason: 'no_result' }));
+        dcYear[j] = c.year;
+        dcReason[j] = c.reason;
+      })
+    );
+  }
+  const discogsMs = Date.now() - tDc;
+
+  // Consensus + notes per found row.
+  foundIdx.forEach((i, j) => {
+    const mb = mbCands[j] || { status: 'mb_no_match', year: null, reason: 'no_recording' };
+    const dz = dzYears[j];
+    const dc = dcYear[j];
+    const con = yearConsensus({ mbStatus: mb.status, mbYear: mb.year, deezerYear: dz, discogsYear: dc });
+    results[i].mbYear = mb.year != null ? mb.year : null;
+    results[i].mbStatus = mb.status;
+    results[i].mbRecordingId = mb.recordingId || null;
+    results[i].mbDisambiguation = mb.disambiguation || '';
+    results[i].deezerYear = dz;
+    results[i].discogsYear = dc;
+    results[i].consensusStatus = con.status;
+    results[i].chosenYear = con.chosen;
+    results[i].notes = buildNotes(mb, dz, dc, dcReason[j], con);
+  });
+
+  stats.timings = {
+    resolveMs,
+    mbMs,
+    deezerMs,
+    discogsMs,
+    discogsCalls: needIdx.length,
+    discogsSkipped: tracks.length - needIdx.length,
+  };
   return { results, stats };
 }
 
@@ -822,4 +1228,10 @@ module.exports = {
   verifySongs,
   computeRetryWaitS,
   fetchWithRetry,
+  // Year-consensus prep (test-only; not wired into final_year yet):
+  mbCandidate,
+  getDiscogsCandidate,
+  getDiscogsYear,
+  hasVariantMarker,
+  yearConsensus,
 };

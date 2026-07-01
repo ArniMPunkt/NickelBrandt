@@ -110,7 +110,6 @@ export function dismissResumableLobby(): void {
 async function saveLastLobbyId(lobbyId: string): Promise<void> {
   try {
     await SecureStore.setItemAsync(LAST_LOBBY_STORE_KEY, lobbyId);
-    console.log('[LobbyDebug] saved last lobby id', lobbyId);
   } catch {
     // SecureStore unavailable -> resume is simply not offered next start.
   }
@@ -120,7 +119,6 @@ async function saveLastLobbyId(lobbyId: string): Promise<void> {
 export async function clearLastLobbyId(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(LAST_LOBBY_STORE_KEY);
-    console.log('[LobbyDebug] cleared last lobby id');
   } catch {
     // ignore
   }
@@ -142,7 +140,6 @@ export async function initResumableLobby(): Promise<void> {
     storedId = null;
   }
   if (!storedId) {
-    console.log('[LobbyDebug] resumable check: no stored lobby');
     setResumableLobby(null);
     return;
   }
@@ -154,9 +151,6 @@ export async function initResumableLobby(): Promise<void> {
       .maybeSingle();
 
     if (!lobby || lobby.status === 'ended' || lobby.status === 'finished') {
-      console.log(
-        `[LobbyDebug] resumable check: lobby gone/over -> clear (status=${lobby?.status ?? 'missing'})`
-      );
       await clearLastLobbyId();
       setResumableLobby(null);
       return;
@@ -171,18 +165,13 @@ export async function initResumableLobby(): Promise<void> {
       .maybeSingle();
 
     if (!mine) {
-      console.log('[LobbyDebug] resumable check: no longer a member -> clear');
       await clearLastLobbyId();
       setResumableLobby(null);
       return;
     }
 
-    console.log(
-      `[LobbyDebug] resumable lobby found code=${(lobby as Lobby).code} status=${lobby.status}`
-    );
     setResumableLobby(lobby as Lobby);
-  } catch (e) {
-    console.log('[LobbyDebug] resumable check failed:', e);
+  } catch {
     setResumableLobby(null);
   }
 }
@@ -242,7 +231,6 @@ export async function createLobby(playerName: string): Promise<Lobby> {
     if (playerError) {
       throw new Error(`Beitritt als Host fehlgeschlagen: ${playerError.message}`);
     }
-    console.log(`[LobbyDebug] createLobby host=${hostId} -> lobby id=${lobby.id} code=${lobby.code}`);
     await saveLastLobbyId(lobby.id);
     return lobby as Lobby;
   }
@@ -289,7 +277,6 @@ export async function joinLobby(playerName: string, code: string): Promise<Lobby
       throw new Error(`Beitritt fehlgeschlagen: ${insertError.message}`);
     }
   }
-  console.log(`[LobbyDebug] joinLobby player=${playerId} -> lobby id=${lobby.id} code=${lobby.code} (alreadyIn=${!!existing})`);
   await saveLastLobbyId(lobby.id);
   return lobby as Lobby;
 }
@@ -317,7 +304,6 @@ export async function endLobby(lobbyId: string): Promise<void> {
     .update({ status: 'ended' })
     .eq('id', lobbyId);
   if (error) throw new Error(`Lobby konnte nicht beendet werden: ${error.message}`);
-  console.log('[LobbyDebug] endLobby', lobbyId);
   await clearLastLobbyId();
   dismissResumableLobby();
 }
@@ -331,10 +317,6 @@ export async function getLobbyPlayers(lobbyId: string): Promise<LobbyPlayer[]> {
     .order('joined_at', { ascending: true });
   if (error) throw new Error(`Spielerliste konnte nicht geladen werden: ${error.message}`);
   const players = (data ?? []) as LobbyPlayer[];
-  console.log(
-    `[LobbyDebug] getLobbyPlayers lobby=${lobbyId} -> ${players.length} players:`,
-    players.map((p) => p.player_name)
-  );
   return players;
 }
 
@@ -356,14 +338,11 @@ export function subscribeToLobbyPlayers(
         table: 'lobby_players',
         filter: `lobby_id=eq.${lobbyId}`,
       },
-      (payload) => {
-        console.log(`[LobbyDebug] lobby_players event: ${payload.eventType}`);
+      () => {
         onChange();
       }
     )
-    .subscribe((status, err) => {
-      console.log(`[LobbyDebug] lobby_players channel status: ${status}`, err ?? '');
-    });
+    .subscribe();
 
   return () => {
     supabase.removeChannel(channel);
@@ -381,7 +360,6 @@ export async function getSongPools(): Promise<SongPool[]> {
     .select('id, name, description, created_at')
     .order('created_at', { ascending: true });
   if (error) throw new Error(`Themen-Pools konnten nicht geladen werden: ${error.message}`);
-  console.log(`[LobbyDebug] getSongPools -> ${(data ?? []).length} pools`);
   return (data ?? []) as SongPool[];
 }
 
@@ -404,7 +382,6 @@ export async function getPoolSongs(poolId: string): Promise<GameCard[]> {
     release_year: number;
     isrc: string | null;
   }>;
-  console.log(`[LobbyDebug] getPoolSongs pool=${poolId} -> ${rows.length} songs`);
   return rows.map((r) => {
     const uri = `spotify:track:${r.spotify_track_id}`;
     return {
@@ -439,7 +416,6 @@ export async function getLobby(lobbyId: string): Promise<Lobby> {
     .eq('id', lobbyId)
     .single();
   if (error) throw new Error(`Lobby konnte nicht geladen werden: ${error.message}`);
-  console.log(`[LobbyDebug] getLobby id=${lobbyId} status=${(data as Lobby).status}`);
   return data as Lobby;
 }
 
@@ -557,7 +533,6 @@ export async function callHitster(lobbyId: string, callerId: string): Promise<bo
     .select();
 
   const won = !error && !!data && data.length > 0;
-  console.log(`[GameDebug] callHitster caller=${callerId} won=${won}`, error?.message ?? '');
   return won;
 }
 
@@ -600,7 +575,6 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
     .select();
 
   if (!data || data.length === 0) {
-    console.log('[GameDebug] closeHitsterWindow: lost to a caller, steal proceeds');
     return;
   }
   // Update the active player's Brandt streak (+1 if correct, reset to 0 otherwise)
@@ -640,10 +614,8 @@ export async function passHitster(lobbyId: string, playerId: string): Promise<vo
       .filter('game_state->>hitsterCallerId', 'is', null)
       .select();
     if (!data || data.length === 0) {
-      console.log('[GameDebug] passHitster: window already claimed/closed, ignoring');
       return;
     }
-    console.log(`[GameDebug] passHitster player=${playerId} passed=${nextPassed.length}`);
   }
 
   await checkHitsterWindowComplete(lobbyId);
@@ -664,11 +636,7 @@ async function checkHitsterWindowComplete(lobbyId: string): Promise<void> {
   );
   const passed = new Set(gs.passedHitster ?? []);
   const allResponded = potential.length > 0 && potential.every((p) => passed.has(p.player_id));
-  console.log(
-    `[GameDebug] checkHitsterWindowComplete potential=${potential.length} passed=${passed.size} allResponded=${allResponded}`
-  );
   if (allResponded) {
-    console.log('[GameDebug] all potential stealers passed -> closing window early');
     await closeHitsterWindow(lobbyId);
   }
 }
@@ -738,9 +706,6 @@ export async function resolveHitsterPlacement(
   await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
 
   const won = !!winnerId;
-  console.log(
-    `[GameDebug] resolveHitsterPlacement caller=${callerId} stealCorrect=${stealCorrect} activeCorrect=${activeCorrect} stealEqualYear=${stealEqualYear}`
-  );
   await writeGameState(lobbyId, {
     ...gs,
     phase: won ? 'finished' : 'awaiting_host_confirmation',
@@ -818,21 +783,18 @@ export function subscribeToGameState(
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'lobbies', filter: `id=eq.${lobbyId}` },
-      (payload) => {
-        console.log(`[LobbyDebug] game/lobbies event: ${payload.eventType}`);
+      () => {
         onChange();
       }
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'lobby_players', filter: `lobby_id=eq.${lobbyId}` },
-      (payload) => {
-        console.log(`[LobbyDebug] game/lobby_players event: ${payload.eventType}`);
+      () => {
         onChange();
       }
     )
-    .subscribe((status, err) => {
-      console.log(`[LobbyDebug] game channel status: ${status}`, err ?? '');
+    .subscribe((status) => {
       onStatus?.(status);
     });
   return () => {

@@ -37,6 +37,11 @@ const COLUMNS = [
   'csv_year',
   'mb_year',
   'mb_year_source',
+  'deezer_year',
+  'discogs_year',
+  'chosen_candidate',
+  'status',
+  'notes',
   'diff',
   'spotify_track_id',
   'spotify_match_name',
@@ -49,6 +54,7 @@ const COLUMNS = [
 ];
 
 async function main() {
+  const tScript = Date.now();
   loadEnv(path.join(__dirname, '.env'));
 
   const [inputCsv, outputCsv] = process.argv.slice(2);
@@ -91,53 +97,40 @@ async function main() {
     throw e;
   }
   const { results, stats } = verifyOut;
-  console.log(`\nVerified release years via MusicBrainz. Building review CSV…`);
+  console.log(`\nJahres-Konsens (MusicBrainz-Anker) gebildet. Baue Review-CSV…`);
 
-  // Build review rows + a numeric sort key.
+  // Higher = more urgent -> sorted to the top. Review-needing statuses above the
+  // auto-accepted ones (status-based, replacing the old |csv-mb| diff sort).
+  const SORT_RANK = {
+    spotify_not_found: 5,
+    mb_no_match: 4,
+    mb_match_uncertain: 3,
+    review_needed_other_source_earlier: 2,
+    minor_difference: 1,
+    mb_anchor_ok: 0,
+  };
+
   const rows = results.map((r) => {
     const csvYear = r.input.estimatedYear; // may be null
-    let mbYear = '';
-    let source = '';
-    let diff = '';
-    let finalYear = '';
-    let sortKey; // higher = needs attention sooner
-
-    if (!r.spotifyFound) {
-      sortKey = Number.MAX_SAFE_INTEGER; // not-found rows go to the very top
-    } else if (r.mbYear != null) {
-      mbYear = r.mbYear;
-      source = 'musicbrainz';
-      if (csvYear != null) {
-        const d = Math.abs(csvYear - r.mbYear);
-        diff = d;
-        sortKey = d;
-        if (d === 0) finalYear = r.mbYear; // unambiguous -> pre-fill
-      } else {
-        diff = ''; // no estimate to compare against -> needs a look
-        sortKey = Number.MAX_SAFE_INTEGER - 2;
-      }
-    } else {
-      // Spotify found, but no MusicBrainz hit -> fall back to the CSV estimate.
-      source = 'fallback';
-      if (csvYear != null) {
-        mbYear = csvYear;
-        diff = 0; // mb_year == csv_year by construction
-        sortKey = Number.MAX_SAFE_INTEGER - 1; // still worth a glance (unverified)
-      } else {
-        diff = '';
-        sortKey = Number.MAX_SAFE_INTEGER - 1;
-      }
-    }
+    const status = r.spotifyFound ? r.consensusStatus || 'mb_no_match' : 'spotify_not_found';
+    const autoAccept = status === 'mb_anchor_ok' || status === 'minor_difference';
+    const finalYear = autoAccept && r.chosenYear != null ? r.chosenYear : '';
+    const diff = csvYear != null && r.mbYear != null ? Math.abs(csvYear - r.mbYear) : '';
+    const sortKey = SORT_RANK[status] != null ? SORT_RANK[status] : 3;
 
     return {
       _sortKey: sortKey,
-      _spotifyFound: r.spotifyFound,
       row: {
         title: r.input.title,
         artist: r.input.artist,
         csv_year: csvYear != null ? csvYear : '',
-        mb_year: mbYear,
-        mb_year_source: source,
+        mb_year: r.mbYear != null ? r.mbYear : '',
+        mb_year_source: r.spotifyFound ? r.mbStatus || '' : 'spotify_not_found',
+        deezer_year: r.deezerYear != null ? r.deezerYear : '',
+        discogs_year: r.discogsYear != null ? r.discogsYear : '',
+        chosen_candidate: r.chosenYear != null ? r.chosenYear : '',
+        status,
+        notes: r.notes || '',
         diff,
         spotify_track_id: r.trackId || '',
         spotify_match_name: r.spName || '',
@@ -151,55 +144,61 @@ async function main() {
     };
   });
 
-  // Sort: biggest review need first (not-found + large diffs on top; diff=0 found
-  // at the bottom). Tiebreak: not-found before found.
-  rows.sort((a, b) => {
-    if (b._sortKey !== a._sortKey) return b._sortKey - a._sortKey;
-    if (a._spotifyFound !== b._spotifyFound) return a._spotifyFound ? 1 : -1;
-    return 0;
-  });
+  // Review-needing statuses first, auto-accepted at the bottom.
+  rows.sort((a, b) => b._sortKey - a._sortKey);
 
   writeCsvObjects(outputCsv, COLUMNS, rows.map((r) => r.row));
 
   // --- Summary ---
-  const notFound = results.filter((r) => !r.spotifyFound).length;
-  const autoFilled = rows.filter((r) => r.row.spotify_found === 'true' && r.row.final_year !== '').length;
-  const needsReview = rows.filter((r) => r.row.spotify_found === 'true' && r.row.final_year === '').length;
+  const autoFilled = rows.filter((r) => r.row.final_year !== '').length;
+
+  // Konsens-Status-Tally.
+  const tally = {};
+  for (const r of rows) tally[r.row.status] = (tally[r.row.status] || 0) + 1;
 
   // Trefferquote je Quelle (welcher Resolver-Schritt griff).
   const byMethod = {};
   for (const r of results) {
-    const m = r.matchMethod || (r.spotifyFound ? 'unknown' : 'none');
-    byMethod[m] = (byMethod[m] || 0) + 1;
+    const mm = r.matchMethod || (r.spotifyFound ? 'unknown' : 'none');
+    byMethod[mm] = (byMethod[mm] || 0) + 1;
   }
   const m = (k) => byMethod[k] || 0;
 
-  // Fast-Path (Track-ID + ISRC schon bekannt) vs. volle Resolver-Kette.
   const fastPath = results.filter((r) => r.matchMethod === 'playlist_import').length;
   const fullChain = inputs.length - fastPath;
 
-  const line = '─'.repeat(60);
+  const t = stats.timings || {};
+  const s1 = (ms) => ((ms || 0) / 1000).toFixed(1);
+  const totalS = ((Date.now() - tScript) / 1000).toFixed(1);
+
+  const line = '─'.repeat(64);
   console.log(`\n${line}\nPRE-CHECK ZUSAMMENFASSUNG\n${line}`);
-  console.log(`Eingabe-Songs:                          ${inputs.length}`);
-  console.log(`   Fast-Path (Track-ID+ISRC bekannt):   ${fastPath}`);
-  console.log(`   Volle Resolver-Kette:                ${fullChain}`);
-  console.log(`Quelle je Treffer:`);
-  console.log(`   Credits.fm (ISRC):   ${m('creditsfm_isrc')}`);
-  console.log(`   Deezer (ISRC):       ${m('deezer_isrc')}`);
-  console.log(`   Spotify-Text strict: ${m('strict')}`);
-  console.log(`   Spotify-Text loose:  ${m('fallback_loose') + m('fallback_first_artist')}`);
-  console.log(`diff = 0 (auto-befüllt, ohne Rückfrage übernehmbar): ${autoFilled}`);
-  console.log(`diff >= 1 / unbestimmt (im Review anzuschauen):       ${needsReview}`);
-  console.log(`Nicht bei Spotify gefunden (übersprungen beim Upload): ${notFound}`);
-  console.log(`Songs mit Rate-Limit-Retry (429, letztlich egal ob ok): ${stats.retried}`);
-  console.log(`Endgültig fehlgeschlagen nach ${5} Versuchen:           ${stats.failed.length}`);
+  console.log(`Eingabe-Songs:  ${inputs.length}   (Fast-Path ${fastPath} | volle Kette ${fullChain})`);
+  console.log(
+    `Quelle je Treffer:  Credits ${m('creditsfm_isrc')} | Deezer ${m('deezer_isrc')} | ` +
+      `Spotify strict ${m('strict')} | loose ${m('fallback_loose') + m('fallback_first_artist')}`
+  );
+  console.log(`Konsens-Status:`);
+  for (const [k, v] of Object.entries(tally).sort((a, b) => b[1] - a[1])) {
+    console.log(`   ${k.padEnd(38)} ${v}`);
+  }
+  console.log(`final_year automatisch gesetzt (mb_anchor_ok / minor_difference): ${autoFilled}`);
+  console.log(`Rest = Review nötig:                                              ${inputs.length - autoFilled}`);
+  console.log(`Rate-Limit-Retries: ${stats.retried} | endgültig fehlgeschlagen: ${stats.failed.length}`);
   if (stats.failed.length) {
     for (const f of stats.failed) console.log(`   ✗ ${f.title} — ${f.artist}`);
-    console.log('   (diese erneut laufen lassen, sobald das Rate-Limit abgeklungen ist)');
   }
-  console.log(`Review-CSV geschrieben:                 ${outputCsv}`);
   console.log(line);
-  console.log('Nächster Schritt: final_year-Spalte im Review prüfen/befüllen, dann upload-song-pool.js.');
+  console.log(`Laufzeit gesamt: ${totalS}s`);
+  console.log(`   Resolver (Spotify/Credits/Deezer-ISRC):   ${s1(t.resolveMs)}s`);
+  console.log(`   Jahres-Pässe MB + Deezer (nebenläufig):   MB ${s1(t.mbMs)}s, Deezer ${s1(t.deezerMs)}s  (~max zählt)`);
+  console.log(
+    `   Discogs (nur bei Bedarf):                 ${s1(t.discogsMs)}s  ` +
+      `(${t.discogsCalls || 0} Calls, ${t.discogsSkipped || 0} übersprungen)`
+  );
+  console.log(`Review-CSV geschrieben: ${outputCsv}`);
+  console.log(line);
+  console.log('Nächster Schritt: Review-Zeilen (Status oben) prüfen, final_year füllen, dann upload-song-pool.js.');
 }
 
 main().catch((e) => {

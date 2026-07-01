@@ -61,7 +61,6 @@ export default function LobbyScreen() {
       // (navigatedRef set), OnlineGameScreen owns this transition instead.
       if (lobby.status === 'ended' && !endedRef.current && !navigatedRef.current) {
         endedRef.current = true;
-        console.log('[LobbyDebug] lobby ended by host -> back to OnlineHome');
         Online.clearLastLobbyId().catch(() => {});
         Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
         navigation.navigate('OnlineHome');
@@ -77,7 +76,6 @@ export default function LobbyScreen() {
   }, [lobbyId, navigation]);
 
   useEffect(() => {
-    console.log(`[LobbyDebug] LobbyScreen MOUNT lobbyId=${lobbyId} myId=${myId}`);
     let disposed = false;
     let unsub: (() => void) | null = null;
     let reconnecting = false; // suppress the CLOSED we cause when tearing down
@@ -89,7 +87,6 @@ export default function LobbyScreen() {
       const bad =
         status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR';
       if (!bad || reconnecting) return;
-      console.log('[LobbyDebug] bad channel status -> refetch + resubscribe:', status);
       refresh();
       if (reconnectScheduled) return;
       reconnectScheduled = true;
@@ -113,7 +110,6 @@ export default function LobbyScreen() {
     const poll = setInterval(refresh, 5000);
 
     return () => {
-      console.log(`[LobbyDebug] LobbyScreen UNMOUNT lobbyId=${lobbyId}`);
       disposed = true;
       clearInterval(poll);
       unsub?.();
@@ -125,7 +121,6 @@ export default function LobbyScreen() {
   // mount effect above does NOT re-run on focus).
   useFocusEffect(
     useCallback(() => {
-      console.log('[LobbyDebug] LobbyScreen FOCUSED -> refresh');
       refresh();
     }, [refresh])
   );

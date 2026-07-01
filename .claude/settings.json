@@ -13,7 +13,8 @@
       "Bash(python -c ' *)",
       "PowerShell(npx tsc --noEmit)",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(node -e ' *)"
     ],
     "deny": [
       "Bash(rm -rf /*)",

@@ -623,11 +623,12 @@ export async function getPlaylistTracks(
 
 /**
  * Fill in missing cover art for cards that have a `spotify:track:<id>` URI but no
- * coverUrl - i.e. pool songs (the pool stores no cover). Batches GET /v1/tracks
- * (50 ids/request) with the Web API token and maps album.images[0] back by id.
+ * coverUrl - i.e. pool songs (the pool stores no cover). Fetches one
+ * GET /v1/tracks/{id} per track (the batch endpoint was removed for Dev-Mode apps
+ * in the Feb-2026 migration) with bounded concurrency, and maps album.images[0].
  *
- * Non-fatal by design: if there is no token (e.g. a non-host device) or a request
- * fails, the affected cards keep coverUrl undefined and the UI shows its fallback.
+ * Non-fatal by design: if there is no token (e.g. a non-host device) or requests
+ * fail, the affected cards keep coverUrl undefined and the UI shows its fallback.
  * Runs on the deck-building device (Hot-Seat device / Online host); for Online the
  * enriched cards are written into game_state, so every client gets the covers too.
  */
@@ -637,31 +638,83 @@ export async function addCoverArt(cards: GameCard[]): Promise<GameCard[]> {
   const need = cards.filter((c) => !c.coverUrl && c.trackUri?.startsWith(PREFIX));
   if (need.length === 0) return cards;
 
+  // Diagnostics use console.warn (not console.log): the project has no
+  // transform-remove-console babel config, so console.* survives dev AND release,
+  // but .warn is the more visible/prominent channel in Metro and device logs.
   let token: string;
   try {
     token = await getWebApiToken();
-  } catch {
+  } catch (e: any) {
+    console.warn(
+      `[addCoverArt] no Web API token -> skipping cover fetch for ${need.length} card(s): ${e?.message ?? e}`
+    );
     return cards; // no token -> keep fallbacks, never block deck loading
   }
+  console.warn(`[addCoverArt] token present; fetching covers for ${need.length} pool card(s)`);
 
+  // Spotify Feb-2026 migration: the batch GET /v1/tracks?ids=... was REMOVED for
+  // Development-Mode apps (returned 403 on every batch). The replacement is one
+  // GET /v1/tracks/{id} per track. To avoid firing 300+ requests at once we use a
+  // small fixed concurrency (workers pull from a shared cursor). The `linked_from`
+  // relinking field was also removed in the same migration, so we key purely by t.id.
   const ids = [...new Set(need.map((c) => idOf(c.trackUri)))];
   const coverById = new Map<string, string>();
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
-    try {
-      const res = await fetch(`https://api.spotify.com/v1/tracks?ids=${batch.join(',')}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) continue; // skip this batch; affected cards keep the fallback
-      const data = await res.json();
-      for (const t of data?.tracks ?? []) {
-        const url = t?.album?.images?.[0]?.url;
-        if (t?.id && url) coverById.set(t.id, url);
+  let e403 = 0;
+  let e404 = 0;
+  let e429 = 0;
+  let eOther = 0;
+  const CONCURRENCY = 6;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  const fetchOne = async (id: string): Promise<void> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let res: Response;
+      try {
+        res = await fetch(`https://api.spotify.com/v1/tracks/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        eOther += 1; // network error
+        return;
       }
-    } catch {
-      // network error on this batch -> ignore, fallback stays
+      if (res.ok) {
+        const t = await res.json().catch(() => null);
+        const url = t?.album?.images?.[0]?.url;
+        if (url && t?.id) coverById.set(t.id, url);
+        else eOther += 1; // 200 but no cover image
+        return;
+      }
+      // 429: respect Retry-After with ONE short, capped backoff, then retry once.
+      // Never blindly hammer on - if 429s persist they are counted and surfaced.
+      if (res.status === 429 && attempt === 0) {
+        const raw = res.headers.get('retry-after');
+        const parsed = parseInt(raw ?? '', 10);
+        const waitS = Number.isFinite(parsed) ? Math.min(parsed, 5) : 1;
+        console.warn(`[addCoverArt] 429 on ${id}; Retry-After=${raw ?? 'none'} -> wait ${waitS}s, one retry`);
+        await sleep(waitS * 1000);
+        continue;
+      }
+      if (res.status === 403) e403 += 1;
+      else if (res.status === 404) e404 += 1;
+      else if (res.status === 429) e429 += 1;
+      else eOther += 1;
+      return;
     }
-  }
+  };
+
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < ids.length) {
+      const id = ids[cursor++];
+      await fetchOne(id);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+
+  console.warn(
+    `[addCoverArt] resolved ${coverById.size}/${ids.length} cover(s) ` +
+      `(errors: ${e403}x 403, ${e404}x 404, ${e429}x 429, ${eOther}x other)`
+  );
   if (coverById.size === 0) return cards;
 
   return cards.map((c) =>

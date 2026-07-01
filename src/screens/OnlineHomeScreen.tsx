@@ -79,7 +79,6 @@ export default function OnlineHomeScreen() {
 
   const resumeLobby = () => {
     if (!resumable) return;
-    console.log(`[LobbyDebug] resume tapped code=${resumable.code} status=${resumable.status}`);
     if (resumable.status === 'playing') {
       navigation.navigate('OnlineGame', { lobbyId: resumable.id });
     } else {

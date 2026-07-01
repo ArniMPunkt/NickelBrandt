@@ -151,7 +151,6 @@ export default function OnlineGameScreen() {
       // who triggered it does not also get this alert.)
       if (lb.status === 'ended' && !endedRef.current) {
         endedRef.current = true;
-        console.log('[GameDebug] lobby ended by host -> back to OnlineHome');
         Online.clearLastLobbyId().catch(() => {});
         Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
         navigation.navigate('OnlineHome');
@@ -170,7 +169,6 @@ export default function OnlineGameScreen() {
   // NOTE: this cleanup deliberately does NOT call leaveLobby() - leaving the
   // lobby is exclusively the job of the explicit "Lobby verlassen" button.
   useEffect(() => {
-    console.log(`[GameDebug] OnlineGameScreen MOUNT lobbyId=${lobbyId} myId=${myId}`);
     let disposed = false;
     let unsub: (() => void) | null = null;
     let reconnecting = false; // suppress the CLOSED we cause when tearing down
@@ -182,7 +180,6 @@ export default function OnlineGameScreen() {
       const bad =
         status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR';
       if (!bad || reconnecting) return;
-      console.log('[GameDebug] bad channel status -> refetch + resubscribe:', status);
       refresh();
       if (reconnectScheduled) return;
       reconnectScheduled = true;
@@ -211,13 +208,11 @@ export default function OnlineGameScreen() {
     // already focused when the app was minimized, so refresh explicitly here.
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && !disposed) {
-        console.log('[GameDebug] app foreground -> refresh');
         refresh();
       }
     });
 
     return () => {
-      console.log(`[GameDebug] OnlineGameScreen UNMOUNT lobbyId=${lobbyId}`);
       disposed = true;
       clearInterval(poll);
       appStateSub.remove();
@@ -230,7 +225,6 @@ export default function OnlineGameScreen() {
   // mount effect above does NOT re-run on focus).
   useFocusEffect(
     useCallback(() => {
-      console.log('[GameDebug] OnlineGameScreen FOCUSED -> refresh');
       refresh();
     }, [refresh])
   );
