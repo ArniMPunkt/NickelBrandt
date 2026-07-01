@@ -592,7 +592,18 @@ const styles = StyleSheet.create({
   muted: { color: COLORS.textMuted, fontSize: 16 },
 
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headerLeft: { flex: 1 },
+  // The active player IS the header in Hot-Seat (no combined roster during play),
+  // so its container carries the same green neon glow used for the active player
+  // in the Online list.
+  headerLeft: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: COLORS.correct,
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    ...glow(COLORS.correct, { radius: 12, opacity: 0.5 }),
+  },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activePlayer: {
     fontSize: 32,

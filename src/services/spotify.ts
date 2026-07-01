@@ -621,6 +621,56 @@ export async function getPlaylistTracks(
   return cards;
 }
 
+/**
+ * Fill in missing cover art for cards that have a `spotify:track:<id>` URI but no
+ * coverUrl - i.e. pool songs (the pool stores no cover). Batches GET /v1/tracks
+ * (50 ids/request) with the Web API token and maps album.images[0] back by id.
+ *
+ * Non-fatal by design: if there is no token (e.g. a non-host device) or a request
+ * fails, the affected cards keep coverUrl undefined and the UI shows its fallback.
+ * Runs on the deck-building device (Hot-Seat device / Online host); for Online the
+ * enriched cards are written into game_state, so every client gets the covers too.
+ */
+export async function addCoverArt(cards: GameCard[]): Promise<GameCard[]> {
+  const PREFIX = 'spotify:track:';
+  const idOf = (uri: string) => uri.slice(PREFIX.length);
+  const need = cards.filter((c) => !c.coverUrl && c.trackUri?.startsWith(PREFIX));
+  if (need.length === 0) return cards;
+
+  let token: string;
+  try {
+    token = await getWebApiToken();
+  } catch {
+    return cards; // no token -> keep fallbacks, never block deck loading
+  }
+
+  const ids = [...new Set(need.map((c) => idOf(c.trackUri)))];
+  const coverById = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    try {
+      const res = await fetch(`https://api.spotify.com/v1/tracks?ids=${batch.join(',')}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) continue; // skip this batch; affected cards keep the fallback
+      const data = await res.json();
+      for (const t of data?.tracks ?? []) {
+        const url = t?.album?.images?.[0]?.url;
+        if (t?.id && url) coverById.set(t.id, url);
+      }
+    } catch {
+      // network error on this batch -> ignore, fallback stays
+    }
+  }
+  if (coverById.size === 0) return cards;
+
+  return cards.map((c) =>
+    !c.coverUrl && c.trackUri?.startsWith(PREFIX)
+      ? { ...c, coverUrl: coverById.get(idOf(c.trackUri)) ?? c.coverUrl }
+      : c
+  );
+}
+
 /** Summary of one of the user's playlists, for the in-app picker. */
 export interface PlaylistSummary {
   id: string;

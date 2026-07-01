@@ -16,8 +16,12 @@ export type DeckSource =
 
 /** Resolve a deck source to its (unshuffled) GameCards. */
 export async function loadDeckSource(src: DeckSource): Promise<GameCard[]> {
+  // Playlists already carry album cover art from the Web API.
   if (src.kind === 'playlist') return Spotify.getPlaylistTracks(src.playlist.id);
-  return Online.getPoolSongs(src.pool.id);
+  // Pools store no cover art -> fetch it by track id (non-fatal; falls back if no
+  // token / request fails). On Online the host does this, so all clients get covers.
+  const cards = await Online.getPoolSongs(src.pool.id);
+  return Spotify.addCoverArt(cards);
 }
 
 /** Stable identifier for the chosen source (stored in GameSettings.playlistId). */

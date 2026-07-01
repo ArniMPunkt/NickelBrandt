@@ -627,7 +627,10 @@ export default function OnlineGameScreen() {
       {/* Players */}
       <Text style={styles.sectionLabel}>SPIELER</Text>
       {players.map((p) => (
-        <View key={p.id} style={styles.scoreRow}>
+        <View
+          key={p.id}
+          style={[styles.scoreRow, p.player_id === gs.activePlayerId && styles.scoreRowActive]}
+        >
           <Text style={styles.scoreName} numberOfLines={1}>
             {p.player_name}
             {p.player_id === gs.activePlayerId ? ' ▶' : ''}
@@ -853,6 +856,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  // Active player gets a green neon glow border (matches the correct/green theme).
+  scoreRowActive: {
+    borderColor: COLORS.correct,
+    borderWidth: 2,
+    ...glow(COLORS.correct, { radius: 12, opacity: 0.6 }),
   },
   scoreName: { color: COLORS.text, fontWeight: '800', fontSize: 15, flexShrink: 1 },
   scoreVal: { color: COLORS.textMuted, fontWeight: '600', fontSize: 12 },
