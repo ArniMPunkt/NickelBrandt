@@ -75,6 +75,8 @@ const initialState: GameState = {
     skipCost: 1,
     blindEnabled: false,
     blindCost: 3,
+    timerEnabled: false,
+    timerSeconds: 60,
   },
   winner: null,
   lastPlacement: null,
@@ -173,11 +175,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SKIP_CARD': {
       // "Karte überspringen": discard the current card and draw a replacement
       // (same turn continues). Costs skipCost Nickel; needs a non-empty deck.
+      // Locked at match point (score >= cardsToWin - 1): no Nickel assists on
+      // the potentially winning card - the endgame has to be guessed.
       const card = state.currentCard;
       if (!card || state.deck.length === 0 || !state.settings.skipEnabled) return state;
       const cost = state.settings.skipCost;
       const playerIndex = state.currentPlayerIndex;
       if (state.players[playerIndex].chips < cost) return state;
+      if (state.players[playerIndex].score >= state.settings.cardsToWin - 1) return state;
 
       const [next, ...rest] = state.deck;
       const players = state.players.map((p, i) =>
@@ -188,36 +193,34 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'BLIND_DRAW': {
       // "Karte ohne Raten ziehen": the current card is auto-inserted year-sorted
-      // (counts as a correct placement for score/win) and the turn ends. Costs
-      // blindCost Nickel. The Brandt streak is untouched - it tracks own GUESSES,
-      // and a bought card is neither a hit nor a miss.
+      // into the timeline, but does NOT count toward the win (no score) - a
+      // bought card is no progress toward cardsToWin. Costs blindCost Nickel.
+      // The Brandt streak is untouched - it tracks own GUESSES, and a bought
+      // card is neither a hit nor a miss. Locked at match point (score >=
+      // cardsToWin - 1): no Nickel assists on the potentially winning card.
       const card = state.currentCard;
       if (!card || !state.settings.blindEnabled) return state;
       const cost = state.settings.blindCost;
       const playerIndex = state.currentPlayerIndex;
       const player = state.players[playerIndex];
       if (player.chips < cost) return state;
+      if (player.score >= state.settings.cardsToWin - 1) return state;
 
       const insertIndex = sortedInsertIndex(player.timeline, card.year);
-      const newScore = player.score + 1;
       const updatedPlayer: Player = {
         ...player,
         chips: player.chips - cost,
         timeline: insertAt(player.timeline, card, insertIndex),
-        score: newScore,
       };
       const players = state.players.map((p, i) =>
         i === playerIndex ? updatedPlayer : p
       );
-      const won = newScore >= state.settings.cardsToWin;
 
       return {
         ...state,
         players,
         currentCard: null,
         lastPlacement: { result: 'correct', card, insertIndex, blind: true },
-        winner: won ? updatedPlayer : state.winner,
-        phase: won ? 'result' : state.phase,
       };
     }
 

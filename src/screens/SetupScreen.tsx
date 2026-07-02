@@ -111,6 +111,8 @@ export default function SetupScreen() {
             skipCost: settings.skipCost,
             blindEnabled: settings.blindEnabled,
             blindCost: settings.blindCost,
+            timerEnabled: settings.timerEnabled,
+            timerSeconds: settings.timerSeconds,
           },
           deck,
         },

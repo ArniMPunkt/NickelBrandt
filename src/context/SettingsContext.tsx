@@ -25,6 +25,10 @@ export interface GameRuleSettings {
   blindEnabled: boolean;
   /** Nickel cost of a blind draw (3-5). */
   blindCost: number;
+  /** Music timer: hard-stop the song after timerSeconds (guessing continues). */
+  timerEnabled: boolean;
+  /** Song duration per turn in seconds (30-120). */
+  timerSeconds: number;
 }
 
 export const DEFAULT_SETTINGS: GameRuleSettings = {
@@ -35,6 +39,8 @@ export const DEFAULT_SETTINGS: GameRuleSettings = {
   skipCost: 1,
   blindEnabled: false,
   blindCost: 3,
+  timerEnabled: false,
+  timerSeconds: 60,
 };
 
 interface SettingsContextValue {

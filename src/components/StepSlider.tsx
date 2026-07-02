@@ -23,12 +23,15 @@ export function StepSlider({
   value,
   min,
   max,
+  step = 1,
   milestones = [],
   onChange,
 }: {
   value: number;
   min: number;
   max: number;
+  /** Snap increment (default 1). (max - min) should be divisible by it. */
+  step?: number;
   /** Values rendered as emphasized stops (tick + number label). */
   milestones?: number[];
   onChange: (v: number) => void;
@@ -47,7 +50,7 @@ export function StepSlider({
     const w = trackWRef.current;
     if (w <= 0) return;
     const frac = Math.min(1, Math.max(0, (areaX - THUMB / 2) / w));
-    const v = Math.round(min + frac * (max - min));
+    const v = min + Math.round((frac * (max - min)) / step) * step;
     if (v !== lastEmitted.current) {
       lastEmitted.current = v;
       onChangeRef.current(v);

@@ -60,6 +60,15 @@ export interface OnlineGameState {
   skipCost?: number;
   blindEnabled?: boolean;
   blindCost?: number;
+  /** Music timer (host settings): hard-stop the song after timerSeconds. */
+  timerEnabled?: boolean;
+  timerSeconds?: number;
+  /**
+   * Epoch ms when the current turn's song started (written on every draw AND on
+   * a skip - the replacement song restarts the timer). Clients derive the
+   * countdown locally from this; only the HOST's timer pauses the music.
+   */
+  turnStartedAt?: number | null;
   winnerId: string | null;
 }
 

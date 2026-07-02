@@ -33,6 +33,7 @@ import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PressableButton } from '../components/PressableButton';
+import { TurnCountdown } from '../components/TurnCountdown';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
@@ -328,6 +329,20 @@ export default function OnlineGameScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, gs?.currentCard?.id]);
 
+  // Music timer (HOST only - same authority pattern as the steal window): hard-
+  // stop the song once turnStartedAt + timerSeconds is reached. Re-arms whenever
+  // a new song starts (draw / skip / blind all write a fresh turnStartedAt).
+  // Firing "late" (e.g. the host returns from background past the deadline)
+  // still pauses - deliberate recovery. Disarmed once the game is over.
+  useEffect(() => {
+    if (!isHost || !gs?.timerEnabled || gs.turnStartedAt == null || !card) return;
+    if (phase === 'finished' && gs.winnerId) return;
+    const remaining = gs.turnStartedAt + (gs.timerSeconds ?? 60) * 1000 - Date.now();
+    const t = setTimeout(() => Spotify.pause().catch(() => {}), Math.max(0, remaining));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, gs?.turnStartedAt, card?.id, gs?.timerEnabled, phase, gs?.winnerId]);
+
   // The HOST is the authority that closes the window after the timeout.
   useEffect(() => {
     if (!isHost || phase !== 'hitster_window') return;
@@ -560,6 +575,12 @@ export default function OnlineGameScreen() {
         </View>
       )}
 
+      {/* Music-timer countdown: every device derives it locally from the synced
+          turnStartedAt (cosmetic, like the steal bar - only the host pauses). */}
+      {!!gs.timerEnabled && gs.turnStartedAt != null && card && !isRevealed && (
+        <TurnCountdown deadlineMs={gs.turnStartedAt + (gs.timerSeconds ?? 60) * 1000} />
+      )}
+
       {/* Reveal result */}
       {isRevealed && !!resultMsg && (
         <View
@@ -580,40 +601,41 @@ export default function OnlineGameScreen() {
               <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
               <TimelineStrip timeline={myTimeline} onInsert={onPlace} />
               <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
-              {/* Nickel actions: skip / blind draw (host settings, synced in gs) */}
-              {(gs.skipEnabled || gs.blindEnabled) && (
-                <View style={styles.turnActionsRow}>
-                  {gs.skipEnabled && (
-                    <PressableButton
-                      style={[
-                        styles.turnActionBtn,
-                        ((me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0) &&
-                          styles.turnActionBtnDisabled,
-                      ]}
-                      onPress={onSkip}
-                      disabled={(me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0}
-                    >
-                      <Text style={styles.turnActionText}>
-                        Überspringen · {gs.skipCost ?? 1} 🪙
-                      </Text>
-                    </PressableButton>
-                  )}
-                  {gs.blindEnabled && (
-                    <PressableButton
-                      style={[
-                        styles.turnActionBtn,
-                        (me?.chips ?? 0) < (gs.blindCost ?? 3) && styles.turnActionBtnDisabled,
-                      ]}
-                      onPress={onBlindDraw}
-                      disabled={(me?.chips ?? 0) < (gs.blindCost ?? 3)}
-                    >
-                      <Text style={styles.turnActionText}>
-                        Ohne Raten · {gs.blindCost ?? 3} 🪙
-                      </Text>
-                    </PressableButton>
-                  )}
-                </View>
-              )}
+              {/* Nickel actions: skip / blind draw (host settings, synced in gs).
+                  Locked at match point (score >= cardsToWin - 1): no Nickel
+                  assists on the potentially winning card. */}
+              {(gs.skipEnabled || gs.blindEnabled) && (() => {
+                const matchPoint = (me?.score ?? 0) >= gs.cardsToWin - 1;
+                const skipBlocked =
+                  (me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0 || matchPoint;
+                const blindBlocked = (me?.chips ?? 0) < (gs.blindCost ?? 3) || matchPoint;
+                return (
+                  <View style={styles.turnActionsRow}>
+                    {gs.skipEnabled && (
+                      <PressableButton
+                        style={[styles.turnActionBtn, skipBlocked && styles.turnActionBtnDisabled]}
+                        onPress={onSkip}
+                        disabled={skipBlocked}
+                      >
+                        <Text style={styles.turnActionText}>
+                          Überspringen · {gs.skipCost ?? 1} 🪙
+                        </Text>
+                      </PressableButton>
+                    )}
+                    {gs.blindEnabled && (
+                      <PressableButton
+                        style={[styles.turnActionBtn, blindBlocked && styles.turnActionBtnDisabled]}
+                        onPress={onBlindDraw}
+                        disabled={blindBlocked}
+                      >
+                        <Text style={styles.turnActionText}>
+                          Ohne Raten · {gs.blindCost ?? 3} 🪙
+                        </Text>
+                      </PressableButton>
+                    )}
+                  </View>
+                );
+              })()}
             </>
           ) : (
             <>

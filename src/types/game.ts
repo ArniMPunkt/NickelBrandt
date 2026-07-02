@@ -74,6 +74,13 @@ export interface GameSettings {
   blindEnabled: boolean;
   /** Nickel cost of a blind draw (3-5). */
   blindCost: number;
+  /**
+   * Music timer: hard-stop the song after timerSeconds (the player may keep
+   * guessing without music). Default false.
+   */
+  timerEnabled: boolean;
+  /** Song duration per turn in seconds (30-120). */
+  timerSeconds: number;
 }
 
 /** The maximum number of chips a player can hold. */

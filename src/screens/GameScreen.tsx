@@ -27,6 +27,7 @@ import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { PressableButton } from '../components/PressableButton';
+import { TurnCountdown } from '../components/TurnCountdown';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../types/game';
@@ -173,6 +174,9 @@ export default function GameScreen() {
   // The automatic final-card interstitial has run (guards against re-showing it
   // when this screen re-renders below the Victory route).
   const [finaleDone, setFinaleDone] = useState(false);
+  // Absolute deadline (epoch ms) for the music timer of the current card, or
+  // null when the timer setting is off / no card is playing.
+  const [musicDeadline, setMusicDeadline] = useState<number | null>(null);
   const barAnim = useRef(new Animated.Value(1)).current;
 
   // Card feedback animation values.
@@ -269,9 +273,25 @@ export default function GameScreen() {
     return () => clearTimeout(t);
   }, [localPhase, pendingIndex, dispatch]);
 
+  // Music timer: hard-stop the song after timerSeconds (no fade - not cleanly
+  // possible with the App Remote APIs). The player keeps guessing without music.
+  // Keyed on the card id, so a SKIP (new card, new song) re-arms a fresh timer
+  // and placement (currentCard -> null) disarms it.
+  useEffect(() => {
+    if (!state.settings.timerEnabled || !state.currentCard) {
+      setMusicDeadline(null);
+      return;
+    }
+    const ms = state.settings.timerSeconds * 1000;
+    setMusicDeadline(Date.now() + ms);
+    const t = setTimeout(() => Spotify.pause().catch(() => {}), ms);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.currentCard?.id, state.settings.timerEnabled]);
+
   // Blind draw: the turn ends immediately (no reveal, no steal window, no chip
-  // question) - stop the song and hand over to the next player. A blind WIN is
-  // excluded: the FinalCardReveal interstitial below takes over instead.
+  // question) - stop the song and hand over to the next player. A blind draw can
+  // never win (no score), so no winner handling is needed here.
   useEffect(() => {
     if (!lastPlacement?.blind || state.winner) return;
     Spotify.pause().catch(() => {});
@@ -479,6 +499,9 @@ export default function GameScreen() {
 
       {playError && <Text style={styles.error}>Playback: {playError}</Text>}
 
+      {/* Music-timer countdown (shows only in the last 10s / after the stop) */}
+      {musicDeadline != null && !isRevealed && <TurnCountdown deadlineMs={musicDeadline} />}
+
       {/* ---------- REVEALED ---------- */}
       {isRevealed && (
         <>
@@ -561,40 +584,41 @@ export default function GameScreen() {
           {state.currentCard && (
             <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
           )}
-          {/* Nickel actions: skip / blind draw (settings-gated, need the chip layer) */}
-          {state.currentCard && chipsEnabled && (state.settings.skipEnabled || state.settings.blindEnabled) && (
-            <View style={styles.turnActionsRow}>
-              {state.settings.skipEnabled && (
-                <PressableButton
-                  style={[
-                    styles.turnActionBtn,
-                    (player.chips < state.settings.skipCost || state.deck.length === 0) &&
-                      styles.turnActionBtnDisabled,
-                  ]}
-                  onPress={onSkip}
-                  disabled={player.chips < state.settings.skipCost || state.deck.length === 0}
-                >
-                  <Text style={styles.turnActionText}>
-                    Überspringen · {state.settings.skipCost} 🪙
-                  </Text>
-                </PressableButton>
-              )}
-              {state.settings.blindEnabled && (
-                <PressableButton
-                  style={[
-                    styles.turnActionBtn,
-                    player.chips < state.settings.blindCost && styles.turnActionBtnDisabled,
-                  ]}
-                  onPress={onBlindDraw}
-                  disabled={player.chips < state.settings.blindCost}
-                >
-                  <Text style={styles.turnActionText}>
-                    Ohne Raten · {state.settings.blindCost} 🪙
-                  </Text>
-                </PressableButton>
-              )}
-            </View>
-          )}
+          {/* Nickel actions: skip / blind draw (settings-gated, need the chip
+              layer). Both are locked at match point (score >= cardsToWin - 1):
+              no Nickel assists on the potentially winning card. */}
+          {state.currentCard && chipsEnabled && (state.settings.skipEnabled || state.settings.blindEnabled) && (() => {
+            const matchPoint = player.score >= state.settings.cardsToWin - 1;
+            const skipBlocked =
+              player.chips < state.settings.skipCost || state.deck.length === 0 || matchPoint;
+            const blindBlocked = player.chips < state.settings.blindCost || matchPoint;
+            return (
+              <View style={styles.turnActionsRow}>
+                {state.settings.skipEnabled && (
+                  <PressableButton
+                    style={[styles.turnActionBtn, skipBlocked && styles.turnActionBtnDisabled]}
+                    onPress={onSkip}
+                    disabled={skipBlocked}
+                  >
+                    <Text style={styles.turnActionText}>
+                      Überspringen · {state.settings.skipCost} 🪙
+                    </Text>
+                  </PressableButton>
+                )}
+                {state.settings.blindEnabled && (
+                  <PressableButton
+                    style={[styles.turnActionBtn, blindBlocked && styles.turnActionBtnDisabled]}
+                    onPress={onBlindDraw}
+                    disabled={blindBlocked}
+                  >
+                    <Text style={styles.turnActionText}>
+                      Ohne Raten · {state.settings.blindCost} 🪙
+                    </Text>
+                  </PressableButton>
+                )}
+              </View>
+            );
+          })()}
         </>
       )}
 

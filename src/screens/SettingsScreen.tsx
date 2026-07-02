@@ -221,7 +221,8 @@ export default function SettingsScreen() {
           <View style={styles.toggleTextWrap}>
             <Text style={styles.toggleTitle}>Karte ohne Raten ziehen</Text>
             <Text style={styles.toggleHint}>
-              Karte wird gegen Nickel automatisch richtig einsortiert; Zug endet sofort
+              Karte wird gegen Nickel automatisch richtig einsortiert; Zug endet sofort.
+              Zählt nicht als Fortschritt zum Sieg.
             </Text>
           </View>
           <Switch
@@ -244,6 +245,38 @@ export default function SettingsScreen() {
               max={5}
               milestones={[3, 4, 5]}
               onChange={(v) => update({ blindCost: v })}
+            />
+          </View>
+        )}
+
+        <View style={styles.ruleToggleRow}>
+          <View style={styles.toggleTextWrap}>
+            <Text style={styles.toggleTitle}>Timer</Text>
+            <Text style={styles.toggleHint}>
+              Musik stoppt nach Ablauf der Zeit; geraten werden darf weiter
+            </Text>
+          </View>
+          <Switch
+            value={settings.timerEnabled}
+            onValueChange={(v) => update({ timerEnabled: v })}
+            trackColor={{ false: COLORS.border, true: COLORS.primary }}
+            thumbColor={COLORS.text}
+            ios_backgroundColor={COLORS.border}
+          />
+        </View>
+        {settings.timerEnabled && (
+          <View style={styles.costBlock}>
+            <View style={styles.winHeader}>
+              <Text style={styles.costLabel}>Songdauer pro Zug</Text>
+              <Text style={styles.costValue}>{settings.timerSeconds}s</Text>
+            </View>
+            <StepSlider
+              value={settings.timerSeconds}
+              min={30}
+              max={120}
+              step={5}
+              milestones={[30, 60, 90, 120]}
+              onChange={(v) => update({ timerSeconds: v })}
             />
           </View>
         )}

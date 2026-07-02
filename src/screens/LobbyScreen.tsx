@@ -185,6 +185,8 @@ export default function LobbyScreen() {
         skipCost: settings.skipCost,
         blindEnabled: settings.blindEnabled,
         blindCost: settings.blindCost,
+        timerEnabled: settings.timerEnabled,
+        timerSeconds: settings.timerSeconds,
       });
       // Navigation happens via the realtime subscription (status -> 'playing').
     } catch (e: any) {
