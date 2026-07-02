@@ -47,6 +47,7 @@ function TimelineStrip({
   onInsert,
   isSlotEnabled,
   markedInsertIndex,
+  centerIndex,
 }: {
   timeline: GameCard[];
   onInsert?: (i: number) => void;
@@ -54,7 +55,40 @@ function TimelineStrip({
   /** Read-only: show WHERE the active player inserted (a "????" placeholder card),
    *  without revealing the card or whether the placement was correct. */
   markedInsertIndex?: number | null;
+  /** Interactive mode: slot index to auto-center on mount (e.g. the blocked slot
+   *  during hitster_resolving, so the stealer immediately sees the placement). */
+  centerIndex?: number | null;
 }) {
+  // Auto-center the marked/target item: measure its real position via onLayout
+  // (no width arithmetic to keep in sync with the styles) and scroll so the item
+  // sits mid-viewport. Both measurements arrive async in either order, so each
+  // handler attempts the scroll once both are known.
+  const scrollRef = useRef<ScrollView>(null);
+  const viewportW = useRef(0);
+  const targetCenterX = useRef<number | null>(null);
+  const centerOnTarget = () => {
+    if (targetCenterX.current == null || viewportW.current === 0) return;
+    const x = Math.max(0, targetCenterX.current - viewportW.current / 2);
+    scrollRef.current?.scrollTo({ x, animated: true });
+  };
+  const onViewportLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
+    viewportW.current = e.nativeEvent.layout.width;
+    centerOnTarget();
+  };
+  const onTargetLayout = (e: { nativeEvent: { layout: { x: number; width: number } } }) => {
+    targetCenterX.current = e.nativeEvent.layout.x + e.nativeEvent.layout.width / 2;
+    centerOnTarget();
+  };
+  // Re-center when the target index changes but its layout position happens to be
+  // identical (onLayout would not fire again then, e.g. after a manual scroll away).
+  const effectiveTarget = markedInsertIndex ?? centerIndex ?? null;
+  useEffect(() => {
+    if (effectiveTarget == null) return;
+    const raf = requestAnimationFrame(centerOnTarget);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTarget, timeline.length]);
+
   // Read-only timeline with a marked insertion slot (hitster_window for others).
   if (!onInsert && markedInsertIndex != null) {
     const display: Array<{ kind: 'card'; card: GameCard } | { kind: 'marker' }> = [];
@@ -63,9 +97,15 @@ function TimelineStrip({
       if (i < timeline.length) display.push({ kind: 'card', card: timeline[i] });
     }
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineRow}>
+      <ScrollView
+        ref={scrollRef}
+        onLayout={onViewportLayout}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.timelineRow}
+      >
         {display.map((d, idx) => (
-          <View key={`disp-${idx}`} style={styles.slotWrap}>
+          <View key={`disp-${idx}`} style={styles.slotWrap} onLayout={d.kind === 'marker' ? onTargetLayout : undefined}>
             <View style={styles.insertSpacer} />
             {d.kind === 'card' ? (
               <View style={styles.tlCard}>
@@ -90,11 +130,21 @@ function TimelineStrip({
   }
 
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineRow}>
+    <ScrollView
+      ref={scrollRef}
+      onLayout={onViewportLayout}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.timelineRow}
+    >
       {Array.from({ length: timeline.length + 1 }).map((_, slot) => {
         const enabled = isSlotEnabled ? isSlotEnabled(slot) : true;
         return (
-          <View key={`slot-${slot}`} style={styles.slotWrap}>
+          <View
+            key={`slot-${slot}`}
+            style={styles.slotWrap}
+            onLayout={centerIndex != null && slot === centerIndex ? onTargetLayout : undefined}
+          >
             {onInsert ? (
               <PressableButton
                 style={[styles.insertBtn, !enabled && styles.insertBtnDisabled]}
@@ -575,6 +625,7 @@ export default function OnlineGameScreen() {
                 timeline={activePlayer?.timeline ?? []}
                 onInsert={onStealPlace}
                 isSlotEnabled={(i) => i !== gs.pendingInsertIndex}
+                centerIndex={gs.pendingInsertIndex}
               />
               <Text style={styles.hint}>
                 Der bereits gewählte Slot ist gesperrt — 1 🪙 wird eingesetzt.
