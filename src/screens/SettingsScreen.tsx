@@ -24,11 +24,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PressableButton } from '../components/PressableButton';
+import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
-const APP_VERSION = 'v0.1.0';
-const WIN_OPTIONS = [5, 10, 15];
+const APP_VERSION = 'v0.5.0';
 const SPOTIFY_GREEN = '#1DB954';
 
 export default function SettingsScreen() {
@@ -144,21 +144,17 @@ export default function SettingsScreen() {
       {/* ---- Game rules ---- */}
       <Text style={styles.section}>SPIELREGELN</Text>
       <View style={styles.card}>
-        <Text style={styles.ruleLabel}>Karten zum Gewinnen</Text>
-        <View style={styles.winRow}>
-          {WIN_OPTIONS.map((opt) => {
-            const active = settings.cardsToWin === opt;
-            return (
-              <PressableButton
-                key={opt}
-                style={[styles.winOpt, active && styles.winOptActive]}
-                onPress={() => update({ cardsToWin: opt })}
-              >
-                <Text style={[styles.winOptText, active && styles.winOptTextActive]}>{opt}</Text>
-              </PressableButton>
-            );
-          })}
+        <View style={styles.winHeader}>
+          <Text style={styles.ruleLabel}>Karten zum Gewinnen</Text>
+          <Text style={styles.winValue}>{settings.cardsToWin}</Text>
         </View>
+        <StepSlider
+          value={settings.cardsToWin}
+          min={5}
+          max={20}
+          milestones={[5, 10, 15, 20]}
+          onChange={(v) => update({ cardsToWin: v })}
+        />
 
         <View style={styles.ruleToggleRow}>
           <View style={styles.toggleTextWrap}>
@@ -210,8 +206,7 @@ export default function SettingsScreen() {
         <Text style={styles.infoRow}>Version {APP_VERSION}</Text>
         <Text style={styles.about}>
           NickelBrandt — Musik-Party-Spiel. Errate das Jahr, sammle Nickel und klau dir
-          Karten von Mitspielern. Platziere mehrere Karten in Folge richtig für einen Brandt
-          (Hot-Streak).
+          Karten von Mitspielern. Aber passt auf, dass du dich am Ende nicht VerBrandt hast.
         </Text>
       </View>
 
@@ -248,20 +243,15 @@ const styles = StyleSheet.create({
   },
 
   ruleLabel: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
-  winRow: { flexDirection: 'row', gap: 10 },
-  winOpt: {
-    flex: 1,
-    minHeight: 56,
-    borderRadius: 14,
-    backgroundColor: COLORS.background,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  winHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  winValue: {
+    color: COLORS.accent,
+    fontSize: 24,
+    fontWeight: '900',
+    textShadowColor: COLORS.accent,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
-  winOptActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accent },
-  winOptText: { color: COLORS.text, fontSize: 22, fontWeight: '900' },
-  winOptTextActive: { color: COLORS.background },
   ruleToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   toggleTextWrap: { flex: 1 },
   toggleTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },

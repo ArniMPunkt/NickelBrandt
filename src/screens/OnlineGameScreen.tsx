@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
+import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
@@ -189,6 +190,8 @@ export default function OnlineGameScreen() {
   // Victory screen shows first when the game finishes (server-driven phase, so all
   // devices show it together); each player then taps through to the stats locally.
   const [showStats, setShowStats] = useState(false);
+  // The automatic final-card interstitial runs BEFORE the celebration (per device).
+  const [finaleDone, setFinaleDone] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -334,9 +337,11 @@ export default function OnlineGameScreen() {
     return () => clearTimeout(t);
   }, [isHost, phase, lobbyId]);
 
-  // Clear the transient notice when the round/phase moves on.
+  // Clear the transient notice when the round/phase moves on. Also re-arm the
+  // final-card interstitial when a new card appears (fresh game on this screen).
   useEffect(() => {
     setNotice(null);
+    if (phase !== 'finished') setFinaleDone(false);
   }, [phase, gs?.currentCard?.id]);
 
   // Stable playful line for the "both wrong" outcome, per card.
@@ -434,7 +439,21 @@ export default function OnlineGameScreen() {
   // ----- Finished: game over (winner) -----
   if (phase === 'finished' && gs.winnerId) {
     const winner = players.find((p) => p.player_id === gs.winnerId);
-    // Celebration first (shown on every device when phase flips to 'finished'),
+    // First the automatic interstitial: the final card flips open and drops into
+    // the winner's timeline (covers both win paths - own placement and steal,
+    // since both server writes land in this exact phase). Skipped defensively if
+    // the card/winner data is not available.
+    if (!finaleDone && gs.currentCard && winner) {
+      return (
+        <FinalCardReveal
+          card={gs.currentCard}
+          timeline={winner.timeline}
+          ownerName={winner.player_name}
+          onDone={() => setFinaleDone(true)}
+        />
+      );
+    }
+    // Celebration next (shown on every device when phase flips to 'finished'),
     // then the stats below once the player taps "Weiter zur Statistik".
     if (!showStats) {
       return (

@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
+import { FinalCardReveal } from '../components/FinalCardReveal';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -169,6 +170,9 @@ export default function GameScreen() {
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
   const [stealerId, setStealerId] = useState<string | null>(null);
   const [chipAnswered, setChipAnswered] = useState(false);
+  // The automatic final-card interstitial has run (guards against re-showing it
+  // when this screen re-renders below the Victory route).
+  const [finaleDone, setFinaleDone] = useState(false);
   const barAnim = useRef(new Animated.Value(1)).current;
 
   // Card feedback animation values.
@@ -210,6 +214,7 @@ export default function GameScreen() {
     setPendingIndex(null);
     setStealerId(null);
     setChipAnswered(false);
+    setFinaleDone(false);
     cardScale.setValue(1);
     cardShake.setValue(0);
     cardOpacity.setValue(1);
@@ -288,6 +293,25 @@ export default function GameScreen() {
       <View style={[styles.screen, styles.centered]}>
         <Text style={styles.muted}>Kein aktives Spiel.</Text>
       </View>
+    );
+  }
+
+  // Someone just won: run the automatic interstitial instead of the normal reveal
+  // (covers both win paths - own placement sets winner in PLACE_CARD, a steal in
+  // ATTEMPT_STEAL; the winner's timeline always contains the final card). It then
+  // continues to the Victory route on its own, no tap needed.
+  if (state.winner && lastPlacement && !finaleDone) {
+    return (
+      <FinalCardReveal
+        card={lastPlacement.card}
+        timeline={state.winner.timeline}
+        ownerName={state.winner.name}
+        onDone={() => {
+          setFinaleDone(true);
+          Spotify.pause().catch(() => {});
+          navigation.navigate('Victory');
+        }}
+      />
     );
   }
 
