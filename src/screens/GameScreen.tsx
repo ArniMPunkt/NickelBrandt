@@ -269,6 +269,17 @@ export default function GameScreen() {
     return () => clearTimeout(t);
   }, [localPhase, pendingIndex, dispatch]);
 
+  // Blind draw: the turn ends immediately (no reveal, no steal window, no chip
+  // question) - stop the song and hand over to the next player. A blind WIN is
+  // excluded: the FinalCardReveal interstitial below takes over instead.
+  useEffect(() => {
+    if (!lastPlacement?.blind || state.winner) return;
+    Spotify.pause().catch(() => {});
+    dispatch({ type: 'NEXT_PLAYER' });
+    navigation.navigate('Handoff');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastPlacement]);
+
   // The 5s steal window timer (auto-reveal after grace). Side-effect, cleaned up.
   useEffect(() => {
     if (localPhase !== 'stealWindow' || pendingIndex === null) return;
@@ -331,6 +342,9 @@ export default function GameScreen() {
     }
     setLocalPhase('stealWindow');
   };
+
+  const onSkip = () => dispatch({ type: 'SKIP_CARD' });
+  const onBlindDraw = () => dispatch({ type: 'BLIND_DRAW' });
 
   const onHitster = () => {
     if (eligibleStealers.length === 1) {
@@ -547,6 +561,40 @@ export default function GameScreen() {
           {state.currentCard && (
             <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
           )}
+          {/* Nickel actions: skip / blind draw (settings-gated, need the chip layer) */}
+          {state.currentCard && chipsEnabled && (state.settings.skipEnabled || state.settings.blindEnabled) && (
+            <View style={styles.turnActionsRow}>
+              {state.settings.skipEnabled && (
+                <PressableButton
+                  style={[
+                    styles.turnActionBtn,
+                    (player.chips < state.settings.skipCost || state.deck.length === 0) &&
+                      styles.turnActionBtnDisabled,
+                  ]}
+                  onPress={onSkip}
+                  disabled={player.chips < state.settings.skipCost || state.deck.length === 0}
+                >
+                  <Text style={styles.turnActionText}>
+                    Überspringen · {state.settings.skipCost} 🪙
+                  </Text>
+                </PressableButton>
+              )}
+              {state.settings.blindEnabled && (
+                <PressableButton
+                  style={[
+                    styles.turnActionBtn,
+                    player.chips < state.settings.blindCost && styles.turnActionBtnDisabled,
+                  ]}
+                  onPress={onBlindDraw}
+                  disabled={player.chips < state.settings.blindCost}
+                >
+                  <Text style={styles.turnActionText}>
+                    Ohne Raten · {state.settings.blindCost} 🪙
+                  </Text>
+                </PressableButton>
+              )}
+            </View>
+          )}
         </>
       )}
 
@@ -753,6 +801,21 @@ const styles = StyleSheet.create({
   },
   timelineTitle: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
   hint: { color: COLORS.textMuted, fontSize: 14, fontStyle: 'italic' },
+
+  turnActionsRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  turnActionBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  turnActionBtnDisabled: { borderColor: COLORS.border, opacity: 0.4 },
+  turnActionText: { color: COLORS.accent, fontSize: 14, fontWeight: '900', textAlign: 'center' },
 
   otherRow: {
     flexDirection: 'row',

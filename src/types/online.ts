@@ -51,6 +51,15 @@ export interface OnlineGameState {
   turnOrder: string[];
   cardsToWin: number;
   hideCoverUntilRevealed: boolean;
+  /**
+   * "Karte überspringen" / "Karte ohne Raten ziehen" rule config, taken from the
+   * HOST's settings at game start. All optional for backward-compat with
+   * game_state rows written before these fields existed (absent = disabled).
+   */
+  skipEnabled?: boolean;
+  skipCost?: number;
+  blindEnabled?: boolean;
+  blindCost?: number;
   winnerId: string | null;
 }
 

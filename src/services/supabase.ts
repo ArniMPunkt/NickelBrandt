@@ -436,7 +436,14 @@ async function writeGameState(lobbyId: string, gameState: OnlineGameState): Prom
 export async function startGame(
   lobbyId: string,
   cards: GameCard[],
-  opts: { cardsToWin: number; hideCoverUntilRevealed: boolean }
+  opts: {
+    cardsToWin: number;
+    hideCoverUntilRevealed: boolean;
+    skipEnabled: boolean;
+    skipCost: number;
+    blindEnabled: boolean;
+    blindCost: number;
+  }
 ): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
   if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
@@ -474,6 +481,10 @@ export async function startGame(
     turnOrder,
     cardsToWin: opts.cardsToWin,
     hideCoverUntilRevealed: opts.hideCoverUntilRevealed,
+    skipEnabled: opts.skipEnabled,
+    skipCost: opts.skipCost,
+    blindEnabled: opts.blindEnabled,
+    blindCost: opts.blindCost,
     winnerId: null,
   };
 
@@ -501,6 +512,103 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
     stealEqualYear: false,
     lastResult: null,
   });
+}
+
+/**
+ * "Karte überspringen": the active player discards the current card and draws a
+ * replacement (same turn, phase stays card_drawn). Costs skipCost Nickel.
+ * Atomic on phase AND the current card id, so a double-tap (or a stale client)
+ * can never skip twice / charge twice: the second write matches 0 rows.
+ */
+export async function skipCard(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.phase !== 'card_drawn' || !gs.currentCard || !gs.skipEnabled) return;
+  if (gs.deck.length === 0) throw new Error('Keine Karten mehr im Deck.');
+  const cost = gs.skipCost ?? 1;
+  const players = await getLobbyPlayers(lobbyId);
+  const active = players.find((p) => p.player_id === gs.activePlayerId);
+  if (!active || active.chips < cost) return;
+
+  const [next, ...rest] = gs.deck;
+  const { data } = await supabase
+    .from('lobbies')
+    .update({
+      game_state: { ...gs, currentCard: next, deck: rest } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'card_drawn')
+    .filter('game_state->currentCard->>id', 'eq', gs.currentCard.id)
+    .select();
+  if (!data || data.length === 0) return;
+
+  await supabase
+    .from('lobby_players')
+    .update({ chips: active.chips - cost })
+    .eq('id', active.id);
+}
+
+/**
+ * "Karte ohne Raten ziehen": the active player pays blindCost Nickel and the
+ * current card is auto-inserted year-sorted into their timeline. It counts as a
+ * correct placement for score/win but does NOT touch the Brandt streak (that
+ * tracks own guesses; a bought card is neither hit nor miss). The turn ends
+ * immediately: no steal window, no host confirmation - rotate + draw the next
+ * card directly (or finish on a win / empty deck, mirroring drawNextCard).
+ * Same atomic claim pattern as skipCard (phase + card id).
+ */
+export async function blindDraw(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.phase !== 'card_drawn' || !gs.currentCard || !gs.blindEnabled) return;
+  const cost = gs.blindCost ?? 3;
+  const players = await getLobbyPlayers(lobbyId);
+  const active = players.find((p) => p.player_id === gs.activePlayerId);
+  if (!active || active.chips < cost) return;
+
+  const card = gs.currentCard;
+  const newScore = active.score + 1;
+  const won = newScore >= gs.cardsToWin;
+  const gameOver = won || gs.deck.length === 0;
+
+  let nextGs: OnlineGameState;
+  if (gameOver) {
+    // Keep currentCard so the FinalCardReveal interstitial can show it on a win.
+    nextGs = { ...gs, phase: 'finished', winnerId: won ? active.player_id : gs.winnerId };
+  } else {
+    const [next, ...rest] = gs.deck;
+    const i = gs.turnOrder.indexOf(gs.activePlayerId);
+    nextGs = {
+      ...gs,
+      deck: rest,
+      currentCard: next,
+      activePlayerId: gs.turnOrder[(i + 1) % gs.turnOrder.length],
+      phase: 'card_drawn',
+      pendingInsertIndex: null,
+      lastResult: null,
+      hitsterCallerId: null,
+      passedHitster: [],
+      stealResult: null,
+      stealEqualYear: false,
+    };
+  }
+
+  const { data } = await supabase
+    .from('lobbies')
+    .update({ game_state: nextGs })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'card_drawn')
+    .filter('game_state->currentCard->>id', 'eq', card.id)
+    .select();
+  if (!data || data.length === 0) return;
+
+  await supabase
+    .from('lobby_players')
+    .update({
+      chips: active.chips - cost,
+      timeline: insertAt(active.timeline, card, sortedInsertIndex(active.timeline, card.year)),
+      score: newScore,
+    })
+    .eq('id', active.id);
+  if (gameOver) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
 }
 
 /**

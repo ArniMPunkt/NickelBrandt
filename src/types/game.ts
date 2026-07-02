@@ -63,6 +63,17 @@ export interface GameSettings {
    * whole chip UI (question, timer, steal) is hidden and the game plays as before.
    */
   chipsEnabled: boolean;
+  /** "Karte überspringen": swap the current card for a fresh one. Default false. */
+  skipEnabled: boolean;
+  /** Nickel cost of a skip (1-3). */
+  skipCost: number;
+  /**
+   * "Karte ohne Raten ziehen": the card is auto-inserted correctly and the turn
+   * ends immediately. Default false.
+   */
+  blindEnabled: boolean;
+  /** Nickel cost of a blind draw (3-5). */
+  blindCost: number;
 }
 
 /** The maximum number of chips a player can hold. */
@@ -78,6 +89,11 @@ export interface LastPlacement {
   card: GameCard;
   /** The active player's insert slot (0..timeline.length). */
   insertIndex: number;
+  /**
+   * True when the card was bought via "Karte ohne Raten ziehen" (auto-inserted,
+   * no guess). The turn ends immediately: no steal window, no chip question.
+   */
+  blind?: boolean;
   /** Present when another player called "Hitster!" and tried to steal this turn. */
   steal?: {
     /** Player id who attempted the steal. */

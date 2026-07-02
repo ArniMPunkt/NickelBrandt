@@ -377,6 +377,10 @@ export default function OnlineGameScreen() {
   };
   const onPassHitster = () =>
     Online.passHitster(lobbyId, myId).catch((e: any) => setError(e?.message ?? String(e)));
+  const onSkip = () =>
+    Online.skipCard(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+  const onBlindDraw = () =>
+    Online.blindDraw(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
   const onStealPlace = (i: number) =>
     Online.resolveHitsterPlacement(lobbyId, i).catch((e: any) => setError(e?.message ?? String(e)));
   const hostConfirm = (wasCorrect: boolean) =>
@@ -576,6 +580,40 @@ export default function OnlineGameScreen() {
               <Text style={styles.sectionLabel}>DEINE ZEITLINIE</Text>
               <TimelineStrip timeline={myTimeline} onInsert={onPlace} />
               <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
+              {/* Nickel actions: skip / blind draw (host settings, synced in gs) */}
+              {(gs.skipEnabled || gs.blindEnabled) && (
+                <View style={styles.turnActionsRow}>
+                  {gs.skipEnabled && (
+                    <PressableButton
+                      style={[
+                        styles.turnActionBtn,
+                        ((me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0) &&
+                          styles.turnActionBtnDisabled,
+                      ]}
+                      onPress={onSkip}
+                      disabled={(me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0}
+                    >
+                      <Text style={styles.turnActionText}>
+                        Überspringen · {gs.skipCost ?? 1} 🪙
+                      </Text>
+                    </PressableButton>
+                  )}
+                  {gs.blindEnabled && (
+                    <PressableButton
+                      style={[
+                        styles.turnActionBtn,
+                        (me?.chips ?? 0) < (gs.blindCost ?? 3) && styles.turnActionBtnDisabled,
+                      ]}
+                      onPress={onBlindDraw}
+                      disabled={(me?.chips ?? 0) < (gs.blindCost ?? 3)}
+                    >
+                      <Text style={styles.turnActionText}>
+                        Ohne Raten · {gs.blindCost ?? 3} 🪙
+                      </Text>
+                    </PressableButton>
+                  )}
+                </View>
+              )}
             </>
           ) : (
             <>
@@ -853,6 +891,21 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   tlTitleMarked: { color: COLORS.primary, fontSize: 12, fontWeight: '800' },
+
+  turnActionsRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  turnActionBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.backgroundAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  turnActionBtnDisabled: { borderColor: COLORS.border, opacity: 0.4 },
+  turnActionText: { color: COLORS.accent, fontSize: 14, fontWeight: '900', textAlign: 'center' },
 
   stealBox: {
     backgroundColor: COLORS.backgroundAlt,

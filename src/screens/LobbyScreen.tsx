@@ -181,6 +181,10 @@ export default function LobbyScreen() {
       await Online.startGame(lobbyId, cards, {
         cardsToWin: settings.cardsToWin,
         hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
+        skipEnabled: settings.skipEnabled,
+        skipCost: settings.skipCost,
+        blindEnabled: settings.blindEnabled,
+        blindCost: settings.blindCost,
       });
       // Navigation happens via the realtime subscription (status -> 'playing').
     } catch (e: any) {

@@ -186,18 +186,67 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <View style={styles.comingRow}>
-          <Text style={styles.comingText}>Karte überspringen (1 Nickel)</Text>
-          <View style={styles.comingBadge}>
-            <Text style={styles.comingBadgeText}>Bald verfügbar</Text>
+        <View style={styles.ruleToggleRow}>
+          <View style={styles.toggleTextWrap}>
+            <Text style={styles.toggleTitle}>Karte überspringen</Text>
+            <Text style={styles.toggleHint}>
+              Aktuelle Karte gegen Nickel abwerfen und eine neue ziehen
+            </Text>
           </View>
+          <Switch
+            value={settings.skipEnabled}
+            onValueChange={(v) => update({ skipEnabled: v })}
+            trackColor={{ false: COLORS.border, true: COLORS.primary }}
+            thumbColor={COLORS.text}
+            ios_backgroundColor={COLORS.border}
+          />
         </View>
-        <View style={styles.comingRow}>
-          <Text style={styles.comingText}>Karte ohne Raten ziehen (3 Nickel)</Text>
-          <View style={styles.comingBadge}>
-            <Text style={styles.comingBadgeText}>Bald verfügbar</Text>
+        {settings.skipEnabled && (
+          <View style={styles.costBlock}>
+            <View style={styles.winHeader}>
+              <Text style={styles.costLabel}>Kosten pro Überspringen</Text>
+              <Text style={styles.costValue}>{settings.skipCost} 🪙</Text>
+            </View>
+            <StepSlider
+              value={settings.skipCost}
+              min={1}
+              max={3}
+              milestones={[1, 2, 3]}
+              onChange={(v) => update({ skipCost: v })}
+            />
           </View>
+        )}
+
+        <View style={styles.ruleToggleRow}>
+          <View style={styles.toggleTextWrap}>
+            <Text style={styles.toggleTitle}>Karte ohne Raten ziehen</Text>
+            <Text style={styles.toggleHint}>
+              Karte wird gegen Nickel automatisch richtig einsortiert; Zug endet sofort
+            </Text>
+          </View>
+          <Switch
+            value={settings.blindEnabled}
+            onValueChange={(v) => update({ blindEnabled: v })}
+            trackColor={{ false: COLORS.border, true: COLORS.primary }}
+            thumbColor={COLORS.text}
+            ios_backgroundColor={COLORS.border}
+          />
         </View>
+        {settings.blindEnabled && (
+          <View style={styles.costBlock}>
+            <View style={styles.winHeader}>
+              <Text style={styles.costLabel}>Kosten pro Blind-Zug</Text>
+              <Text style={styles.costValue}>{settings.blindCost} 🪙</Text>
+            </View>
+            <StepSlider
+              value={settings.blindCost}
+              min={3}
+              max={5}
+              milestones={[3, 4, 5]}
+              onChange={(v) => update({ blindCost: v })}
+            />
+          </View>
+        )}
       </View>
 
       {/* ---- App info ---- */}
@@ -256,28 +305,16 @@ const styles = StyleSheet.create({
   toggleTextWrap: { flex: 1 },
   toggleTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
   toggleHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', marginTop: 2 },
-  comingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+  costBlock: {
     backgroundColor: COLORS.background,
     borderColor: COLORS.border,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 44,
-    opacity: 0.5,
+    paddingVertical: 10,
   },
-  comingText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700', flexShrink: 1 },
-  comingBadge: {
-    backgroundColor: COLORS.border,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  comingBadgeText: { color: COLORS.text, fontSize: 11, fontWeight: '800' },
+  costLabel: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700' },
+  costValue: { color: COLORS.accent, fontSize: 16, fontWeight: '900' },
 
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dot: { width: 12, height: 12, borderRadius: 999 },

@@ -17,12 +17,24 @@ export interface GameRuleSettings {
   hideCoverUntilRevealed: boolean;
   /** Enable the Nickel / Hitster steal layer. */
   chipsEnabled: boolean;
+  /** "Karte überspringen": swap the current card for a fresh one (costs Nickel). */
+  skipEnabled: boolean;
+  /** Nickel cost of a skip (1-3). */
+  skipCost: number;
+  /** "Karte ohne Raten ziehen": auto-insert the card correctly, turn ends (costs Nickel). */
+  blindEnabled: boolean;
+  /** Nickel cost of a blind draw (3-5). */
+  blindCost: number;
 }
 
 export const DEFAULT_SETTINGS: GameRuleSettings = {
   cardsToWin: 10,
   hideCoverUntilRevealed: true,
   chipsEnabled: true,
+  skipEnabled: false,
+  skipCost: 1,
+  blindEnabled: false,
+  blindCost: 3,
 };
 
 interface SettingsContextValue {
