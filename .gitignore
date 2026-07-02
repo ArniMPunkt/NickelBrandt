@@ -40,6 +40,11 @@ scripts/.env
 # cached Spotify USER tokens (Authorization-Code/PKCE flow) — never commit
 scripts/.spotify-user-token.json
 
+# EAS local credentials (credentials.json holds the .p12 password in clear
+# text; credentials/ holds the exported cert + provisioning profile) — never commit
+credentials.json
+/credentials/
+
 # typescript
 *.tsbuildinfo
 

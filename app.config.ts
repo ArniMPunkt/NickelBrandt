@@ -52,6 +52,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     favicon: './assets/favicon.png',
   },
+  extra: {
+    ...config.extra,
+    eas: {
+      ...config.extra?.eas,
+      // EAS project linkage (@brunss/nickelbrandt). `eas init` cannot write
+      // into a dynamic config, so this is maintained by hand.
+      projectId: '43771d65-13bb-4f53-a3d0-503367bf52e6',
+    },
+  },
   plugins: [
     ['./plugins/withSpotifyRemote', { redirectUri: SPOTIFY_REDIRECT_URI }],
     // Signs the Android RELEASE build with the project's own keystore (the RN
@@ -60,6 +69,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     './plugins/withAndroidReleaseSigning',
     // Sets C++17 on the fmt pod to fix consteval errors with newer Xcode/Clang.
     './plugins/withFmtCppStandard',
+    // iOS signing for both configurations, survives prebuild --clean:
+    // Debug = Automatic signing (device Build & Run), Release = manual
+    // "iPhone Distribution" + "NickelBrandt AppStore" (Archive/TestFlight).
+    './plugins/withIosSigning',
     // Needed by expo-auth-session (PKCE Web-API auth) to complete the redirect.
     'expo-web-browser',
     // Encrypted storage for the Spotify refresh token + online player_id.
