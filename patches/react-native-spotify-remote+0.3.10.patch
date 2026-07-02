@@ -1,3 +1,20 @@
+diff --git a/node_modules/react-native-spotify-remote/RNSpotifyRemote.podspec b/node_modules/react-native-spotify-remote/RNSpotifyRemote.podspec
+index 4ac5f28..a88a93c 100644
+--- a/node_modules/react-native-spotify-remote/RNSpotifyRemote.podspec
++++ b/node_modules/react-native-spotify-remote/RNSpotifyRemote.podspec
+@@ -13,9 +13,9 @@ Pod::Spec.new do |s|
+   s.platform     = :ios, "9.0"
+ 
+   s.source       = { :git => package['repository']['url'], :tag => "v#{s.version}", :submodules => true }
+-  s.source_files  = "ios/*.{h,m}","ios/external/SpotifySDK/SpotifyiOS.framework/**/Headers/*.{h,m}"
+-  s.preserve_path = "ios/external/SpotifySDK/SpotifyiOS.framework"
+-  s.vendored_frameworks = "ios/external/SpotifySDK/SpotifyiOS.framework"
++  s.source_files  = "ios/*.{h,m}"
++  s.preserve_path = "ios/external/SpotifySDK/SpotifyiOS.xcframework"
++  s.vendored_frameworks = "ios/external/SpotifySDK/SpotifyiOS.xcframework"
+ 
+   s.dependency 'React-Core'
+   
 diff --git a/node_modules/react-native-spotify-remote/android/build.gradle b/node_modules/react-native-spotify-remote/android/build.gradle
 index 381c0cf..c3ccde9 100644
 --- a/node_modules/react-native-spotify-remote/android/build.gradle
@@ -347,3 +364,103 @@ index 2f64664..d77b6e8 100644
  /**
   * @ignore
   */
+diff --git a/node_modules/react-native-spotify-remote/ios/RNSpotifyItem.h b/node_modules/react-native-spotify-remote/ios/RNSpotifyItem.h
+index ef45c71..fa30b46 100644
+--- a/node_modules/react-native-spotify-remote/ios/RNSpotifyItem.h
++++ b/node_modules/react-native-spotify-remote/ios/RNSpotifyItem.h
+@@ -6,7 +6,7 @@
+ //  Copyright © 2018 Facebook. All rights reserved.
+ //
+ 
+-#import <SpotifyiOS.h>
++#import <SpotifyiOS/SpotifyiOS.h>
+ 
+ #ifndef RNSpotifyItem_h
+ #define RNSpotifyItem_h
+diff --git a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAppRemote.m b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAppRemote.m
+index d4104ae..8d7bdd1 100644
+--- a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAppRemote.m
++++ b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAppRemote.m
+@@ -2,7 +2,7 @@
+ #import "RNSpotifyRemoteAppRemote.h"
+ #import <AVFoundation/AVFoundation.h>
+ #import <React/RCTConvert.h>
+-#import <SpotifyiOS.h>
++#import <SpotifyiOS/SpotifyiOS.h>
+ #import "RNSpotifyRemoteConvert.h"
+ #import "RNSpotifyItem.h"
+ #import "RNSpotifyRemoteError.h"
+diff --git a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAuth.m b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAuth.m
+index 4039277..0169f3d 100644
+--- a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAuth.m
++++ b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteAuth.m
+@@ -2,7 +2,7 @@
+ #import "RNSpotifyRemoteAuth.h"
+ #import <AVFoundation/AVFoundation.h>
+ #import <React/RCTConvert.h>
+-#import <SpotifyiOS.h>
++#import <SpotifyiOS/SpotifyiOS.h>
+ #import "RNSpotifyRemoteConvert.h"
+ #import "RNSpotifyItem.h"
+ #import "RNSpotifyRemoteError.h"
+@@ -251,25 +251,16 @@ - (void)initializeSessionManager:(NSDictionary*)options completionCallback:(RNSp
+         _sessionManager.alwaysShowAuthorizationDialog = [options[@"showDialog"] boolValue];
+     }
+     
+-    // Initialize the auth flow
+-    if (@available(iOS 11, *)) {
+-        RCTExecuteOnMainQueue(^{
+-            // Use this on iOS 11 and above to take advantage of SFAuthenticationSession
+-            [ self->_sessionManager
+-                 initiateSessionWithScope:scope
+-                 options:SPTDefaultAuthorizationOption
+-            ];
+-        });
+-    } else {
+-        RCTExecuteOnMainQueue(^{
+-            // Use this on iOS versions < 11 to use SFSafariViewController
+-            [ self->_sessionManager
+-                initiateSessionWithScope:scope
+-                options:SPTDefaultAuthorizationOption
+-                presentingViewController:[UIApplication sharedApplication].keyWindow.rootViewController
+-            ];
+-        });
+-    }
++    // Initialize the auth flow. Spotify SDK v5.x: the campaign: parameter is
++    // required (pass nil) and the iOS<11 presentingViewController: variant no
++    // longer exists (deployment target is 15.1 anyway).
++    RCTExecuteOnMainQueue(^{
++        [ self->_sessionManager
++             initiateSessionWithScope:scope
++             options:SPTDefaultAuthorizationOption
++             campaign:nil
++        ];
++    });
+ }
+ 
+ + (BOOL)requiresMainQueueSetup{
+diff --git a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteConvert.h b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteConvert.h
+index 678570f..bc3157c 100644
+--- a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteConvert.h
++++ b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteConvert.h
+@@ -1,6 +1,6 @@
+ 
+ #import <Foundation/Foundation.h>
+-#import <SpotifyiOS.h>
++#import <SpotifyiOS/SpotifyiOS.h>
+ #import "RNSpotifyRemoteError.h"
+ 
+ @interface RNSpotifyRemoteConvert : NSObject
+diff --git a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteError.m b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteError.m
+index 87028af..bf8df78 100644
+--- a/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteError.m
++++ b/node_modules/react-native-spotify-remote/ios/RNSpotifyRemoteError.m
+@@ -7,7 +7,7 @@
+ //
+ 
+ #import "RNSpotifyRemoteError.h"
+-#import <SpotifyiOS.h>
++#import <SpotifyiOS/SpotifyiOS.h>
+ 
+ 
+ @interface RNSpotifyRemoteErrorCode()
