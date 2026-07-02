@@ -25,6 +25,12 @@ import {
   hasBingo,
   markRandomFreeCell,
 } from '../game/bingo';
+import {
+  QUIZ_ROUND_SECONDS,
+  generateBaseTimeline,
+  insertQuizEntry,
+  isCorrectQuizPlacement,
+} from '../game/timelineQuiz';
 import { MAX_CHIPS } from '../types/game';
 import type {
   GameCard,
@@ -1214,6 +1220,177 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         bingoRound: drawBingoRound(next),
         roundNumber: gs.roundNumber + 1,
         roundDeadline: Date.now() + BINGO_ROUND_SECONDS * 1000,
+        roundPhase: 'collecting',
+        roundResults: null,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'resolved')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+}
+
+// ---------------------------------------------------------------------------
+// Timeline-Quiz mode (game logic on top of the simultaneous-round foundation).
+//
+// Everyone places the same mystery song into ONE shared timeline (starts as
+// pure year slots, grows by the real song each round). Correct slot = +1 point
+// (lobby_players.score). Fixed number of rounds; highest score wins - ties
+// share the win (winnerIds, like bingo). Resolution may run on ANY client.
+// ---------------------------------------------------------------------------
+
+/**
+ * Host starts a timeline quiz: scores reset, shared base timeline generated
+ * from the pool's year span, first round opened. The round count comes from
+ * mode_config (clamped to the deck size).
+ */
+export async function startTimelineQuiz(
+  lobbyId: string,
+  cards: GameCard[],
+  config: { timelineCardCount: number }
+): Promise<void> {
+  const players = await getLobbyPlayers(lobbyId);
+  if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
+  if (cards.length < 5) {
+    throw new Error(`Nur ${cards.length} Tracks - zu wenige für ein Timeline-Quiz.`);
+  }
+  const totalRounds = Math.max(1, Math.min(config.timelineCardCount, cards.length));
+
+  for (const p of players) {
+    const { error } = await supabase
+      .from('lobby_players')
+      .update({ score: 0 })
+      .eq('id', p.id);
+    if (error) throw new Error(`Punktestand konnte nicht zurückgesetzt werden: ${error.message}`);
+  }
+
+  const [first, ...deck] = shuffle(cards);
+  const base: OnlineGameState = {
+    deck,
+    currentCard: first,
+    activePlayerId: '', // no active player in simultaneous modes
+    phase: 'simul_round',
+    pendingInsertIndex: null,
+    lastResult: null,
+    hitsterCallerId: null,
+    passedHitster: [],
+    stealResult: null,
+    stealEqualYear: false,
+    turnOrder: players.map((p) => p.player_id),
+    cardsToWin: 0, // unused (fixed round count instead)
+    hideCoverUntilRevealed: true,
+    winnerId: null,
+    gameMode: 'timeline_quiz',
+    modeConfig: { timelineCardCount: totalRounds },
+    quizTimeline: generateBaseTimeline(cards),
+    quizTotalRounds: totalRounds,
+  };
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ game_state: base, status: 'playing' })
+    .eq('id', lobbyId);
+  if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
+
+  // Opens round 1 on the foundation (also clears stale round_answers).
+  await startSimulRound(lobbyId, QUIZ_ROUND_SECONDS);
+}
+
+/**
+ * Resolve the current quiz round (safe from ANY client; the foundation claim
+ * dedupes). evaluate grades every submitted slot against the shared timeline
+ * and - in the same write - grows the timeline by the song's real year, so all
+ * clients see the same denser timeline afterwards. The claim winner then
+ * awards +1 score to every correct player.
+ */
+export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
+  const claimed = await resolveSimulRound(lobbyId, (answers, gs) => {
+    const card = gs.currentCard;
+    const timeline = gs.quizTimeline ?? [];
+    const results: Record<string, RoundOutcome> = {};
+    if (card) {
+      for (const a of answers) {
+        const slot = (a.answer as { slot?: unknown } | null)?.slot;
+        results[a.player_id] =
+          typeof slot === 'number' && isCorrectQuizPlacement(timeline, card.year, slot)
+            ? 'correct'
+            : 'incorrect';
+      }
+    }
+    const patch = card
+      ? {
+          quizTimeline: insertQuizEntry(timeline, {
+            year: card.year,
+            title: card.title,
+            artist: card.artist,
+          }),
+        }
+      : {};
+    return { results, patch };
+  });
+  if (!claimed) return;
+
+  // Post-claim side effect - exactly ONE client runs this.
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.gameMode !== 'timeline_quiz') return;
+  const players = await getLobbyPlayers(lobbyId);
+  for (const p of players) {
+    if (gs.roundResults?.[p.player_id] === 'correct') {
+      await supabase.from('lobby_players').update({ score: p.score + 1 }).eq('id', p.id);
+    }
+  }
+}
+
+/**
+ * Host advances the quiz (button on the result view; atomic on roundPhase +
+ * roundNumber like nextBingoRound). After the configured number of rounds (or
+ * an empty deck) the game finishes: highest score wins, ties share the win.
+ */
+export async function nextTimelineQuizRound(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    gs.gameMode !== 'timeline_quiz' ||
+    gs.roundPhase !== 'resolved' ||
+    gs.winnerId ||
+    gs.roundNumber == null
+  ) {
+    return;
+  }
+
+  const isLast = gs.roundNumber >= (gs.quizTotalRounds ?? 1) || gs.deck.length === 0;
+  if (isLast) {
+    const players = await getLobbyPlayers(lobbyId);
+    const top = Math.max(...players.map((p) => p.score));
+    const winnerIds = players.filter((p) => p.score === top).map((p) => p.player_id);
+    const { data } = await supabase
+      .from('lobbies')
+      .update({
+        game_state: {
+          ...gs,
+          phase: 'finished',
+          winnerId: winnerIds[0] ?? null,
+          winnerIds,
+        } as OnlineGameState,
+      })
+      .eq('id', lobbyId)
+      .filter('game_state->>roundPhase', 'eq', 'resolved')
+      .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber))
+      .select();
+    if (data && data.length > 0) {
+      await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+    }
+    return;
+  }
+
+  const [next, ...rest] = gs.deck;
+  await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        deck: rest,
+        currentCard: next,
+        roundNumber: gs.roundNumber + 1,
+        roundDeadline: Date.now() + QUIZ_ROUND_SECONDS * 1000,
         roundPhase: 'collecting',
         roundResults: null,
       } as OnlineGameState,

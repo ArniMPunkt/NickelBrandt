@@ -95,9 +95,12 @@ export default function LobbyScreen() {
       }
       if (lobby.status === 'playing' && !navigatedRef.current) {
         navigatedRef.current = true;
-        // Route by mode: bingo has no start cards, so no intro screen.
-        if ((lobby.game_mode ?? 'hitster') === 'bingo') {
+        // Route by mode: the simultaneous modes have no start cards -> no intro.
+        const mode = lobby.game_mode ?? 'hitster';
+        if (mode === 'bingo') {
           navigation.navigate('BingoGame', { lobbyId });
+        } else if (mode === 'timeline_quiz') {
+          navigation.navigate('TimelineQuiz', { lobbyId });
         } else {
           navigation.navigate('OnlineIntro', { lobbyId });
         }
@@ -215,14 +218,6 @@ export default function LobbyScreen() {
 
   const onStartPressed = () => {
     setError(null);
-    if (gameMode === 'timeline_quiz') {
-      // Timeline-Quiz logic lands in a follow-up; starting it now would strand
-      // everyone in the hitster UI.
-      setError(
-        `${MODE_LABEL[gameMode]}: Spiellogik folgt in einem späteren Update — Start noch nicht möglich.`
-      );
-      return;
-    }
     if (players.length < 2) {
       setError('Mindestens 2 Spieler nötig.');
       return;
@@ -242,6 +237,10 @@ export default function LobbyScreen() {
       if (gameMode === 'bingo') {
         await Online.startBingoGame(lobbyId, cards, {
           bingoGridSize: modeConfig.bingoGridSize ?? 4,
+        });
+      } else if (gameMode === 'timeline_quiz') {
+        await Online.startTimelineQuiz(lobbyId, cards, {
+          timelineCardCount: modeConfig.timelineCardCount ?? DEFAULT_QUIZ_CARDS,
         });
       } else {
         await Online.startGame(lobbyId, cards, {

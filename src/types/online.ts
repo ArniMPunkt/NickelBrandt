@@ -51,6 +51,20 @@ export type OnlinePhase =
   | 'simul_round' // bingo / timeline_quiz: the simultaneous roundPhase drives the flow
   | 'finished'; // round result shown (winnerId set => game over)
 
+// --- Timeline-Quiz mode -------------------------------------------------------
+
+/**
+ * One entry of the SHARED quiz timeline (game_state.quizTimeline). Base slots
+ * are pure years; resolved songs carry title/artist too. Single writer per
+ * round (start / resolve-claim winner), so game_state jsonb is safe here.
+ */
+export interface QuizTimelineEntry {
+  year: number;
+  /** Set when this entry is a resolved song (base slots are pure years). */
+  title?: string;
+  artist?: string;
+}
+
 // --- Bingo mode --------------------------------------------------------------
 
 /**
@@ -153,6 +167,10 @@ export interface OnlineGameState {
   roundResults?: Record<string, RoundOutcome> | null;
   /** Bingo: the current round's category (drawn together with the card). */
   bingoRound?: BingoRoundSpec | null;
+  /** Timeline-Quiz: the shared timeline everyone places into (grows each round). */
+  quizTimeline?: QuizTimelineEntry[] | null;
+  /** Timeline-Quiz: fixed number of rounds (from mode_config, clamped to deck). */
+  quizTotalRounds?: number;
   /**
    * Bingo: ALL players who completed a row/column/diagonal in the same
    * resolution (simultaneous multi-win is allowed). winnerId stays set to the

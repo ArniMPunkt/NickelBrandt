@@ -19,4 +19,6 @@ export type OnlineStackParamList = {
   OnlineGame: { lobbyId: string };
   /** Bingo mode (no intro screen - there are no start cards to reveal). */
   BingoGame: { lobbyId: string };
+  /** Timeline-Quiz mode (shared timeline, no intro screen). */
+  TimelineQuiz: { lobbyId: string };
 };

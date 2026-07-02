@@ -34,6 +34,7 @@ import LobbyScreen from './src/screens/LobbyScreen';
 import OnlineIntroScreen from './src/screens/OnlineIntroScreen';
 import OnlineGameScreen from './src/screens/OnlineGameScreen';
 import BingoGameScreen from './src/screens/BingoGameScreen';
+import TimelineQuizScreen from './src/screens/TimelineQuizScreen';
 import { COLORS } from './src/theme/colors';
 import type { GameStackParamList, OnlineStackParamList } from './src/types/navigation';
 
@@ -73,6 +74,7 @@ function OnlineStack() {
       <OnlineStackNav.Screen name="OnlineIntro" component={OnlineIntroScreen} />
       <OnlineStackNav.Screen name="OnlineGame" component={OnlineGameScreen} />
       <OnlineStackNav.Screen name="BingoGame" component={BingoGameScreen} />
+      <OnlineStackNav.Screen name="TimelineQuiz" component={TimelineQuizScreen} />
     </OnlineStackNav.Navigator>
   );
 }

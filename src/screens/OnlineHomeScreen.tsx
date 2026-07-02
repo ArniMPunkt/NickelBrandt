@@ -80,9 +80,12 @@ export default function OnlineHomeScreen() {
   const resumeLobby = () => {
     if (!resumable) return;
     if (resumable.status === 'playing') {
-      // Route by mode - a bingo game resumes into its own screen.
-      if ((resumable.game_mode ?? 'hitster') === 'bingo') {
+      // Route by mode - the simultaneous modes resume into their own screens.
+      const mode = resumable.game_mode ?? 'hitster';
+      if (mode === 'bingo') {
         navigation.navigate('BingoGame', { lobbyId: resumable.id });
+      } else if (mode === 'timeline_quiz') {
+        navigation.navigate('TimelineQuiz', { lobbyId: resumable.id });
       } else {
         navigation.navigate('OnlineGame', { lobbyId: resumable.id });
       }
