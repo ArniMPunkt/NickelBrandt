@@ -26,6 +26,7 @@ export function StepSlider({
   step = 1,
   milestones = [],
   onChange,
+  onRelease,
 }: {
   value: number;
   min: number;
@@ -35,6 +36,12 @@ export function StepSlider({
   /** Values rendered as emphasized stops (tick + number label). */
   milestones?: number[];
   onChange: (v: number) => void;
+  /**
+   * Fires once when the finger lifts, with the final value. Use this for
+   * expensive sinks (e.g. network writes) and keep onChange for cheap local
+   * state - onChange fires on every step while dragging.
+   */
+  onRelease?: (v: number) => void;
 }) {
   // Inner track width, measured; markers/thumb render only once known.
   const [trackW, setTrackW] = useState(0);
@@ -43,6 +50,10 @@ export function StepSlider({
   const trackWRef = useRef(0);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onReleaseRef = useRef(onRelease);
+  onReleaseRef.current = onRelease;
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const lastEmitted = useRef<number | null>(null);
   const startX = useRef(0);
 
@@ -68,6 +79,10 @@ export function StepSlider({
         setFromX(startX.current);
       },
       onPanResponderMove: (_evt, g) => setFromX(startX.current + g.dx),
+      onPanResponderRelease: () =>
+        onReleaseRef.current?.(lastEmitted.current ?? valueRef.current),
+      onPanResponderTerminate: () =>
+        onReleaseRef.current?.(lastEmitted.current ?? valueRef.current),
     })
   ).current;
 

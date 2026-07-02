@@ -17,8 +17,26 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
 import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
+import {
+  BINGO_ROUND_SECONDS,
+  drawBingoRound,
+  evaluateBingoAnswer,
+  generateBingoBoard,
+  hasBingo,
+  markRandomFreeCell,
+} from '../game/bingo';
 import { MAX_CHIPS } from '../types/game';
-import type { GameCard, Lobby, LobbyPlayer, OnlineGameState, SongPool } from '../types/online';
+import type {
+  GameCard,
+  GameMode,
+  Lobby,
+  LobbyPlayer,
+  ModeConfig,
+  OnlineGameState,
+  RoundAnswer,
+  RoundOutcome,
+  SongPool,
+} from '../types/online';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -491,6 +509,9 @@ export async function startGame(
     timerSeconds: opts.timerSeconds,
     turnStartedAt: Date.now(),
     winnerId: null,
+    // This is the HITSTER start path; bingo / timeline_quiz get their own start
+    // functions (follow-ups) that snapshot their mode + config here instead.
+    gameMode: 'hitster',
   };
 
   const { error } = await supabase
@@ -891,6 +912,317 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Game modes & simultaneous rounds (foundation for bingo / timeline_quiz).
+//
+// Mechanic (mode-agnostic; the follow-up modes only plug in their evaluation):
+//   1. startSimulRound: host opens a round (deadline set, answers accepted)
+//   2. submitRoundAnswer: each client submits ONCE (DB-unique guarded)
+//   3. resolveSimulRound: host resolves when ALL answered OR the deadline
+//      passed - atomically claimed, so the "all answered" trigger and the
+//      deadline timer can never both resolve. Non-answering players are
+//      'missed'. Results land in game_state.roundResults -> synced everywhere.
+// ---------------------------------------------------------------------------
+
+/**
+ * Host picks the lobby's game mode (+ config) in the waiting room. Visible to
+ * all players via the existing lobbies subscription. Requires migration 005.
+ */
+export async function setLobbyMode(
+  lobbyId: string,
+  mode: GameMode,
+  config: ModeConfig
+): Promise<void> {
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ game_mode: mode, mode_config: config })
+    .eq('id', lobbyId);
+  if (error) throw new Error(`Spielmodus konnte nicht gesetzt werden: ${error.message}`);
+}
+
+/**
+ * Host starts the next simultaneous round: bumps roundNumber, sets the answer
+ * deadline (same absolute-timestamp pattern as turnStartedAt) and opens the
+ * collecting phase. `patch` carries the mode-specific round content (e.g. the
+ * drawn card). Round 1 of a game clears leftover answers of a previous game in
+ * this lobby, so the (lobby, round, player) unique key can never collide.
+ */
+export async function startSimulRound(
+  lobbyId: string,
+  durationSeconds: number,
+  patch: Partial<OnlineGameState> = {}
+): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs) return;
+  const roundNumber = (gs.roundNumber ?? 0) + 1;
+  if (roundNumber === 1) {
+    await supabase.from('round_answers').delete().eq('lobby_id', lobbyId);
+  }
+  await writeGameState(lobbyId, {
+    ...gs,
+    ...patch,
+    roundNumber,
+    roundDeadline: Date.now() + durationSeconds * 1000,
+    roundPhase: 'collecting',
+    roundResults: null,
+  });
+}
+
+/**
+ * Submit THIS player's answer for the current round. Returns true when the
+ * answer was recorded, false when the round is closed or the player already
+ * answered. Double submissions are impossible at the DB level: the
+ * (lobby, round, player) UNIQUE constraint rejects the second INSERT (23505) -
+ * same idea as the atomic claim guards, but insert-shaped because here EVERY
+ * player must win exactly once (not just the first).
+ */
+export async function submitRoundAnswer(
+  lobbyId: string,
+  playerId: string,
+  answer: unknown
+): Promise<boolean> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.roundPhase !== 'collecting' || gs.roundNumber == null) return false;
+  const { error } = await supabase.from('round_answers').insert({
+    lobby_id: lobbyId,
+    round_number: gs.roundNumber,
+    player_id: playerId,
+    answer,
+  });
+  if (error) {
+    if ((error as { code?: string }).code === '23505') return false; // already answered
+    throw new Error(`Antwort konnte nicht gespeichert werden: ${error.message}`);
+  }
+  return true;
+}
+
+/** All submitted answers of one round (for resolution and "x/y" displays). */
+export async function getRoundAnswers(
+  lobbyId: string,
+  roundNumber: number
+): Promise<RoundAnswer[]> {
+  const { data, error } = await supabase
+    .from('round_answers')
+    .select('*')
+    .eq('lobby_id', lobbyId)
+    .eq('round_number', roundNumber);
+  if (error) throw new Error(`Antworten konnten nicht geladen werden: ${error.message}`);
+  return (data ?? []) as RoundAnswer[];
+}
+
+/**
+ * Host-authoritative round resolution. Call it when all players answered OR
+ * when the deadline passed - both triggers may fire; the atomic claim
+ * (collecting -> resolving, guarded on phase + roundNumber) guarantees exactly
+ * one resolution. After the claim the answer set is frozen (submits check the
+ * phase and are refused), then `evaluate` maps the submitted answers to
+ * outcomes; every player without an answer is 'missed'. Returns true for the
+ * caller that actually resolved (that caller may then apply mode-specific
+ * side effects like score/board updates, knowing it is the single winner).
+ */
+export async function resolveSimulRound(
+  lobbyId: string,
+  evaluate: (
+    answers: RoundAnswer[],
+    gs: OnlineGameState
+  ) =>
+    | { results: Record<string, RoundOutcome>; patch?: Partial<OnlineGameState> }
+    | Promise<{ results: Record<string, RoundOutcome>; patch?: Partial<OnlineGameState> }>
+): Promise<boolean> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.roundPhase !== 'collecting' || gs.roundNumber == null) return false;
+
+  // Step 1: atomic claim (deadline timer vs. "all answered" race).
+  const { data } = await supabase
+    .from('lobbies')
+    .update({ game_state: { ...gs, roundPhase: 'resolving' } as OnlineGameState })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'collecting')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber))
+    .select();
+  if (!data || data.length === 0) return false;
+
+  // Step 2: frozen snapshot of answers + roster.
+  const [answers, players] = await Promise.all([
+    getRoundAnswers(lobbyId, gs.roundNumber),
+    getLobbyPlayers(lobbyId),
+  ]);
+
+  // Step 3: mode-specific evaluation; default everyone to 'missed'.
+  const results: Record<string, RoundOutcome> = {};
+  for (const p of players) results[p.player_id] = 'missed';
+  const evaluated = await evaluate(answers, gs);
+  Object.assign(results, evaluated.results);
+
+  await writeGameState(lobbyId, {
+    ...gs,
+    ...(evaluated.patch ?? {}),
+    roundPhase: 'resolved',
+    roundResults: results,
+  });
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Bingo mode (game logic on top of the simultaneous-round foundation).
+//
+// Flow: startBingoGame (boards + first round) -> everyone submits via
+// submitRoundAnswer -> ANY client resolves via resolveBingoRound (deadline
+// timer on all clients + "all answered" trigger; the claim dedupes) -> host
+// taps "Nächste Runde" (nextBingoRound) until someone has a full row/column/
+// diagonal -> phase 'finished' + winnerId (same finish contract as hitster).
+// ---------------------------------------------------------------------------
+
+/**
+ * Host starts a bingo game: one individually randomized board per player and
+ * the first simultaneous round (card + spun category). The deck is its own
+ * draw source - no timelines involved.
+ */
+export async function startBingoGame(
+  lobbyId: string,
+  cards: GameCard[],
+  config: { bingoGridSize: 4 | 5 }
+): Promise<void> {
+  const players = await getLobbyPlayers(lobbyId);
+  if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
+  if (cards.length < 10) {
+    throw new Error(`Nur ${cards.length} Tracks - zu wenige für ein Bingo-Spiel.`);
+  }
+
+  for (const p of players) {
+    const { error } = await supabase
+      .from('lobby_players')
+      .update({ bingo_board: generateBingoBoard(config.bingoGridSize) })
+      .eq('id', p.id);
+    if (error) {
+      throw new Error(`Bingo-Board konnte nicht verteilt werden: ${error.message}`);
+    }
+  }
+
+  const [first, ...deck] = shuffle(cards);
+  const base: OnlineGameState = {
+    deck,
+    currentCard: first,
+    activePlayerId: '', // no active player in simultaneous modes
+    phase: 'simul_round',
+    pendingInsertIndex: null,
+    lastResult: null,
+    hitsterCallerId: null,
+    passedHitster: [],
+    stealResult: null,
+    stealEqualYear: false,
+    turnOrder: players.map((p) => p.player_id),
+    cardsToWin: 0, // unused in bingo (win = full row/column/diagonal)
+    hideCoverUntilRevealed: true,
+    winnerId: null,
+    gameMode: 'bingo',
+    modeConfig: { bingoGridSize: config.bingoGridSize },
+    bingoRound: drawBingoRound(first),
+  };
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ game_state: base, status: 'playing' })
+    .eq('id', lobbyId);
+  if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
+
+  // Opens round 1 on the foundation (also clears stale round_answers).
+  await startSimulRound(lobbyId, BINGO_ROUND_SECONDS);
+}
+
+/**
+ * Resolve the current bingo round. Safe to call from ANY client and multiple
+ * times (deadline timers run everywhere + the "all answered" trigger); the
+ * foundation's atomic claim guarantees exactly one caller proceeds to the
+ * side effects: mark a random free cell of the round's color for every
+ * correct player, then check for a full row/column/diagonal. If several
+ * players complete their board in the same resolution, they ALL win together
+ * (winnerIds; winnerId carries the first entry for the shared finish contract).
+ */
+export async function resolveBingoRound(lobbyId: string): Promise<void> {
+  const claimed = await resolveSimulRound(lobbyId, (answers, gs) => {
+    const card = gs.currentCard;
+    const round = gs.bingoRound;
+    const results: Record<string, RoundOutcome> = {};
+    if (card && round) {
+      for (const a of answers) {
+        results[a.player_id] = evaluateBingoAnswer(round, card, a.answer)
+          ? 'correct'
+          : 'incorrect';
+      }
+    }
+    return { results };
+  });
+  if (!claimed) return;
+
+  // Post-claim side effects - exactly ONE client runs this.
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (!gs || gs.gameMode !== 'bingo' || !gs.bingoRound) return;
+  const size = gs.modeConfig?.bingoGridSize ?? 4;
+  const players = await getLobbyPlayers(lobbyId);
+
+  const winnerIds: string[] = [];
+  for (const p of players) {
+    if (gs.roundResults?.[p.player_id] !== 'correct' || !p.bingo_board) continue;
+    const { board, markedIndex } = markRandomFreeCell(p.bingo_board, gs.bingoRound.type);
+    if (markedIndex == null) continue; // no free cell of that color left
+    await supabase.from('lobby_players').update({ bingo_board: board }).eq('id', p.id);
+    if (hasBingo(board, size)) winnerIds.push(p.player_id);
+  }
+
+  if (winnerIds.length > 0) {
+    await writeGameState(lobbyId, {
+      ...gs,
+      phase: 'finished',
+      winnerId: winnerIds[0],
+      winnerIds,
+    });
+    await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+  }
+}
+
+/**
+ * Host draws the next bingo round (button on the result view). Atomic on
+ * roundPhase 'resolved' + the current roundNumber, so a double-tap can never
+ * skip a card or bump the round twice. Empty deck ends the game without a
+ * winner (like drawNextCard).
+ */
+export async function nextBingoRound(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    gs.gameMode !== 'bingo' ||
+    gs.roundPhase !== 'resolved' ||
+    gs.winnerId ||
+    gs.roundNumber == null
+  ) {
+    return;
+  }
+  if (gs.deck.length === 0) {
+    await writeGameState(lobbyId, { ...gs, phase: 'finished' });
+    await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+    return;
+  }
+
+  const [next, ...rest] = gs.deck;
+  await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        deck: rest,
+        currentCard: next,
+        bingoRound: drawBingoRound(next),
+        roundNumber: gs.roundNumber + 1,
+        roundDeadline: Date.now() + BINGO_ROUND_SECONDS * 1000,
+        roundPhase: 'collecting',
+        roundResults: null,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'resolved')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+}
+
 /**
  * Live updates for BOTH lobbies.game_state and lobby_players (timelines/scores).
  * `onStatus` receives the channel lifecycle status so the caller can recover from
@@ -913,6 +1245,15 @@ export function subscribeToGameState(
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'lobby_players', filter: `lobby_id=eq.${lobbyId}` },
+      () => {
+        onChange();
+      }
+    )
+    .on(
+      'postgres_changes',
+      // Simultaneous-round submissions ("3/5 haben geantwortet", host resolves
+      // early when everyone answered). No-op until migration 005 ran.
+      { event: '*', schema: 'public', table: 'round_answers', filter: `lobby_id=eq.${lobbyId}` },
       () => {
         onChange();
       }

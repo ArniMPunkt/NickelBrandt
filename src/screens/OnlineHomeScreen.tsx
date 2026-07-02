@@ -80,7 +80,12 @@ export default function OnlineHomeScreen() {
   const resumeLobby = () => {
     if (!resumable) return;
     if (resumable.status === 'playing') {
-      navigation.navigate('OnlineGame', { lobbyId: resumable.id });
+      // Route by mode - a bingo game resumes into its own screen.
+      if ((resumable.game_mode ?? 'hitster') === 'bingo') {
+        navigation.navigate('BingoGame', { lobbyId: resumable.id });
+      } else {
+        navigation.navigate('OnlineGame', { lobbyId: resumable.id });
+      }
     } else {
       navigation.navigate('Lobby', { lobbyId: resumable.id, code: resumable.code });
     }

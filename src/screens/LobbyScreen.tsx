@@ -21,11 +21,33 @@ import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PressableButton } from '../components/PressableButton';
+import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
-import type { LobbyPlayer } from '../types/online';
+import type { GameMode, Lobby, LobbyPlayer, ModeConfig } from '../types/online';
 import { loadDeckSource, type DeckSource } from '../services/deck';
+
+const MODES: Array<{ mode: GameMode; label: string }> = [
+  { mode: 'hitster', label: 'Hitster' },
+  { mode: 'bingo', label: 'Bingo' },
+  { mode: 'timeline_quiz', label: 'Timeline-Quiz' },
+];
+
+const MODE_LABEL: Record<GameMode, string> = {
+  hitster: 'Hitster',
+  bingo: 'Bingo',
+  timeline_quiz: 'Timeline-Quiz',
+};
+
+const DEFAULT_QUIZ_CARDS = 15;
+
+/** Default mode config written when the host switches to a mode. */
+function defaultConfigFor(mode: GameMode) {
+  if (mode === 'bingo') return { bingoGridSize: 4 as const };
+  if (mode === 'timeline_quiz') return { timelineCardCount: DEFAULT_QUIZ_CARDS };
+  return {};
+}
 
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'Lobby'>;
 type LobbyRoute = RouteProp<OnlineStackParamList, 'Lobby'>;
@@ -37,9 +59,13 @@ export default function LobbyScreen() {
   const { settings } = useSettings();
 
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
+  const [lobby, setLobby] = useState<Lobby | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [starting, setStarting] = useState(false);
+  // Local slider value for the timeline-quiz card count (written to the lobby
+  // only on release, so dragging doesn't spam Supabase).
+  const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
 
   const myId = Online.getPlayerId();
   const me = players.find((p) => p.player_id === myId);
@@ -57,6 +83,7 @@ export default function LobbyScreen() {
         Online.getLobbyPlayers(lobbyId),
       ]);
       setPlayers(list);
+      setLobby(lobby);
       // Host ended the lobby from the waiting room. Once the game has started
       // (navigatedRef set), OnlineGameScreen owns this transition instead.
       if (lobby.status === 'ended' && !endedRef.current && !navigatedRef.current) {
@@ -68,7 +95,12 @@ export default function LobbyScreen() {
       }
       if (lobby.status === 'playing' && !navigatedRef.current) {
         navigatedRef.current = true;
-        navigation.navigate('OnlineIntro', { lobbyId });
+        // Route by mode: bingo has no start cards, so no intro screen.
+        if ((lobby.game_mode ?? 'hitster') === 'bingo') {
+          navigation.navigate('BingoGame', { lobbyId });
+        } else {
+          navigation.navigate('OnlineIntro', { lobbyId });
+        }
       }
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -125,6 +157,27 @@ export default function LobbyScreen() {
     }, [refresh])
   );
 
+  const gameMode: GameMode = lobby?.game_mode ?? 'hitster';
+  const modeConfig: ModeConfig = lobby?.mode_config ?? {};
+
+  // Keep the local slider in sync with the synced config (keyed on the synced
+  // value, so it never fights an ongoing local drag).
+  useEffect(() => {
+    const synced = lobby?.mode_config?.timelineCardCount;
+    if (synced != null) setQuizCards(synced);
+  }, [lobby?.mode_config?.timelineCardCount]);
+
+  // --- Host: mode selection (visible to everyone via the lobbies row) ---
+  const writeMode = (mode: GameMode, config: ModeConfig) => {
+    setError(null);
+    Online.setLobbyMode(lobbyId, mode, config)
+      .then(refresh)
+      .catch((e: any) => setError(e?.message ?? String(e)));
+  };
+  const onSelectMode = (mode: GameMode) => {
+    if (mode !== gameMode) writeMode(mode, defaultConfigFor(mode));
+  };
+
   const leave = async () => {
     try {
       await Online.leaveLobby(lobbyId);
@@ -162,6 +215,14 @@ export default function LobbyScreen() {
 
   const onStartPressed = () => {
     setError(null);
+    if (gameMode === 'timeline_quiz') {
+      // Timeline-Quiz logic lands in a follow-up; starting it now would strand
+      // everyone in the hitster UI.
+      setError(
+        `${MODE_LABEL[gameMode]}: Spiellogik folgt in einem späteren Update — Start noch nicht möglich.`
+      );
+      return;
+    }
     if (players.length < 2) {
       setError('Mindestens 2 Spieler nötig.');
       return;
@@ -178,16 +239,22 @@ export default function LobbyScreen() {
     setError(null);
     try {
       const cards = await loadDeckSource(source);
-      await Online.startGame(lobbyId, cards, {
-        cardsToWin: settings.cardsToWin,
-        hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
-        skipEnabled: settings.skipEnabled,
-        skipCost: settings.skipCost,
-        blindEnabled: settings.blindEnabled,
-        blindCost: settings.blindCost,
-        timerEnabled: settings.timerEnabled,
-        timerSeconds: settings.timerSeconds,
-      });
+      if (gameMode === 'bingo') {
+        await Online.startBingoGame(lobbyId, cards, {
+          bingoGridSize: modeConfig.bingoGridSize ?? 4,
+        });
+      } else {
+        await Online.startGame(lobbyId, cards, {
+          cardsToWin: settings.cardsToWin,
+          hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
+          skipEnabled: settings.skipEnabled,
+          skipCost: settings.skipCost,
+          blindEnabled: settings.blindEnabled,
+          blindCost: settings.blindCost,
+          timerEnabled: settings.timerEnabled,
+          timerSeconds: settings.timerSeconds,
+        });
+      }
       // Navigation happens via the realtime subscription (status -> 'playing').
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -206,6 +273,82 @@ export default function LobbyScreen() {
         <Text style={styles.codeText}>{code}</Text>
       </View>
       <Text style={styles.codeHint}>Teile diesen Code mit deinen Freunden.</Text>
+
+      <Text style={styles.label}>SPIELMODUS</Text>
+      {isHost ? (
+        <>
+          <View style={styles.modeRow}>
+            {MODES.map(({ mode, label }) => {
+              const active = gameMode === mode;
+              return (
+                <PressableButton
+                  key={mode}
+                  style={[styles.modeBtn, active && styles.modeBtnActive]}
+                  onPress={() => onSelectMode(mode)}
+                >
+                  <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>
+                    {label}
+                  </Text>
+                </PressableButton>
+              );
+            })}
+          </View>
+          {gameMode === 'hitster' && (
+            <Text style={styles.modeHint}>
+              Spielregeln wie im Tab „Einstellungen" konfiguriert.
+            </Text>
+          )}
+          {gameMode === 'bingo' && (
+            <View style={styles.modeConfigBox}>
+              <Text style={styles.modeConfigLabel}>Grid-Größe</Text>
+              <View style={styles.modeRow}>
+                {([4, 5] as const).map((size) => {
+                  const active = (modeConfig.bingoGridSize ?? 4) === size;
+                  return (
+                    <PressableButton
+                      key={size}
+                      style={[styles.modeBtn, active && styles.modeBtnActive]}
+                      onPress={() => writeMode('bingo', { bingoGridSize: size })}
+                    >
+                      <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>
+                        {size}×{size}
+                      </Text>
+                    </PressableButton>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+          {gameMode === 'timeline_quiz' && (
+            <View style={styles.modeConfigBox}>
+              <View style={styles.modeConfigHeader}>
+                <Text style={styles.modeConfigLabel}>Anzahl Karten</Text>
+                <Text style={styles.modeConfigValue}>{quizCards}</Text>
+              </View>
+              <StepSlider
+                value={quizCards}
+                min={5}
+                max={30}
+                milestones={[5, 15, 30]}
+                onChange={setQuizCards}
+                onRelease={(v) => writeMode('timeline_quiz', { timelineCardCount: v })}
+              />
+            </View>
+          )}
+        </>
+      ) : (
+        <View style={styles.modeBadgeRow}>
+          <Text style={styles.modeBadgeText}>
+            {MODE_LABEL[gameMode]}
+            {gameMode === 'bingo'
+              ? ` · ${modeConfig.bingoGridSize ?? 4}×${modeConfig.bingoGridSize ?? 4}`
+              : ''}
+            {gameMode === 'timeline_quiz'
+              ? ` · ${modeConfig.timelineCardCount ?? DEFAULT_QUIZ_CARDS} Karten`
+              : ''}
+          </Text>
+        </View>
+      )}
 
       <Text style={styles.label}>SPIELER ({players.length})</Text>
       {players.length === 0 ? (
@@ -299,6 +442,43 @@ const styles = StyleSheet.create({
   codeHint: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
 
   muted: { color: COLORS.textMuted, fontSize: 15, fontWeight: '600' },
+
+  modeRow: { flexDirection: 'row', gap: 10 },
+  modeBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  modeBtnActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accent },
+  modeBtnText: { color: COLORS.text, fontSize: 13, fontWeight: '900', textAlign: 'center' },
+  modeBtnTextActive: { color: COLORS.background },
+  modeHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', fontStyle: 'italic' },
+  modeConfigBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
+  },
+  modeConfigHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modeConfigLabel: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  modeConfigValue: { color: COLORS.accent, fontSize: 18, fontWeight: '900' },
+  modeBadgeRow: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  modeBadgeText: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',

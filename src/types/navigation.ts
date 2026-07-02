@@ -17,4 +17,6 @@ export type OnlineStackParamList = {
   Lobby: { lobbyId: string; code: string };
   OnlineIntro: { lobbyId: string };
   OnlineGame: { lobbyId: string };
+  /** Bingo mode (no intro screen - there are no start cards to reveal). */
+  BingoGame: { lobbyId: string };
 };
