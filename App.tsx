@@ -2,10 +2,14 @@
  * Navigation root.
  *
  * Three themed bottom tabs, each with one clear responsibility:
- *  - "Hot-Seat": the single-device game flow as a Native Stack
- *    (Setup -> Intro -> Handoff -> Game -> Result).
- *  - "Mit Freunden": the online multiplayer flow.
+ *  - "Party" (route name "Mit Freunden", unchanged): the online multiplayer
+ *    flow - the app's main mode, so it comes FIRST and is the start tab.
+ *  - "Pass & Play" (route name "Hot-Seat", unchanged): the single-device game
+ *    flow as a Native Stack (Setup -> Intro -> Handoff -> Game -> Result).
  *  - "Einstellungen": Spotify connection, game rules, app info, data.
+ *
+ * Only the visible labels were renamed (tabBarLabel); the route names stay to
+ * avoid a rename refactor across navigation calls.
  *
  * Stack headers are hidden - each screen renders its own header/safe area.
  */
@@ -84,8 +88,8 @@ function HotSeatTabIcon({ focused }: { focused: boolean }) {
   return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>📱</Text>;
 }
 
-function FriendsTabIcon({ focused }: { focused: boolean }) {
-  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>👥</Text>;
+function PartyTabIcon({ focused }: { focused: boolean }) {
+  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🎉</Text>;
 }
 
 function SettingsTabIcon({ focused }: { focused: boolean }) {
@@ -123,11 +127,15 @@ function RootTabs() {
           tabBarLabelStyle: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
         }}
       >
-        <Tab.Screen name="Hot-Seat" component={GameStack} options={{ tabBarIcon: HotSeatTabIcon }} />
         <Tab.Screen
           name="Mit Freunden"
           component={OnlineStack}
-          options={{ tabBarIcon: FriendsTabIcon }}
+          options={{ tabBarIcon: PartyTabIcon, tabBarLabel: 'Party' }}
+        />
+        <Tab.Screen
+          name="Hot-Seat"
+          component={GameStack}
+          options={{ tabBarIcon: HotSeatTabIcon, tabBarLabel: 'Pass & Play' }}
         />
         <Tab.Screen
           name="Einstellungen"

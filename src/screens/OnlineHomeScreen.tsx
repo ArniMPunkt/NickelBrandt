@@ -1,10 +1,14 @@
 /**
- * OnlineHomeScreen - entry point for the Online mode: create or join a lobby.
- * Separate from the Hot-Seat flow. No game logic yet (Etappe 1).
+ * OnlineHomeScreen - home of the "Party" mode (the app's MAIN mode): create or
+ * join a lobby. Carries the big NickelBrandt headline (moved here from the
+ * Hot-Seat setup) plus a subtle looping equalizer so the screen feels like the
+ * flagship entry of the app, not a form. Functionality is unchanged: name,
+ * create (Spotify-gated), join via code, resume banner.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +33,61 @@ type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineHome'>;
 // player actually used, so they don't retype it every game. Same AsyncStorage
 // approach as the onboarding flag.
 const PLAYER_NAME_KEY = '@nickelbrandt/player_name';
+
+const EQ_COLORS = [
+  COLORS.primary,
+  COLORS.secondary,
+  COLORS.accent,
+  COLORS.primary,
+  COLORS.secondary,
+  COLORS.accent,
+  COLORS.primary,
+];
+
+/**
+ * Subtle looping equalizer under the headline ("hier läuft Musik"). Pure
+ * scaleY transforms on the native driver; per-bar durations are slightly
+ * different so the phases drift and the motion stays organic, not metronomic.
+ */
+function EqualizerBars() {
+  const bars = useRef(EQ_COLORS.map(() => new Animated.Value(0.3))).current;
+
+  useEffect(() => {
+    const loops = bars.map((v, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(v, {
+            toValue: 1,
+            duration: 380 + ((i * 97) % 220),
+            useNativeDriver: true,
+          }),
+          Animated.timing(v, {
+            toValue: 0.25,
+            duration: 340 + ((i * 61) % 180),
+            useNativeDriver: true,
+          }),
+        ])
+      )
+    );
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <View style={styles.eqRow}>
+      {bars.map((v, i) => (
+        <Animated.View
+          key={`bar-${i}`}
+          style={[
+            styles.eqBar,
+            { backgroundColor: EQ_COLORS[i], transform: [{ scaleY: v }] },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function OnlineHomeScreen() {
   const navigation = useNavigation<Nav>();
@@ -149,8 +208,12 @@ export default function OnlineHomeScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>Online spielen</Text>
-      <Text style={styles.subtitle}>Erstelle eine Lobby oder tritt einer bei.</Text>
+      {/* Hero: the app headline lives here now - Party is the main mode. */}
+      <View style={styles.hero}>
+        <EqualizerBars />
+        <Text style={styles.title}>NickelBrandt</Text>
+        <Text style={styles.tagline}>● MUSIC-PARTY MIT FREUNDEN ●</Text>
+      </View>
 
       {resumable && (
         <View style={styles.resumeBox}>
@@ -186,15 +249,19 @@ export default function OnlineHomeScreen() {
         maxLength={20}
       />
 
+      {/* Hero action: creating the party gets the visual weight. */}
       <PressableButton
         style={[styles.createBtn, (!configured || busy || !spotifyAuthorized) && styles.disabled]}
         onPress={createLobby}
         disabled={!configured || !!busy || !spotifyAuthorized}
       >
         {busy === 'create' ? (
-          <ActivityIndicator color={COLORS.background} />
+          <ActivityIndicator color={COLORS.text} />
         ) : (
-          <Text style={styles.createBtnText}>Lobby erstellen</Text>
+          <>
+            <Text style={styles.createBtnText}>🎉  Party starten</Text>
+            <Text style={styles.createBtnSub}>Lobby erstellen — du bist Host, deine Musik läuft</Text>
+          </>
         )}
       </PressableButton>
       {configured && !spotifyAuthorized && (
@@ -210,28 +277,32 @@ export default function OnlineHomeScreen() {
         <View style={styles.dividerLine} />
       </View>
 
-      <Text style={styles.label}>LOBBY-CODE</Text>
-      <TextInput
-        style={[styles.input, styles.codeInput]}
-        placeholder="ABC123"
-        placeholderTextColor={COLORS.textMuted}
-        value={code}
-        onChangeText={(v) => setCode(v.toUpperCase())}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        maxLength={6}
-      />
-      <PressableButton
-        style={[styles.joinBtn, (!configured || busy) && styles.disabled]}
-        onPress={joinLobby}
-        disabled={!configured || !!busy}
-      >
-        {busy === 'join' ? (
-          <ActivityIndicator color={COLORS.text} />
-        ) : (
-          <Text style={styles.joinBtnText}>Lobby beitreten</Text>
-        )}
-      </PressableButton>
+      {/* Join card: secondary weight, own surface. */}
+      <View style={styles.joinCard}>
+        <Text style={styles.joinCardLabel}>PARTY BEITRETEN</Text>
+        <Text style={styles.joinCardHint}>Gib den Code vom Host ein:</Text>
+        <TextInput
+          style={[styles.input, styles.codeInput]}
+          placeholder="ABC123"
+          placeholderTextColor={COLORS.textMuted}
+          value={code}
+          onChangeText={(v) => setCode(v.toUpperCase())}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={6}
+        />
+        <PressableButton
+          style={[styles.joinBtn, (!configured || busy) && styles.disabled]}
+          onPress={joinLobby}
+          disabled={!configured || !!busy}
+        >
+          {busy === 'join' ? (
+            <ActivityIndicator color={COLORS.text} />
+          ) : (
+            <Text style={styles.joinBtnText}>Lobby beitreten</Text>
+          )}
+        </PressableButton>
+      </View>
 
       {error && (
         <View style={styles.errorBox}>
@@ -245,8 +316,31 @@ export default function OnlineHomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 24, gap: 12 },
-  title: { fontSize: 34, fontWeight: '900', color: COLORS.primary },
-  subtitle: { fontSize: 15, color: COLORS.textMuted, fontWeight: '600', marginBottom: 8 },
+
+  hero: { alignItems: 'center', marginTop: 4, marginBottom: 8, gap: 4 },
+  eqRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    marginBottom: 6,
+  },
+  eqBar: { width: 7, height: 30, borderRadius: 4 },
+  title: {
+    fontSize: 46,
+    fontWeight: '900',
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+    textShadowColor: COLORS.primary,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 18,
+  },
+  tagline: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.secondary,
+    letterSpacing: 3,
+  },
 
   warnBox: {
     backgroundColor: COLORS.backgroundAlt,
@@ -303,18 +397,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  codeInput: { letterSpacing: 6, fontSize: 24, textAlign: 'center', fontWeight: '900' },
+  codeInput: {
+    letterSpacing: 6,
+    fontSize: 24,
+    textAlign: 'center',
+    fontWeight: '900',
+    // Sits inside the joinCard (backgroundAlt), so it needs the darker bg.
+    backgroundColor: COLORS.background,
+  },
 
   createBtn: {
     marginTop: 16,
-    minHeight: 60,
+    minHeight: 76,
     backgroundColor: COLORS.primary,
-    borderRadius: 16,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    ...glow(COLORS.primary, { radius: 14, opacity: 0.7 }),
+    gap: 3,
+    paddingHorizontal: 16,
+    ...glow(COLORS.primary, { radius: 18, opacity: 0.85 }),
   },
-  createBtnText: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
+  createBtnText: { color: COLORS.text, fontSize: 21, fontWeight: '900', letterSpacing: 0.5 },
+  createBtnSub: { color: COLORS.text, fontSize: 12, fontWeight: '700', opacity: 0.85 },
   spotifyGateHint: {
     color: COLORS.textMuted,
     fontSize: 13,
@@ -327,9 +431,18 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 2, backgroundColor: COLORS.border, borderRadius: 2 },
   dividerText: { color: COLORS.textMuted, fontWeight: '800', fontSize: 13, letterSpacing: 2 },
 
+  joinCard: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    gap: 10,
+  },
+  joinCardLabel: { color: COLORS.secondary, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
+  joinCardHint: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600' },
   joinBtn: {
-    marginTop: 12,
-    minHeight: 56,
+    minHeight: 54,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: COLORS.secondary,

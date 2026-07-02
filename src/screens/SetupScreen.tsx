@@ -133,9 +133,11 @@ export default function SetupScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       keyboardShouldPersistTaps="handled"
     >
+      {/* The big "NickelBrandt" headline moved to the Party home screen (the
+          app's main mode); this mode keeps a compact title of its own. */}
       <View style={styles.header}>
-        <Text style={styles.title}>NickelBrandt</Text>
-        <Text style={styles.tagline}>● HOT-SEAT MUSIC PARTY ●</Text>
+        <Text style={styles.title}>Pass & Play</Text>
+        <Text style={styles.tagline}>● EIN GERÄT · REIHUM RATEN ●</Text>
       </View>
 
       <Text style={styles.label}>SPIELER ({names.length})</Text>
@@ -258,22 +260,22 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 20, paddingBottom: 48, gap: 12 },
 
-  header: { alignItems: 'center', marginTop: 16, marginBottom: 8 },
+  header: { alignItems: 'flex-start', marginTop: 8, marginBottom: 8 },
   title: {
-    fontSize: 46,
+    fontSize: 34,
     fontWeight: '900',
     color: COLORS.primary,
     letterSpacing: 0.5,
     textShadowColor: COLORS.primary,
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 18,
+    textShadowRadius: 12,
   },
   tagline: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: COLORS.secondary,
-    letterSpacing: 3,
+    letterSpacing: 2,
   },
 
   label: {
