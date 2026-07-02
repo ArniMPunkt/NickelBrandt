@@ -32,6 +32,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "android:bundle:release": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1",
+    "android:verify:aab": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1 -VerifyOnly",
+    "android:prebuild:clean": "npx expo prebuild --platform android --clean",
     "postinstall": "patch-package && node scripts/copy-spotify-xcframework.js"
   },
   "private": true
