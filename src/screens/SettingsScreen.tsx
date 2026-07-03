@@ -28,7 +28,7 @@ import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
-const APP_VERSION = 'v0.5.0';
+const APP_VERSION = 'v0.6.0';
 const SPOTIFY_GREEN = '#1DB954';
 
 export default function SettingsScreen() {

@@ -7,6 +7,7 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -19,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import * as Spotify from '../services/spotify';
 import * as Online from '../services/supabase';
+import * as PoolProgress from '../services/poolProgress';
 import type { PlaylistSummary } from '../services/spotify';
 import type { SongPool } from '../types/online';
 import type { DeckSource } from '../services/deck';
@@ -33,10 +35,17 @@ export function PlaylistPicker({
   visible,
   onClose,
   onSelect,
+  showPoolProgress = false,
 }: {
   visible: boolean;
   onClose: () => void;
   onSelect: (source: DeckSource) => void;
+  /**
+   * Show "X/Y verbleibend" + reset per pool (device-local play progress).
+   * Hot-Seat only - the Online deck build does not exclude played songs, so
+   * the counter would be misleading there.
+   */
+  showPoolProgress?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -52,6 +61,28 @@ export function PlaylistPicker({
   // The "Playlist prüfen" check can be opened for ANY row without selecting it.
   const [checkTarget, setCheckTarget] = useState<PlaylistSummary | null>(null);
   const [checkVisible, setCheckVisible] = useState(false);
+  // Per-pool progress (total songs + locally played), loaded lazily and only
+  // when showPoolProgress is on. Missing entry -> row simply omits the counter.
+  const [poolStats, setPoolStats] = useState<
+    Record<string, { total: number; played: number }>
+  >({});
+
+  const loadPoolStats = useCallback(async (poolList: SongPool[]) => {
+    try {
+      const entries = await Promise.all(
+        poolList.map(async (p) => {
+          const [total, playedSet] = await Promise.all([
+            Online.getPoolSongCount(p.id),
+            PoolProgress.getPlayedIds(p.id),
+          ]);
+          return [p.id, { total, played: playedSet.size }] as const;
+        })
+      );
+      setPoolStats(Object.fromEntries(entries));
+    } catch {
+      // non-fatal: rows just show without the counter
+    }
+  }, []);
 
   const load = useCallback(async (m: Mode) => {
     setError(null);
@@ -65,14 +96,20 @@ export function PlaylistPicker({
     }
     setLoading(true);
     try {
-      if (m === 'playlist') setPlaylists(await Spotify.getUserPlaylists());
-      else setPools(await Online.getSongPools());
+      if (m === 'playlist') {
+        setPlaylists(await Spotify.getUserPlaylists());
+      } else {
+        const poolList = await Online.getSongPools();
+        setPools(poolList);
+        if (showPoolProgress) loadPoolStats(poolList); // fire & forget
+      }
     } catch (e: any) {
       setError(e?.message ?? String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPoolProgress, loadPoolStats]);
 
   // 'Einstellungen' is a sibling tab; from this nested stack screen we hop up to
   // the tab navigator. Close the picker first so the tab is visible underneath.
@@ -130,23 +167,63 @@ export function PlaylistPicker({
     </PressableButton>
   );
 
-  const renderPool = ({ item }: { item: SongPool }) => (
-    <PressableButton style={styles.row} onPress={() => choosePool(item)}>
-      <View style={[styles.cover, styles.coverFallback]}>
-        <Text style={styles.coverGlyph}>🎵</Text>
-      </View>
-      <View style={styles.rowText}>
-        <Text style={styles.rowName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        {!!item.description && (
-          <Text style={styles.rowMeta} numberOfLines={2}>
-            {item.description}
+  // Reset the played-progress of exactly one pool (with confirmation).
+  const confirmPoolReset = (p: SongPool) => {
+    Alert.alert(
+      'Pool zurücksetzen?',
+      `Der gemerkte Fortschritt für „${p.name}" wird gelöscht — alle Songs gelten wieder als ungespielt.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Zurücksetzen',
+          style: 'destructive',
+          onPress: async () => {
+            await PoolProgress.resetPlayed(p.id);
+            setPoolStats((prev) =>
+              prev[p.id] ? { ...prev, [p.id]: { ...prev[p.id], played: 0 } } : prev
+            );
+          },
+        },
+      ]
+    );
+  };
+
+  const renderPool = ({ item }: { item: SongPool }) => {
+    const stats = showPoolProgress ? poolStats[item.id] : undefined;
+    const remaining = stats ? Math.max(0, stats.total - stats.played) : null;
+    return (
+      <PressableButton style={styles.row} onPress={() => choosePool(item)}>
+        <View style={[styles.cover, styles.coverFallback]}>
+          <Text style={styles.coverGlyph}>🎵</Text>
+        </View>
+        <View style={styles.rowText}>
+          <Text style={styles.rowName} numberOfLines={1}>
+            {item.name}
           </Text>
+          {!!item.description && (
+            <Text style={styles.rowMeta} numberOfLines={2}>
+              {item.description}
+            </Text>
+          )}
+          {stats && (
+            <Text style={styles.rowRemaining}>
+              {remaining}/{stats.total} verbleibend
+            </Text>
+          )}
+        </View>
+        {/* Separate tap target: resets ONLY this pool, without selecting it. */}
+        {stats && stats.played > 0 && (
+          <PressableButton
+            style={styles.checkBtn}
+            onPress={() => confirmPoolReset(item)}
+            hitSlop={8}
+          >
+            <Text style={styles.checkIcon}>↺</Text>
+          </PressableButton>
         )}
-      </View>
-    </PressableButton>
-  );
+      </PressableButton>
+    );
+  };
 
   const renderList = () => {
     if (needsSpotify) {
@@ -435,6 +512,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowName: { color: COLORS.text, fontSize: 17, fontWeight: '800' },
   rowMeta: { color: COLORS.textMuted, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  rowRemaining: { color: COLORS.secondary, fontSize: 12, fontWeight: '800', marginTop: 3 },
 
   checkBtn: {
     width: 44,

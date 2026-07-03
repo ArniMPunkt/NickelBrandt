@@ -24,6 +24,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
+import * as PoolProgress from '../services/poolProgress';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { PlayBackupButton } from '../components/PlayBackupButton';
@@ -205,6 +206,14 @@ export default function GameScreen() {
   useEffect(() => {
     if (!state.currentCard || isRevealed) return;
     const card = state.currentCard;
+    // Persist pool progress the moment the card is DRAWN (independent of
+    // playback success; aborted games keep their drawn cards excluded).
+    // settings.playlistId carries "pool:<id>" for pool decks (deck.ts sourceId).
+    if (state.settings.playlistId.startsWith('pool:')) {
+      PoolProgress.addPlayedIds(state.settings.playlistId.slice('pool:'.length), [
+        card.id,
+      ]).catch(() => {});
+    }
     setPlayError(null);
     Spotify.playUri(card.trackUri)
       .then(() => Spotify.markTrackPlayed(card.id))

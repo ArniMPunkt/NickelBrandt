@@ -8,6 +8,7 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -22,6 +23,7 @@ import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
 import { loadDeckSource, sourceId, type DeckSource } from '../services/deck';
+import * as PoolProgress from '../services/poolProgress';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
@@ -93,14 +95,44 @@ export default function SetupScreen() {
 
     setLoading(true);
     try {
-      const tracks = await loadDeckSource(source);
+      let tracks = await loadDeckSource(source);
       if (tracks.length < trimmed.length + 1) {
         setError(
           `${source.kind === 'pool' ? 'Pool' : 'Playlist'} hat nur ${tracks.length} verwendbare Tracks - zu wenige für ${trimmed.length} Spieler.`
         );
         return;
       }
+
+      // Pool progress: prefer songs never drawn on this device. If too few
+      // fresh songs remain for a playable game, auto-reset THIS pool (clear +
+      // notice) instead of silently mixing played songs back in - "der Pool ist
+      // einmal durch" is understandable; invisible repeats are not.
+      let poolWasReset = false;
+      if (source.kind === 'pool') {
+        const played = await PoolProgress.getPlayedIds(source.pool.id);
+        const fresh = tracks.filter((t) => !played.has(t.id));
+        if (fresh.length >= trimmed.length + 1) {
+          tracks = fresh;
+        } else if (played.size > 0) {
+          await PoolProgress.resetPlayed(source.pool.id);
+          poolWasReset = true;
+        }
+      }
+
       const deck = shuffle(tracks);
+      // The dealt start cards count as drawn immediately (aborted games too).
+      if (source.kind === 'pool') {
+        PoolProgress.addPlayedIds(
+          source.pool.id,
+          deck.slice(0, trimmed.length).map((c) => c.id)
+        ).catch(() => {});
+      }
+      if (poolWasReset) {
+        Alert.alert(
+          'Pool durchgespielt 🎉',
+          'Fast alle Songs dieses Pools waren schon dran — der Fortschritt wurde zurückgesetzt, alle Songs sind wieder im Rennen.'
+        );
+      }
       dispatch({
         type: 'START_GAME',
         payload: {
@@ -241,6 +273,7 @@ export default function SetupScreen() {
     <PlaylistPicker
       visible={pickerVisible}
       onClose={() => setPickerVisible(false)}
+      showPoolProgress
       onSelect={(s) => {
         setSource(s);
         setError(null);

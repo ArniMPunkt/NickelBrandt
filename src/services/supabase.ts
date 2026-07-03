@@ -387,6 +387,16 @@ export async function getSongPools(): Promise<SongPool[]> {
   return (data ?? []) as SongPool[];
 }
 
+/** Number of songs in a pool (head-only count query, no rows transferred). */
+export async function getPoolSongCount(poolId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('pool_songs')
+    .select('*', { count: 'exact', head: true })
+    .eq('pool_id', poolId);
+  if (error) throw new Error(`Pool-Größe konnte nicht geladen werden: ${error.message}`);
+  return count ?? 0;
+}
+
 /**
  * Load all songs of a pool as GameCards (to be shuffled like a playlist deck).
  * Uses the verified release_year directly (no runtime MusicBrainz). Cover art is
