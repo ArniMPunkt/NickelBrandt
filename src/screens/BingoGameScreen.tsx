@@ -30,6 +30,7 @@ import {
   BINGO_YEAR_MIN,
   type BingoAnswer,
 } from '../game/bingo';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
@@ -132,6 +133,7 @@ export default function BingoGameScreen() {
   // year_guess slider (local until submitted).
   const [yearGuess, setYearGuess] = useState(1990);
   const [endedHandled, setEndedHandled] = useState(false);
+  const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
 
   const myId = Online.getPlayerId();
 
@@ -294,49 +296,25 @@ export default function BingoGameScreen() {
 
   // Exit (same split as LobbyScreen): host ends the lobby for everyone,
   // a non-host only removes himself - the rest keeps playing.
-  const onExit = () => {
+  const onExit = () => setExitConfirmVisible(true);
+  const confirmExit = async () => {
+    setExitConfirmVisible(false);
     if (isHost) {
-      Alert.alert(
-        'Spiel wirklich verlassen?',
-        'Du bist der Host — die Lobby wird für alle Mitspieler beendet.',
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Beenden',
-            style: 'destructive',
-            onPress: async () => {
-              setEndedHandled(true); // suppress our own "host ended" alert
-              try {
-                await Online.endLobby(lobbyId);
-              } catch (e: any) {
-                setError(e?.message ?? String(e));
-              } finally {
-                navigation.navigate('OnlineHome');
-              }
-            },
-          },
-        ]
-      );
+      setEndedHandled(true); // suppress our own "host ended" alert
+      try {
+        await Online.endLobby(lobbyId);
+      } catch (e: any) {
+        setError(e?.message ?? String(e));
+      } finally {
+        navigation.navigate('OnlineHome');
+      }
     } else {
-      Alert.alert(
-        'Spiel wirklich verlassen?',
-        'Die anderen spielen ohne dich weiter.',
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Verlassen',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await Online.leaveLobby(lobbyId);
-              } catch {
-                // ignore - leaving anyway
-              }
-              navigation.navigate('OnlineHome');
-            },
-          },
-        ]
-      );
+      try {
+        await Online.leaveLobby(lobbyId);
+      } catch {
+        // ignore - leaving anyway
+      }
+      navigation.navigate('OnlineHome');
     }
   };
 
@@ -598,6 +576,20 @@ export default function BingoGameScreen() {
       </View>
 
       {error && <Text style={styles.error}>{error}</Text>}
+
+      <ConfirmDialog
+        visible={exitConfirmVisible}
+        title="Spiel wirklich verlassen?"
+        message={
+          isHost
+            ? 'Du bist der Host — die Lobby wird für alle Mitspieler beendet.'
+            : 'Die anderen spielen ohne dich weiter.'
+        }
+        confirmLabel={isHost ? 'Beenden' : 'Verlassen'}
+        isDestructive
+        onConfirm={confirmExit}
+        onCancel={() => setExitConfirmVisible(false)}
+      />
     </ScrollView>
   );
 }

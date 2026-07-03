@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
@@ -189,6 +190,7 @@ export default function OnlineGameScreen() {
   // Handle a host-ended lobby exactly once.
   const endedRef = useRef(false);
   const [codeVisible, setCodeVisible] = useState(false);
+  const [endConfirmVisible, setEndConfirmVisible] = useState(false);
   // Victory screen shows first when the game finishes (server-driven phase, so all
   // devices show it together); each player then taps through to the stats locally.
   const [showStats, setShowStats] = useState(false);
@@ -405,28 +407,17 @@ export default function OnlineGameScreen() {
     Online.drawNextCard(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
 
   // Host-only: end the running round for everyone (with a safety confirmation).
-  const onEndLobby = () => {
-    Alert.alert(
-      'Lobby beenden?',
-      'Alle Mitspieler werden sofort aus der laufenden Runde entfernt.',
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Beenden',
-          style: 'destructive',
-          onPress: async () => {
-            endedRef.current = true; // suppress our own "host ended" alert
-            try {
-              await Online.endLobby(lobbyId);
-            } catch (e: any) {
-              setError(e?.message ?? String(e));
-            } finally {
-              navigation.navigate('OnlineHome');
-            }
-          },
-        },
-      ]
-    );
+  const onEndLobby = () => setEndConfirmVisible(true);
+  const confirmEndLobby = async () => {
+    setEndConfirmVisible(false);
+    endedRef.current = true; // suppress our own "host ended" alert
+    try {
+      await Online.endLobby(lobbyId);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      navigation.navigate('OnlineHome');
+    }
   };
 
   const hasPassed = !!gs.passedHitster?.includes(myId);
@@ -770,6 +761,16 @@ export default function OnlineGameScreen() {
       ))}
 
       {error && <Text style={styles.error}>{error}</Text>}
+
+      <ConfirmDialog
+        visible={endConfirmVisible}
+        title="Lobby beenden?"
+        message="Alle Mitspieler werden sofort aus der laufenden Runde entfernt."
+        confirmLabel="Beenden"
+        isDestructive
+        onConfirm={confirmEndLobby}
+        onCancel={() => setEndConfirmVisible(false)}
+      />
     </ScrollView>
   );
 }

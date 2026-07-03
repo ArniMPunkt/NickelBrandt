@@ -20,6 +20,7 @@ import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
@@ -63,6 +64,7 @@ export default function LobbyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [endConfirmVisible, setEndConfirmVisible] = useState(false);
   // Local slider value for the timeline-quiz card count (written to the lobby
   // only on release, so dragging doesn't spam Supabase).
   const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
@@ -192,28 +194,17 @@ export default function LobbyScreen() {
   };
 
   // Host-only: end the whole lobby for everyone (with a safety confirmation).
-  const endLobby = () => {
-    Alert.alert(
-      'Lobby beenden?',
-      'Alle Mitspieler werden sofort aus der Lobby entfernt.',
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Beenden',
-          style: 'destructive',
-          onPress: async () => {
-            endedRef.current = true; // suppress our own "host ended" alert
-            try {
-              await Online.endLobby(lobbyId);
-            } catch (e: any) {
-              setError(e?.message ?? String(e));
-            } finally {
-              navigation.navigate('OnlineHome');
-            }
-          },
-        },
-      ]
-    );
+  const endLobby = () => setEndConfirmVisible(true);
+  const confirmEndLobby = async () => {
+    setEndConfirmVisible(false);
+    endedRef.current = true; // suppress our own "host ended" alert
+    try {
+      await Online.endLobby(lobbyId);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      navigation.navigate('OnlineHome');
+    }
   };
 
   const onStartPressed = () => {
@@ -404,6 +395,16 @@ export default function LobbyScreen() {
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
         onSelect={onSourceChosen}
+      />
+
+      <ConfirmDialog
+        visible={endConfirmVisible}
+        title="Lobby beenden?"
+        message="Alle Mitspieler werden sofort aus der Lobby entfernt."
+        confirmLabel="Beenden"
+        isDestructive
+        onConfirm={confirmEndLobby}
+        onCancel={() => setEndConfirmVisible(false)}
       />
     </ScrollView>
   );
