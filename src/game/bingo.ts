@@ -56,7 +56,38 @@ export type BingoAnswer =
   | { kind: 'decade'; decade: number }
   | { kind: 'before_after_2000'; after2000: boolean }
   | { kind: 'year_guess'; year: number }
-  | { kind: 'title_artist'; claim: boolean };
+  // Free text (what the player believes title + artist are); graded by the
+  // HOST in the review phase, not automatically.
+  | { kind: 'title_artist'; text: string };
+
+/**
+ * Total duration of the spin stage animation ("digitale Discokugel"): the
+ * wheel decelerates for most of it and holds on the landed color at the end.
+ * The answer deadline is set to spin start + this + BINGO_ROUND_SECONDS, so
+ * the full answer window only begins once the wheel has stopped.
+ */
+export const BINGO_SPIN_MS = 6200;
+
+/**
+ * If the designated spinner hasn't pressed within this window, the button
+ * opens for EVERYONE (an absent player must never stall the game - same
+ * philosophy as the review/pick timeouts).
+ */
+export const BINGO_SPIN_OPEN_ALL_MS = 20000;
+
+/**
+ * Host grading window for title_artist free texts. Long enough for a short
+ * group discussion of edge cases (typos, half-right answers), short enough
+ * that an absent host can't stall the game: after the deadline ANY client
+ * resolves, unjudged answers fall back to the honor rule (see supabase.ts).
+ */
+export const BINGO_REVIEW_SECONDS = 45;
+
+/** Defensive text extraction from a title_artist answer payload (jsonb). */
+export function titleAnswerText(answer: unknown): string {
+  const t = (answer as { text?: unknown } | null)?.text;
+  return typeof t === 'string' ? t : '';
+}
 
 /**
  * One individually randomized board: the four colors repeated to fill size²
@@ -166,7 +197,9 @@ export function evaluateBingoAnswer(
       );
     }
     case 'title_artist':
-      return (a as { claim?: unknown }).claim === true;
+      // Not auto-gradable anymore (host review decides); this fallback mirrors
+      // the honor rule and is only hit when a title round bypasses the review.
+      return titleAnswerText(a).trim().length > 0;
   }
 }
 

@@ -16,6 +16,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
@@ -28,9 +29,12 @@ import {
   BINGO_CATEGORY_LABEL,
   BINGO_YEAR_MAX,
   BINGO_YEAR_MIN,
+  BINGO_SPIN_MS,
+  BINGO_SPIN_OPEN_ALL_MS,
   countMarked,
   freeCellIndices,
   hasBingo,
+  titleAnswerText,
   type BingoAnswer,
 } from '../game/bingo';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -112,6 +116,98 @@ function BingoGrid({
   );
 }
 
+/**
+ * The 3x4 spin wheel ("digitale Discokugel"). Layout and landing tiles are
+ * FIXED constants, so every client shows the identical animation: the
+ * highlight races through the tiles, decelerates (ease-out on the shared
+ * spinStartedAt timestamp) and stops on the pre-drawn category's landing
+ * tile. Pure cosmetics - the category was drawn server-side at round start.
+ */
+const SPIN_LAYOUT: BingoCategoryType[] = [
+  'decade', 'before_after_2000', 'year_guess', 'title_artist',
+  'year_guess', 'title_artist', 'decade', 'before_after_2000',
+  'before_after_2000', 'decade', 'title_artist', 'year_guess',
+];
+const SPIN_LANDING: Record<BingoCategoryType, number> = {
+  decade: 6,
+  before_after_2000: 7,
+  title_artist: 10,
+  year_guess: 11,
+};
+/** The wheel keeps glowing on the result this long before onDone fires. */
+const SPIN_HOLD_MS = 700;
+
+function SpinWheel({
+  startedAt,
+  category,
+  onDone,
+}: {
+  /** Shared trigger timestamp; null renders the wheel idle (pre-spin). */
+  startedAt: number | null;
+  category?: BingoCategoryType;
+  onDone?: () => void;
+}) {
+  const [highlight, setHighlight] = useState<number | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    if (startedAt == null || !category) {
+      setHighlight(null);
+      return;
+    }
+    const landing = SPIN_LANDING[category];
+    const totalSteps = 2 * SPIN_LAYOUT.length + landing; // two full laps + stop
+    const animMs = BINGO_SPIN_MS - SPIN_HOLD_MS;
+    let doneFired = false;
+    const iv = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= BINGO_SPIN_MS) {
+        setHighlight(landing);
+        if (!doneFired) {
+          doneFired = true;
+          clearInterval(iv);
+          onDoneRef.current?.();
+        }
+        return;
+      }
+      if (elapsed >= animMs) {
+        setHighlight(landing); // hold on the result
+        return;
+      }
+      const p = elapsed / animMs;
+      const steps = Math.floor(totalSteps * (1 - Math.pow(1 - p, 2.2)));
+      setHighlight(steps % SPIN_LAYOUT.length);
+    }, 50);
+    return () => clearInterval(iv);
+  }, [startedAt, category]);
+
+  const rows = [0, 1, 2].map((r) => SPIN_LAYOUT.slice(r * 4, r * 4 + 4));
+  return (
+    <View style={styles.spinGrid}>
+      {rows.map((tiles, r) => (
+        <View key={`spinrow-${r}`} style={styles.gridRow}>
+          {tiles.map((t, c) => {
+            const idx = r * 4 + c;
+            const color = CATEGORY_COLOR[t];
+            const lit = highlight === idx;
+            return (
+              <View
+                key={`spintile-${r}-${c}`}
+                style={[
+                  styles.spinTile,
+                  { borderColor: color },
+                  lit && { backgroundColor: color, ...glow(color, { radius: 12, opacity: 0.95 }) },
+                ]}
+              />
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** Local per-second countdown from the synced round deadline (cosmetic). */
 function RoundCountdown({ deadlineMs }: { deadlineMs: number }) {
   const [remaining, setRemaining] = useState(() =>
@@ -153,8 +249,12 @@ export default function BingoGameScreen() {
   }>({ round: null, list: [] });
   const [error, setError] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
-  // year_guess slider (local until submitted).
+  // year_guess slider / title_artist free text (local until submitted).
   const [yearGuess, setYearGuess] = useState(1990);
+  const [titleText, setTitleText] = useState('');
+  // Host's local verdict map during the title_artist review (source of truth
+  // on the host device; pushed as a full map on every tap).
+  const [hostVerdicts, setHostVerdicts] = useState<Record<string, boolean>>({});
   const [endedHandled, setEndedHandled] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   // Win-line interstitial shown once before the victory celebration.
@@ -381,10 +481,83 @@ export default function BingoGameScreen() {
     return () => clearTimeout(t);
   }, [roundPhase, gs?.resolveClaimedAt, gs?.roundDeadline, gs?.roundNumber, lobbyId]);
 
-  // Reset the year slider for each new round.
+  // ---- Spin stage (before the answer window) ----
+  const [spinFinished, setSpinFinished] = useState(false);
+  const [spinOpenForAll, setSpinOpenForAll] = useState(false);
+
+  // Reset the per-round inputs for each new round.
   useEffect(() => {
     setYearGuess(1990);
+    setTitleText('');
+    setHostVerdicts({});
+    setSpinFinished(false);
   }, [gs?.roundNumber]);
+  const spinnerId = gs?.spinnerId ?? null;
+  const spinnerName =
+    players.find((p) => p.player_id === spinnerId)?.player_name ?? '—';
+  // After the grace window the button opens for everyone (absent spinner must
+  // never stall the game); mirrors the server-side guard in triggerBingoSpin.
+  useEffect(() => {
+    if (roundPhase !== 'spinning' || gs?.spinArmedAt == null) {
+      setSpinOpenForAll(false);
+      return;
+    }
+    const remaining = gs.spinArmedAt + BINGO_SPIN_OPEN_ALL_MS - Date.now();
+    if (remaining <= 0) {
+      setSpinOpenForAll(true);
+      return;
+    }
+    setSpinOpenForAll(false);
+    const t = setTimeout(() => setSpinOpenForAll(true), remaining);
+    return () => clearTimeout(t);
+  }, [roundPhase, gs?.spinArmedAt, gs?.roundNumber]);
+  const canSpin =
+    roundPhase === 'spinning' && (spinnerId === myId || spinOpenForAll);
+  // While true, the wheel animation replaces the answer UI (all clients replay
+  // it from the same shared timestamp; late joiners past the end skip it).
+  const spinRunning =
+    roundPhase === 'collecting' &&
+    gs?.spinStartedAt != null &&
+    !spinFinished &&
+    Date.now() - gs.spinStartedAt < BINGO_SPIN_MS;
+  const onSpin = () =>
+    Online.triggerBingoSpin(lobbyId)
+      .then(() => refresh())
+      .catch((e: any) => setError(e?.message ?? String(e)));
+
+  // Entering the review: seed the host's local verdicts from the synced state
+  // (relevant when the host re-opens the app mid-review).
+  useEffect(() => {
+    if (roundPhase === 'reviewing') setHostVerdicts(gs?.reviewVerdicts ?? {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundPhase === 'reviewing', gs?.roundNumber]);
+
+  // Review deadline resolve - armed on ALL clients (an absent host must never
+  // strand the round; unjudged answers fall back to the honor rule).
+  useEffect(() => {
+    if (roundPhase !== 'reviewing' || gs?.reviewDeadline == null) return;
+    const wait = Math.max(0, gs.reviewDeadline + RESOLVE_GRACE_MS - Date.now());
+    const t = setTimeout(() => {
+      Online.resolveBingoRound(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+    }, wait);
+    return () => clearTimeout(t);
+  }, [roundPhase, gs?.reviewDeadline, gs?.roundNumber, lobbyId]);
+
+  // Host taps ✓/✕: update local map, push the full map, and resolve as soon
+  // as every submitted answer has a verdict (await order avoids racing the
+  // resolve against the last verdict write).
+  const onVerdict = (playerId: string, correct: boolean) => {
+    const next = { ...hostVerdicts, [playerId]: correct };
+    setHostVerdicts(next);
+    Online.setBingoVerdicts(lobbyId, next)
+      .then(() => {
+        const done =
+          answers.length > 0 &&
+          answers.every((a) => typeof next[a.player_id] === 'boolean');
+        return done ? Online.resolveBingoRound(lobbyId) : undefined;
+      })
+      .catch((e: any) => setError(e?.message ?? String(e)));
+  };
 
   const submit = (answer: BingoAnswer) => {
     setError(null);
@@ -509,6 +682,8 @@ export default function BingoGameScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      // The title_artist text input: submitting must work with the keyboard open.
+      keyboardShouldPersistTaps="handled"
     >
       {/* Header */}
       <View style={styles.headerRow}>
@@ -527,8 +702,44 @@ export default function BingoGameScreen() {
         </PressableButton>
       </View>
 
+      {/* ---- spinning: idle wheel + round-robin trigger button ---- */}
+      {roundPhase === 'spinning' && (
+        <View style={styles.spinBox}>
+          <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
+          <SpinWheel startedAt={null} />
+          {canSpin ? (
+            <PressableButton style={[styles.spinBtn, styles.spinBtnActive]} onPress={onSpin}>
+              <Text style={styles.spinBtnText}>🪩 DREHEN!</Text>
+            </PressableButton>
+          ) : (
+            <View style={[styles.spinBtn, styles.spinBtnLocked]}>
+              <Text style={styles.spinBtnTextLocked}>🪩 DREHEN!</Text>
+            </View>
+          )}
+          <Text style={styles.spinHint}>
+            {canSpin
+              ? spinnerId === myId
+                ? 'Du bist dran — dreh die Kugel!'
+                : `${spinnerName} reagiert nicht — jeder darf jetzt drehen!`
+              : `${spinnerName} ist mit Drehen dran…`}
+          </Text>
+        </View>
+      )}
+
+      {/* ---- collecting, wheel still turning: everyone watches the draw ---- */}
+      {roundPhase === 'collecting' && round && spinRunning && (
+        <View style={styles.spinBox}>
+          <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
+          <SpinWheel
+            startedAt={gs.spinStartedAt ?? null}
+            category={round.type}
+            onDone={() => setSpinFinished(true)}
+          />
+        </View>
+      )}
+
       {/* ---- collecting: mystery song + category + input ---- */}
-      {roundPhase === 'collecting' && round && (
+      {roundPhase === 'collecting' && round && !spinRunning && (
         <>
           <View style={styles.mysteryBox}>
             <Text style={styles.mysteryGlyph}>💿</Text>
@@ -602,22 +813,24 @@ export default function BingoGameScreen() {
                 {round.type === 'title_artist' && (
                   <>
                     <Text style={styles.hint}>
-                      Kennst du Titel UND Interpret? Ehrlich bleiben — wie beim Nickel!
+                      Schreib auf, was du hörst — Titel + Interpret. Danach bewertet
+                      der Host alle Antworten.
                     </Text>
-                    <View style={styles.choiceWrap}>
-                      <PressableButton
-                        style={[styles.choiceBtn, styles.choiceYes]}
-                        onPress={() => submit({ kind: 'title_artist', claim: true })}
-                      >
-                        <Text style={styles.choiceYesText}>Ja, weiß ich! 🪙</Text>
-                      </PressableButton>
-                      <PressableButton
-                        style={styles.choiceBtn}
-                        onPress={() => submit({ kind: 'title_artist', claim: false })}
-                      >
-                        <Text style={styles.choiceText}>Nein</Text>
-                      </PressableButton>
-                    </View>
+                    <TextInput
+                      style={styles.titleInput}
+                      placeholder="Titel + Interpret"
+                      placeholderTextColor={COLORS.textMuted}
+                      value={titleText}
+                      onChangeText={setTitleText}
+                      autoCorrect={false}
+                    />
+                    <PressableButton
+                      style={[styles.submitBtn, !titleText.trim() && styles.submitBtnDisabled]}
+                      disabled={!titleText.trim()}
+                      onPress={() => submit({ kind: 'title_artist', text: titleText.trim() })}
+                    >
+                      <Text style={styles.submitBtnText}>Antwort einloggen</Text>
+                    </PressableButton>
                   </>
                 )}
               </>
@@ -627,6 +840,88 @@ export default function BingoGameScreen() {
           <Text style={styles.answeredCount}>
             {answers.length}/{players.length} haben geantwortet
           </Text>
+        </>
+      )}
+
+      {/* ---- reviewing: everyone sees all texts, ONLY the host grades ---- */}
+      {roundPhase === 'reviewing' && round && (
+        <>
+          <View style={[styles.categoryBox, { borderColor: categoryColor }]}>
+            <Text style={styles.categoryLabel}>HOST-BEWERTUNG</Text>
+            <Text style={[styles.categoryName, { color: categoryColor }]}>
+              {BINGO_CATEGORY_LABEL[round.type]}
+            </Text>
+            <Text style={styles.hint}>
+              {isHost
+                ? 'Besprecht knappe Fälle kurz — du entscheidest pro Spieler.'
+                : 'Alle Antworten liegen auf dem Tisch — der Host entscheidet.'}
+            </Text>
+            {/* Only the host gets the truth here; everyone else sees it at the reveal. */}
+            {isHost && card && (
+              <Text style={styles.reviewTruth}>
+                Richtig wäre: {card.title} — {card.artist}
+              </Text>
+            )}
+            {gs.reviewDeadline != null && <RoundCountdown deadlineMs={gs.reviewDeadline} />}
+          </View>
+
+          {players.map((p) => {
+            const ans = answers.find((a) => a.player_id === p.player_id);
+            const text = ans ? titleAnswerText(ans.answer) : null;
+            const verdicts = isHost ? hostVerdicts : (gs.reviewVerdicts ?? {});
+            const verdict = verdicts[p.player_id];
+            return (
+              <View key={p.id} style={styles.reviewRow}>
+                <View style={styles.reviewTextWrap}>
+                  <Text style={styles.scoreName} numberOfLines={1}>
+                    {p.player_name}
+                    {p.player_id === myId ? ' (du)' : ''}
+                  </Text>
+                  <Text
+                    style={text != null ? styles.reviewAnswer : styles.reviewNoAnswer}
+                    numberOfLines={2}
+                  >
+                    {text ?? '— keine Antwort'}
+                  </Text>
+                </View>
+                {text != null &&
+                  (isHost ? (
+                    <View style={styles.verdictBtns}>
+                      <PressableButton
+                        style={[styles.verdictBtn, verdict === true && styles.verdictYesOn]}
+                        onPress={() => onVerdict(p.player_id, true)}
+                        hitSlop={4}
+                      >
+                        <Text style={styles.verdictBtnText}>✓</Text>
+                      </PressableButton>
+                      <PressableButton
+                        style={[styles.verdictBtn, verdict === false && styles.verdictNoOn]}
+                        onPress={() => onVerdict(p.player_id, false)}
+                        hitSlop={4}
+                      >
+                        <Text style={styles.verdictBtnText}>✕</Text>
+                      </PressableButton>
+                    </View>
+                  ) : (
+                    <Text
+                      style={[
+                        styles.verdictChip,
+                        {
+                          color:
+                            verdict === true
+                              ? COLORS.correct
+                              : verdict === false
+                                ? COLORS.incorrect
+                                : COLORS.textMuted,
+                        },
+                      ]}
+                    >
+                      {verdict === true ? '✓' : verdict === false ? '✕' : '…'}
+                    </Text>
+                  ))}
+              </View>
+            );
+          })}
         </>
       )}
 
@@ -816,6 +1111,50 @@ const styles = StyleSheet.create({
   countdown: { color: COLORS.secondary, fontSize: 22, fontWeight: '900' },
   countdownUrgent: { color: COLORS.incorrect },
 
+  spinBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    padding: 16,
+    alignItems: 'center',
+    gap: 12,
+    ...glow(COLORS.primary, { radius: 16, opacity: 0.6 }),
+  },
+  spinGrid: { gap: 6, alignSelf: 'center' },
+  spinTile: {
+    width: 62,
+    height: 46,
+    borderRadius: 10,
+    borderWidth: 3,
+    backgroundColor: COLORS.background,
+  },
+  spinBtn: {
+    alignSelf: 'stretch',
+    minHeight: 64,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinBtnActive: {
+    backgroundColor: COLORS.primary,
+    ...glow(COLORS.primary, { radius: 18, opacity: 0.9 }),
+  },
+  spinBtnLocked: {
+    backgroundColor: COLORS.background,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    opacity: 0.6,
+  },
+  spinBtnText: { color: COLORS.text, fontSize: 21, fontWeight: '900', letterSpacing: 1.5 },
+  spinBtnTextLocked: {
+    color: COLORS.textMuted,
+    fontSize: 21,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  spinHint: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+
   categoryBox: {
     backgroundColor: COLORS.backgroundAlt,
     borderRadius: 20,
@@ -844,8 +1183,18 @@ const styles = StyleSheet.create({
   // Decade MC can show up to 8 pool decades -> narrower buttons, 4 per row.
   choiceBtnDecade: { flexBasis: '21%', minHeight: 48 },
   choiceTextDecade: { fontSize: 14 },
-  choiceYes: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  choiceYesText: { color: COLORS.background, fontSize: 16, fontWeight: '900', textAlign: 'center' },
+
+  titleInput: {
+    minHeight: 52,
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.border,
+    borderWidth: 2,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
 
   yearHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   yearValue: { color: COLORS.accent, fontSize: 26, fontWeight: '900' },
@@ -857,6 +1206,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   submitBtnText: { color: COLORS.background, fontSize: 16, fontWeight: '900' },
+  submitBtnDisabled: { opacity: 0.5 },
+
+  reviewTruth: {
+    color: COLORS.accent,
+    fontSize: 13,
+    fontWeight: '800',
+    fontStyle: 'italic',
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  reviewTextWrap: { flex: 1, gap: 2 },
+  reviewAnswer: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
+  reviewNoAnswer: { color: COLORS.textMuted, fontSize: 14, fontStyle: 'italic' },
+  verdictBtns: { flexDirection: 'row', gap: 8 },
+  verdictBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.background,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verdictYesOn: { backgroundColor: COLORS.correct, borderColor: COLORS.correct },
+  verdictNoOn: { backgroundColor: COLORS.incorrect, borderColor: COLORS.incorrect },
+  verdictBtnText: { color: COLORS.text, fontSize: 18, fontWeight: '900' },
+  verdictChip: { fontSize: 22, fontWeight: '900' },
 
   answeredCount: {
     color: COLORS.secondary,

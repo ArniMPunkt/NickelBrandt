@@ -19,7 +19,10 @@ import { isCorrectPlacement } from '../context/GameContext';
 import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
 import {
   BINGO_PICK_SECONDS,
+  BINGO_REVIEW_SECONDS,
   BINGO_ROUND_SECONDS,
+  BINGO_SPIN_MS,
+  BINGO_SPIN_OPEN_ALL_MS,
   countMarked,
   decadeRange,
   drawBingoRound,
@@ -28,6 +31,7 @@ import {
   generateBingoBoard,
   hasBingo,
   markCell,
+  titleAnswerText,
 } from '../game/bingo';
 import {
   QUIZ_ROUND_SECONDS,
@@ -1071,7 +1075,15 @@ export async function resolveSimulRound(
     gs: OnlineGameState
   ) =>
     | { results: Record<string, RoundOutcome>; patch?: Partial<OnlineGameState> }
-    | Promise<{ results: Record<string, RoundOutcome>; patch?: Partial<OnlineGameState> }>
+    | Promise<{ results: Record<string, RoundOutcome>; patch?: Partial<OnlineGameState> }>,
+  opts?: {
+    /**
+     * Also claim rounds sitting in 'reviewing' (bingo title_artist host
+     * review). The CALLER gates when a reviewing round may resolve (verdicts
+     * complete / review deadline); the claim here only provides atomicity.
+     */
+    fromReviewing?: boolean;
+  }
 ): Promise<boolean> {
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs || gs.roundNumber == null) return false;
@@ -1104,6 +1116,10 @@ export async function resolveSimulRound(
       if (players.length === 0 || answers.length < players.length) return false;
     }
     claim = claim.filter('game_state->>roundPhase', 'eq', 'collecting');
+  } else if (gs.roundPhase === 'reviewing' && opts?.fromReviewing) {
+    // Host-review rounds: the caller already gated (verdicts complete or
+    // review deadline passed); the filter keeps the claim atomic.
+    claim = claim.filter('game_state->>roundPhase', 'eq', 'reviewing');
   } else if (gs.roundPhase === 'resolving') {
     // Stale re-claim: only when the previous claim visibly died. Guarded on
     // the previous token (or its absence, for rounds stuck before this fix),
@@ -1153,16 +1169,23 @@ export async function resolveSimulRound(
       .select();
     return !!final && final.length > 0;
   } catch (e) {
-    // Controlled rollback instead of a silent hang: reopen the round with a
-    // short fresh deadline (clients re-arm + retry), then surface the error.
-    // Guarded on our token so a rescuer's progress can't be clobbered.
+    // Controlled rollback instead of a silent hang: reopen the round in the
+    // phase it was claimed from, with a short fresh deadline (clients re-arm
+    // + retry), then surface the error. Guarded on our token so a rescuer's
+    // progress can't be clobbered.
+    const backToReview = gs.roundPhase === 'reviewing';
     await supabase
       .from('lobbies')
       .update({
         game_state: {
           ...gs,
-          roundPhase: 'collecting',
-          roundDeadline: Date.now() + RESOLVE_RETRY_WINDOW_MS,
+          roundPhase: backToReview ? 'reviewing' : 'collecting',
+          roundDeadline: backToReview
+            ? (gs.roundDeadline ?? null)
+            : Date.now() + RESOLVE_RETRY_WINDOW_MS,
+          reviewDeadline: backToReview
+            ? Date.now() + RESOLVE_RETRY_WINDOW_MS
+            : (gs.reviewDeadline ?? null),
           resolveClaimId: null,
           resolveClaimedAt: null,
         } as OnlineGameState,
@@ -1233,63 +1256,222 @@ export async function startBingoGame(
     // the shrinking deck can't narrow the choices over the game).
     bingoDecades: decadeRange(cards),
     bingoRound: drawBingoRound(first, decadeRange(cards)),
+    // Round 1 opens in the SPIN stage: the first player (join order) presses
+    // the wheel button; the answer deadline is only set on the press.
+    roundNumber: 1,
+    roundDeadline: null,
+    roundPhase: 'spinning',
+    roundResults: null,
+    spinnerId: players[0].player_id,
+    spinArmedAt: Date.now(),
+    spinStartedAt: null,
   };
+  // Leftover answers of a previous game in this lobby would collide with the
+  // (lobby, round, player) unique key (startSimulRound did this before).
+  await supabase.from('round_answers').delete().eq('lobby_id', lobbyId);
   const { error } = await supabase
     .from('lobbies')
     .update({ game_state: base, status: 'playing' })
     .eq('id', lobbyId);
   if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
-
-  // Opens round 1 on the foundation (also clears stale round_answers).
-  await startSimulRound(lobbyId, BINGO_ROUND_SECONDS);
 }
 
 /**
- * Resolve the current bingo round. Safe to call from ANY client and multiple
- * times (deadline timers run everywhere + the "all answered" trigger); the
- * foundation's atomic claim dedupes. The resolution no longer marks cells
- * itself: it opens the PICK WINDOW (pickDeadline) in the same write and
- * records expectedMarks - each correct player then chooses their own cell via
- * pickBingoCell (own row = single writer). Win detection happens in
- * nextBingoRound AFTER the pick window, so simultaneous multi-wins within the
- * same window still share the victory (Doppelsieg contract).
+ * The round's designated spinner (or, after BINGO_SPIN_OPEN_ALL_MS, anyone)
+ * presses the wheel button: spinning -> collecting in one atomic write.
+ * spinStartedAt is the shared animation timestamp for all clients, and the
+ * answer deadline covers spin animation + the normal answer window - so the
+ * generic deadline/all-answered triggers keep working unchanged (the answer
+ * UI simply stays hidden until the wheel stopped).
+ */
+export async function triggerBingoSpin(lobbyId: string): Promise<void> {
+  const myId = getPlayerId();
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    gs.gameMode !== 'bingo' ||
+    gs.roundPhase !== 'spinning' ||
+    gs.roundNumber == null
+  ) {
+    return;
+  }
+  const openForAll =
+    gs.spinArmedAt == null || Date.now() >= gs.spinArmedAt + BINGO_SPIN_OPEN_ALL_MS;
+  if (gs.spinnerId !== myId && !openForAll) return;
+
+  const now = Date.now();
+  await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        roundPhase: 'collecting',
+        spinStartedAt: now,
+        roundDeadline: now + BINGO_SPIN_MS + BINGO_ROUND_SECONDS * 1000,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'spinning')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+}
+
+/**
+ * Advance the current bingo round. Safe to call from ANY client and multiple
+ * times (deadline timers run everywhere + the "all answered" trigger); every
+ * state transition below is an atomic conditional update, so parallel callers
+ * dedupe.
+ *
+ * Routing:
+ *   - title_artist round in 'collecting' with answers: open the HOST REVIEW
+ *     (collecting -> reviewing) instead of resolving - free texts cannot be
+ *     auto-graded. Zero answers skip the review (nothing to judge).
+ *   - round in 'reviewing': resolve only when the host judged every answer OR
+ *     the review deadline passed (any client may then fire; unjudged answers
+ *     fall back to the honor rule: non-empty text = correct).
+ *   - everything else: normal resolution.
+ *
+ * The resolution itself no longer marks cells: it opens the PICK WINDOW
+ * (pickDeadline) in the same write and records expectedMarks - each correct
+ * player then chooses their own cell via pickBingoCell. Win detection happens
+ * in nextBingoRound AFTER the pick window (Doppelsieg contract).
  */
 export async function resolveBingoRound(lobbyId: string): Promise<void> {
-  await resolveSimulRound(lobbyId, async (answers, gs) => {
-    const card = gs.currentCard;
-    const round = gs.bingoRound;
-    const results: Record<string, RoundOutcome> = {};
-    if (card && round) {
-      for (const a of answers) {
-        results[a.player_id] = evaluateBingoAnswer(round, card, a.answer)
-          ? 'correct'
-          : 'incorrect';
+  const { game_state: pre } = await getLobby(lobbyId);
+  if (!pre || pre.gameMode !== 'bingo' || pre.roundNumber == null) return;
+  const isTitleRound = pre.bingoRound?.type === 'title_artist';
+
+  if (pre.roundPhase === 'collecting' && isTitleRound) {
+    const answers = await getRoundAnswers(lobbyId, pre.roundNumber);
+    if (answers.length > 0) {
+      await openBingoReview(lobbyId, pre, answers.length);
+      return;
+    }
+    // else: nobody answered - nothing to review, fall through to resolve.
+  }
+
+  if (pre.roundPhase === 'reviewing') {
+    if (!isTitleRound) return; // defensive: reviewing only exists for title rounds
+    const answers = await getRoundAnswers(lobbyId, pre.roundNumber);
+    const verdicts = pre.reviewVerdicts ?? {};
+    const allJudged = answers.every((a) => typeof verdicts[a.player_id] === 'boolean');
+    const deadlinePassed =
+      pre.reviewDeadline == null || Date.now() >= pre.reviewDeadline;
+    if (!allJudged && !deadlinePassed) return;
+  }
+
+  await resolveSimulRound(
+    lobbyId,
+    async (answers, gs) => {
+      const card = gs.currentCard;
+      const round = gs.bingoRound;
+      const results: Record<string, RoundOutcome> = {};
+      if (card && round) {
+        for (const a of answers) {
+          if (round.type === 'title_artist') {
+            // Host verdict wins; unjudged (host gone / timeout) falls back to
+            // the category's old honor semantics: non-empty text = claim.
+            const v = gs.reviewVerdicts?.[a.player_id];
+            results[a.player_id] =
+              typeof v === 'boolean'
+                ? v
+                  ? 'correct'
+                  : 'incorrect'
+                : titleAnswerText(a.answer).trim().length > 0
+                  ? 'correct'
+                  : 'incorrect';
+          } else {
+            results[a.player_id] = evaluateBingoAnswer(round, card, a.answer)
+              ? 'correct'
+              : 'incorrect';
+          }
+        }
       }
-    }
 
-    // Pick targets: base mark count per player, +1 only for correct players
-    // that still HAVE a free cell of the round color. Everyone can then tell
-    // "has picked" by comparing countMarked(board) against this - no extra
-    // column, no concurrent game_state writers.
+      // Pick targets: base mark count per player, +1 only for correct players
+      // that still HAVE a free cell of the round color. Everyone can then tell
+      // "has picked" by comparing countMarked(board) against this - no extra
+      // column, no concurrent game_state writers.
+      const players = await getLobbyPlayers(lobbyId);
+      const expectedMarks: Record<string, number> = {};
+      for (const p of players) {
+        const board = p.bingo_board ?? [];
+        const earnsPick =
+          round != null &&
+          results[p.player_id] === 'correct' &&
+          freeCellIndices(board, round.type).length > 0;
+        expectedMarks[p.player_id] = countMarked(board) + (earnsPick ? 1 : 0);
+      }
+
+      return {
+        results,
+        patch: {
+          pickDeadline: Date.now() + BINGO_PICK_SECONDS * 1000,
+          expectedMarks,
+          reviewDeadline: null,
+          reviewVerdicts: null,
+        },
+      };
+    },
+    { fromReviewing: true }
+  );
+}
+
+/**
+ * Open the host-review phase for a title_artist round: collecting ->
+ * reviewing (atomic; parallel deadline/all-answered triggers dedupe on the
+ * filter). Applies the same premature-trigger defense as normal resolution.
+ */
+async function openBingoReview(
+  lobbyId: string,
+  gs: OnlineGameState,
+  answerCount: number
+): Promise<void> {
+  const deadlinePassed = gs.roundDeadline == null || Date.now() >= gs.roundDeadline;
+  if (!deadlinePassed) {
     const players = await getLobbyPlayers(lobbyId);
-    const expectedMarks: Record<string, number> = {};
-    for (const p of players) {
-      const board = p.bingo_board ?? [];
-      const earnsPick =
-        round != null &&
-        results[p.player_id] === 'correct' &&
-        freeCellIndices(board, round.type).length > 0;
-      expectedMarks[p.player_id] = countMarked(board) + (earnsPick ? 1 : 0);
-    }
+    if (players.length === 0 || answerCount < players.length) return;
+  }
+  await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        roundPhase: 'reviewing',
+        reviewDeadline: Date.now() + BINGO_REVIEW_SECONDS * 1000,
+        reviewVerdicts: {},
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'collecting')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+}
 
-    return {
-      results,
-      patch: {
-        pickDeadline: Date.now() + BINGO_PICK_SECONDS * 1000,
-        expectedMarks,
-      },
-    };
-  });
+/**
+ * Host writes the current verdict map (player_id -> correct?). Full-map
+ * writes from the host's local state - single writer, so no read-modify-write
+ * races; guarded on phase + roundNumber so a late write can't touch a round
+ * that already resolved.
+ */
+export async function setBingoVerdicts(
+  lobbyId: string,
+  verdicts: Record<string, boolean>
+): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    gs.gameMode !== 'bingo' ||
+    gs.roundPhase !== 'reviewing' ||
+    gs.roundNumber == null
+  ) {
+    return;
+  }
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ game_state: { ...gs, reviewVerdicts: verdicts } as OnlineGameState })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'reviewing')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+  if (error) throw new Error(`Bewertung konnte nicht gespeichert werden: ${error.message}`);
 }
 
 /**
@@ -1377,6 +1559,8 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
           winnerIds,
           pickDeadline: null,
           expectedMarks: null,
+          reviewDeadline: null,
+          reviewVerdicts: null,
         } as OnlineGameState,
       })
       .eq('id', lobbyId)
@@ -1395,12 +1579,17 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
       phase: 'finished',
       pickDeadline: null,
       expectedMarks: null,
+      reviewDeadline: null,
+      reviewVerdicts: null,
     });
     await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
     return;
   }
 
   const [next, ...rest] = gs.deck;
+  // Round-robin spinner over the live roster (join order): new round number is
+  // gs.roundNumber + 1, so the 0-based index is gs.roundNumber % players.
+  const spinner = players[gs.roundNumber % Math.max(1, players.length)];
   await supabase
     .from('lobbies')
     .update({
@@ -1410,11 +1599,16 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         currentCard: next,
         bingoRound: drawBingoRound(next, gs.bingoDecades ?? undefined),
         roundNumber: gs.roundNumber + 1,
-        roundDeadline: Date.now() + BINGO_ROUND_SECONDS * 1000,
-        roundPhase: 'collecting',
+        roundDeadline: null,
+        roundPhase: 'spinning',
         roundResults: null,
         pickDeadline: null,
         expectedMarks: null,
+        reviewDeadline: null,
+        reviewVerdicts: null,
+        spinnerId: spinner?.player_id ?? null,
+        spinArmedAt: Date.now(),
+        spinStartedAt: null,
       } as OnlineGameState,
     })
     .eq('id', lobbyId)

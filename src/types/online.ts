@@ -24,11 +24,20 @@ export type RoundOutcome = 'correct' | 'incorrect' | 'missed';
 
 /**
  * Lifecycle of a simultaneous round:
+ *   spinning   -> (bingo only) waiting for the round's designated player to
+ *                 press the spin button; no answers accepted, no deadline yet
  *   collecting -> answers may be submitted (until deadline / all answered)
+ *   reviewing  -> (bingo title_artist only) answers frozen; everyone sees all
+ *                 free-text answers, the HOST grades each with ✓/✕
  *   resolving  -> transient: a resolver claimed the round (submits now refused)
  *   resolved   -> roundResults written; all clients show the outcome
  */
-export type SimulRoundPhase = 'collecting' | 'resolving' | 'resolved';
+export type SimulRoundPhase =
+  | 'spinning'
+  | 'collecting'
+  | 'reviewing'
+  | 'resolving'
+  | 'resolved';
 
 /** One player's submitted answer of a simultaneous round (round_answers row). */
 export interface RoundAnswer {
@@ -188,6 +197,27 @@ export interface OnlineGameState {
    */
   pickDeadline?: number | null;
   expectedMarks?: Record<string, number> | null;
+  /**
+   * Bingo title_artist review window: while roundPhase is 'reviewing', the
+   * host grades every submitted free text (player_id -> correct?). Written
+   * only by the host (full-map writes); after reviewDeadline ANY client may
+   * resolve, unjudged answers then fall back to the category's old honor
+   * rule (non-empty text counts as a claim -> correct).
+   */
+  reviewDeadline?: number | null;
+  reviewVerdicts?: Record<string, boolean> | null;
+  /**
+   * Bingo spin stage: the player who must press the spin button this round
+   * (round-robin over the live roster by join order, fixed at round start).
+   * spinArmedAt = when the stage opened - after BINGO_SPIN_OPEN_ALL_MS anyone
+   * may press instead (absent spinner must never stall the game).
+   * spinStartedAt = when the button WAS pressed; all clients replay the same
+   * deterministic wheel animation from this shared timestamp (the category
+   * itself was already drawn server-side at round start - pure cosmetics).
+   */
+  spinnerId?: string | null;
+  spinArmedAt?: number | null;
+  spinStartedAt?: number | null;
   /** Timeline-Quiz: the shared timeline everyone places into (grows each round). */
   quizTimeline?: QuizTimelineEntry[] | null;
   /** Timeline-Quiz: fixed number of rounds (from mode_config, clamped to deck). */
