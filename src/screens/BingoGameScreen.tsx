@@ -856,8 +856,10 @@ export default function BingoGameScreen() {
                 ? 'Besprecht knappe Fälle kurz — du entscheidest pro Spieler.'
                 : 'Alle Antworten liegen auf dem Tisch — der Host entscheidet.'}
             </Text>
-            {/* Only the host gets the truth here; everyone else sees it at the reveal. */}
-            {isHost && card && (
+            {/* The truth is public during the review: the group can only
+                discuss near-misses (typos etc.) when everyone knows the
+                correct answer. The host still logs the final ✓/✕. */}
+            {card && (
               <Text style={styles.reviewTruth}>
                 Richtig wäre: {card.title} — {card.artist}
               </Text>
