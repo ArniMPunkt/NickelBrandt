@@ -98,16 +98,19 @@ export default function OnlineHomeScreen() {
   const [error, setError] = useState<string | null>(null);
   // "Resume your lobby" suggestion, computed once at app start (initResumableLobby).
   const [resumable, setResumable] = useState<Lobby | null>(Online.getResumableLobby());
-  // Spotify Web-API auth gates ONLY "Lobby erstellen" (the host needs Spotify);
-  // joining a lobby does not. Re-checked on focus so connecting in the
-  // Einstellungen tab and returning enables the button automatically.
-  const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isWebApiAuthorized());
+  // Spotify gates ONLY "Lobby erstellen" (the host needs Spotify); joining a
+  // lobby does not. Gated on the FULL readiness (Web-API token AND a confirmed
+  // App-Remote connection), not just the web authorization: on a failed connect
+  // the PKCE web step may have succeeded while the app-to-app connection was
+  // refused - the button must stay locked then. Re-checked on focus so
+  // connecting in the Einstellungen tab and returning enables it automatically.
+  const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isReadyToPlay());
 
   const configured = Online.isSupabaseConfigured();
 
   useFocusEffect(
     useCallback(() => {
-      setSpotifyAuthorized(Spotify.isWebApiAuthorized());
+      setSpotifyAuthorized(Spotify.isReadyToPlay());
     }, [])
   );
 

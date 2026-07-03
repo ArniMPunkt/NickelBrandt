@@ -31,6 +31,7 @@ import {
   type BingoAnswer,
 } from '../game/bingo';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
@@ -349,6 +350,8 @@ export default function BingoGameScreen() {
           <Text style={styles.deckCount}>{gs.deck.length}</Text>
           <Text style={styles.deckLabel}>im Deck</Text>
         </View>
+        {/* Backup play: only the host's device plays audio. */}
+        {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
       </View>
 
       {/* ---- collecting: mystery song + category + input ---- */}

@@ -25,6 +25,7 @@ import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import type { QuizAnswer } from '../game/timelineQuiz';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -399,6 +400,8 @@ export default function TimelineQuizScreen() {
             Runde {gs.roundNumber ?? 1}/{totalRounds}
           </Text>
         </View>
+        {/* Backup play: only the host's device plays audio. */}
+        {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
       </View>
 
       {/* ---- collecting: mystery song + shared timeline with tap gaps ---- */}

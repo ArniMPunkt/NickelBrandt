@@ -151,13 +151,22 @@ function mapConnectError(e: any): Error {
     );
   }
   if (raw.includes('not authorized')) {
-    // Deliberately no "Verbindung trennen" hint: in the dead-end state the
-    // Settings button shows "verbinden" (there is no disconnect to tap). connect()
-    // self-heals (clears + re-consents) BEFORE this is shown, so reaching here
-    // means even a fresh consent was refused.
+    // Android UserNotAuthorizedException: the SPOTIFY APP refused the app-to-app
+    // connection. connect() self-heals (clears + re-consents) BEFORE this is
+    // shown, so reaching here means even a FRESH web consent was refused - the
+    // web/PKCE step is fine, the refusal is device-side. The two realistic
+    // causes (verified against spotify/android-sdk#384): the Spotify app is
+    // logged into a DIFFERENT account than the web consent, or this build's
+    // signing fingerprint (package + SHA-1) is not registered in the Spotify
+    // Developer Dashboard (debug and release builds have different prints; the
+    // SDK then reports "not authorized" even though the user consented).
     return new Error(
-      'Spotify-Berechtigung konnte nicht erteilt werden. Bitte stelle sicher, dass du in ' +
-        'der Spotify-App eingeloggt bist, und versuche es erneut.'
+      'Die Spotify-App auf diesem Gerät hat die Verbindung abgelehnt. Häufigste Ursachen: ' +
+        '(1) Die Spotify-App ist mit einem ANDEREN Account eingeloggt als dem, mit dem du dich ' +
+        'gerade im Browser angemeldet hast — bitte in beiden denselben Account verwenden. ' +
+        '(2) Dieser App-Build ist nicht im Spotify Developer Dashboard registriert ' +
+        '(Android-Package + SHA-1-Fingerprint; Debug- und Release-Build haben unterschiedliche ' +
+        'Fingerprints und müssen beide eingetragen sein).'
     );
   }
   if (raw.includes('notloggedin') || raw.includes('not logged in')) {
@@ -500,13 +509,82 @@ export async function getDisplayName(): Promise<string | null> {
   return data?.display_name ?? data?.id ?? null;
 }
 
-/** Play a Spotify URI, e.g. "spotify:track:<id>". */
+/** Play a Spotify URI, e.g. "spotify:track:<id>". Time-boxed: a dead App-Remote
+ *  session can otherwise leave this promise pending forever (this was the one
+ *  native call missing the withTimeout wrap). */
 export function playUri(uri: string): Promise<void> {
-  return getRemote().playUri(uri);
+  return withTimeout(getRemote().playUri(uri), APP_REMOTE_TIMEOUT_MS, 'Spotify-Wiedergabe');
 }
 
 export function pause(): Promise<void> {
   return getRemote().pause();
+}
+
+// Quick ground-truth probe; deliberately short - a dead session should fall
+// through to the reconnect path fast, not after the full 20s app-remote box.
+const STATUS_CHECK_TIMEOUT_MS = 3000;
+
+/** Errors that mean the App-Remote session is gone (worth ONE reconnect). */
+function isConnectionLostError(e: any): boolean {
+  const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
+  return (
+    raw.includes('disconnect') ||
+    raw.includes('not connected') ||
+    raw.includes('connection') ||
+    raw.includes('zeitüberschreitung')
+  );
+}
+
+/**
+ * Backup-play: make sure the CURRENT song is actually playing, reconnecting
+ * first if the App Remote session is gone. Used by the manual ▶ button (the
+ * auto-play effects stay optimistic).
+ *
+ * `getCurrentUri` is called at PLAY time, not captured at press time: a
+ * reconnect can take seconds and the game may move on meanwhile - if the
+ * current card changed during the reconnect, we abort silently instead of
+ * replaying a stale song (the auto-play effect owns the new card).
+ *
+ * Flow: probe remote.isConnectedAsync() (ground truth - the in-memory
+ * `connected` flag is optimistic and never learns about a real drop; we sync
+ * it here) -> connected: play directly, falling through to ONE reconnect on a
+ * connection-lost error -> not connected: reuse connect() (full platform flow
+ * incl. stale-auth self-heal) -> re-resolve the uri -> play. Errors are
+ * THROWN, never swallowed - the button surfaces them.
+ */
+export async function ensurePlaying(getCurrentUri: () => string | null): Promise<void> {
+  const uriBefore = getCurrentUri();
+  if (!uriBefore) throw new Error('Kein aktiver Song zum Abspielen.');
+
+  let isConnected = false;
+  try {
+    isConnected = await withTimeout(
+      getRemote().isConnectedAsync(),
+      STATUS_CHECK_TIMEOUT_MS,
+      'Spotify-Status'
+    );
+  } catch {
+    isConnected = false; // SDK not ready / probe hung -> treat as disconnected
+  }
+  connected = isConnected;
+
+  if (isConnected) {
+    try {
+      await playUri(uriBefore);
+      return;
+    } catch (e) {
+      if (!isConnectionLostError(e)) throw e;
+      // Session died between probe and play -> one reconnect attempt below.
+    }
+  }
+
+  await connect(); // sets `connected` again on success
+
+  const uriAfter = getCurrentUri();
+  if (!uriAfter || uriAfter !== uriBefore) {
+    return; // game moved on during the reconnect - never replay a stale card
+  }
+  await playUri(uriAfter);
 }
 
 /** Build a readable error from an already-read Web API response body. */

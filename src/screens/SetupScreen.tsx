@@ -48,13 +48,16 @@ export default function SetupScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
-  // Spotify Web-API auth gates "Spiel starten". Re-checked on focus, so connecting
-  // in the Einstellungen tab and returning here enables the button automatically.
-  const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isWebApiAuthorized());
+  // "Spiel starten" is gated on the FULL Spotify readiness (Web-API token AND a
+  // confirmed App-Remote connection), not just the web authorization: on a
+  // failed connect the PKCE web step may have succeeded while the app-to-app
+  // connection was refused - the button must stay locked then. Re-checked on
+  // focus, so connecting in the Einstellungen tab and returning enables it.
+  const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isReadyToPlay());
 
   useFocusEffect(
     useCallback(() => {
-      setSpotifyAuthorized(Spotify.isWebApiAuthorized());
+      setSpotifyAuthorized(Spotify.isReadyToPlay());
     }, [])
   );
 

@@ -26,6 +26,7 @@ import { useGame } from '../context/GameContext';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
+import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { COLORS } from '../theme/colors';
@@ -455,6 +456,8 @@ export default function GameScreen() {
           </Text>
         </View>
         <View style={styles.headerRight}>
+          {/* Backup play: single device, so no host gating needed here. */}
+          <PlayBackupButton uri={shownCard?.trackUri ?? null} onError={setPlayError} />
           {chipsEnabled && (
             <View style={styles.chipPill}>
               <Text style={styles.chipPillText}>🪙 {player.chips}</Text>

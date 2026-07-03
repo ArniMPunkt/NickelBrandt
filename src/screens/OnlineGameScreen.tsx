@@ -32,6 +32,7 @@ import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { COLORS } from '../theme/colors';
@@ -528,6 +529,8 @@ export default function OnlineGameScreen() {
           <Text style={styles.deckLabel}>im Deck</Text>
         </View>
         <View style={styles.headerActions}>
+          {/* Backup play: only the host's device plays audio. */}
+          {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
           <PressableButton style={styles.iconBtn} onPress={() => setCodeVisible((v) => !v)} hitSlop={8}>
             <Text style={styles.iconBtnText}>ⓘ</Text>
           </PressableButton>
