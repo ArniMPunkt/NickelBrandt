@@ -1,6 +1,7 @@
 param(
-  [switch]$PrebuildClean,
-  [switch]$VerifyOnly,
+  [ValidateSet('aab', 'apk')]
+  [string]$Type = 'aab',
+  [switch]$SkipPrebuild,
   [switch]$SkipCertPrint
 )
 
@@ -12,13 +13,25 @@ $exampleEnvFile = Join-Path $projectRoot '.env.signing.local.example'
 $androidDir = Join-Path $projectRoot 'android'
 $gradlew = Join-Path $androidDir 'gradlew.bat'
 $keystore = Join-Path $projectRoot 'nickelbrandt.keystore'
-$aabPath = Join-Path $projectRoot 'android\app\build\outputs\bundle\release\app-release.aab'
 
 $requiredVars = @(
   'NICKELBRANDT_KEYSTORE_PASSWORD',
   'NICKELBRANDT_KEY_ALIAS',
   'NICKELBRANDT_KEY_PASSWORD'
 )
+
+$buildConfig = @{
+  aab = @{
+    GradleTask = ':app:bundleRelease'
+    OutputPath = Join-Path $projectRoot 'android\app\build\outputs\bundle\release\app-release.aab'
+    Label = 'AAB'
+  }
+  apk = @{
+    GradleTask = ':app:assembleRelease'
+    OutputPath = Join-Path $projectRoot 'android\app\build\outputs\apk\release\app-release.apk'
+    Label = 'APK'
+  }
+}
 
 function Load-DotEnvFile {
   param([string]$Path)
@@ -81,60 +94,109 @@ function Assert-FileExists {
   }
 }
 
-if (-not $VerifyOnly) {
-  Write-Host 'Loading Android signing environment from .env.signing.local'
-  Load-DotEnvFile -Path $envFile
-  Assert-RequiredEnvironment
-  Assert-FileExists -Path $keystore -Message "Missing keystore: $keystore"
-}
-
-if ($PrebuildClean) {
-  Write-Host 'Running Android prebuild (--clean)'
-  Push-Location $projectRoot
-  try {
-    & npx expo prebuild --platform android --clean
-    if ($LASTEXITCODE -ne 0) {
-      throw "expo prebuild failed with exit code $LASTEXITCODE."
-    }
-  } finally {
-    Pop-Location
+function Stop-GradleIfAvailable {
+  if (-not (Test-Path -LiteralPath $gradlew)) {
+    Write-Host 'No existing Gradle wrapper found; skipping Gradle stop.'
+    return
   }
-}
 
-Assert-FileExists -Path $gradlew -Message "Missing Gradle wrapper: $gradlew. Run npm run android:prebuild:clean first if android/ has not been generated."
-
-if (-not $VerifyOnly) {
-  Write-Host 'Building Android release AAB'
+  Write-Host 'Stopping existing Gradle daemons'
   Push-Location $androidDir
   try {
-    & $gradlew bundleRelease
+    & $gradlew --stop
     if ($LASTEXITCODE -ne 0) {
-      throw "Gradle bundleRelease failed with exit code $LASTEXITCODE."
+      Write-Warning "Gradle --stop exited with code $LASTEXITCODE; continuing with clean prebuild."
     }
+  } catch {
+    Write-Warning "Could not stop Gradle cleanly; continuing with clean prebuild. $($_.Exception.Message)"
   } finally {
     Pop-Location
   }
+
+  Start-Sleep -Seconds 2
 }
 
-Assert-FileExists -Path $aabPath -Message "Expected AAB was not found: $aabPath"
-Write-Host "AAB ready: $aabPath"
+function Invoke-CheckedCommand {
+  param(
+    [string]$Description,
+    [scriptblock]$Command
+  )
 
-if (-not $SkipCertPrint) {
-  $keytool = $null
+  Write-Host $Description
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Description failed with exit code $LASTEXITCODE."
+  }
+}
+
+function Get-KeytoolCommand {
   if ($env:JAVA_HOME) {
     $javaHomeKeytool = Join-Path $env:JAVA_HOME 'bin\keytool.exe'
     if (Test-Path -LiteralPath $javaHomeKeytool) {
-      $keytool = $javaHomeKeytool
+      return $javaHomeKeytool
     }
   }
 
-  if (-not $keytool) {
-    $keytool = 'keytool'
-  }
+  return 'keytool'
+}
 
-  Write-Host 'AAB signing certificate:'
-  & $keytool -printcert -jarfile $aabPath
+function Write-ArtifactSummary {
+  param(
+    [string]$Path,
+    [string]$Label
+  )
+
+  $artifact = Get-Item -LiteralPath $Path
+  $sizeMb = [math]::Round($artifact.Length / 1MB, 2)
+  Write-Host "$Label ready: $Path"
+  Write-Host "$Label size: $sizeMb MB"
+}
+
+$selectedBuild = $buildConfig[$Type]
+$label = $selectedBuild.Label
+$outputPath = $selectedBuild.OutputPath
+$gradleTask = $selectedBuild.GradleTask
+
+Write-Host 'Loading Android signing environment from .env.signing.local'
+Load-DotEnvFile -Path $envFile
+Assert-RequiredEnvironment
+Assert-FileExists -Path $keystore -Message "Missing keystore: $keystore"
+
+if (-not $SkipPrebuild) {
+  Stop-GradleIfAvailable
+  Push-Location $projectRoot
+  try {
+    Invoke-CheckedCommand -Description 'Running Android clean prebuild' -Command {
+      & npx expo prebuild --platform android --clean
+    }
+  } finally {
+    Pop-Location
+  }
+} else {
+  Write-Host 'Skipping Android clean prebuild'
+}
+
+Assert-FileExists -Path $gradlew -Message "Missing Gradle wrapper: $gradlew. Run without -SkipPrebuild to regenerate android/."
+
+Push-Location $androidDir
+try {
+  Invoke-CheckedCommand -Description "Building Android release $label" -Command {
+    & $gradlew $gradleTask
+  }
+} finally {
+  Pop-Location
+}
+
+Assert-FileExists -Path $outputPath -Message "Expected $label was not found: $outputPath"
+Write-ArtifactSummary -Path $outputPath -Label $label
+
+if (-not $SkipCertPrint -and $Type -eq 'aab') {
+  $keytool = Get-KeytoolCommand
+  Write-Host "$label signing certificate:"
+  & $keytool -printcert -jarfile $outputPath
   if ($LASTEXITCODE -ne 0) {
     Write-Warning 'keytool certificate verification failed or keytool is not available.'
   }
+} elseif ($Type -eq 'apk') {
+  Write-Host 'APK signing check: Gradle validateSigningRelease completed during :app:assembleRelease.'
 }
