@@ -176,6 +176,18 @@ export interface OnlineGameState {
   roundResults?: Record<string, RoundOutcome> | null;
   /** Bingo: the current round's category (drawn together with the card). */
   bingoRound?: BingoRoundSpec | null;
+  /** Bingo: the pool's decade span, fixed at game start (decade MC options). */
+  bingoDecades?: number[] | null;
+  /**
+   * Bingo: cell-pick window after a resolution. Correct players choose which
+   * free cell of the round color to mark (their own client auto-picks on
+   * timeout). expectedMarks = per player the marked-cell count AFTER their
+   * pick (base + 1 only for correct players with a free cell) - written once
+   * by the resolve-claim winner, so "has picked" is detectable everywhere
+   * without extra columns: countMarked(board) >= expectedMarks[player].
+   */
+  pickDeadline?: number | null;
+  expectedMarks?: Record<string, number> | null;
   /** Timeline-Quiz: the shared timeline everyone places into (grows each round). */
   quizTimeline?: QuizTimelineEntry[] | null;
   /** Timeline-Quiz: fixed number of rounds (from mode_config, clamped to deck). */

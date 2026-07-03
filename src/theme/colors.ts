@@ -32,3 +32,17 @@ export const COLORS = {
 } as const;
 
 export type AppColors = typeof COLORS;
+
+import type { BingoCategoryType } from '../types/online';
+
+/**
+ * Bingo cell/category colors (4 categories -> 4 theme colors). Lives here so
+ * the game screen AND the win-line reveal share one mapping without a
+ * screen<->component import cycle.
+ */
+export const BINGO_CATEGORY_COLOR: Record<BingoCategoryType, string> = {
+  decade: COLORS.secondary,
+  before_after_2000: COLORS.primary,
+  year_guess: COLORS.accent,
+  title_artist: COLORS.correct,
+};

@@ -8,7 +8,7 @@
  * Correct answers mark a random free cell of the category's color; a full
  * row/column/diagonal wins (phase 'finished' + winnerId, like hitster).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
@@ -28,14 +28,18 @@ import {
   BINGO_CATEGORY_LABEL,
   BINGO_YEAR_MAX,
   BINGO_YEAR_MIN,
+  countMarked,
+  freeCellIndices,
+  hasBingo,
   type BingoAnswer,
 } from '../game/bingo';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { BingoLineReveal } from '../components/BingoLineReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
-import { COLORS } from '../theme/colors';
+import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type {
   BingoBoard,
@@ -52,15 +56,21 @@ type BingoRoute = RouteProp<OnlineStackParamList, 'BingoGame'>;
 /** Grace before any client fires the deadline resolve (absorbs clock skew). */
 const RESOLVE_GRACE_MS = 1000;
 
-/** Cell/category color mapping (4 categories -> 4 theme colors). */
-const CATEGORY_COLOR: Record<BingoCategoryType, string> = {
-  decade: COLORS.secondary,
-  before_after_2000: COLORS.primary,
-  year_guess: COLORS.accent,
-  title_artist: COLORS.correct,
-};
+/** Cell/category colors: shared with the win-line reveal (see colors.ts). */
+const CATEGORY_COLOR = BINGO_CATEGORY_COLOR;
 
-function BingoGrid({ board, size }: { board: BingoBoard; size: number }) {
+function BingoGrid({
+  board,
+  size,
+  selectable,
+  onPickCell,
+}: {
+  board: BingoBoard;
+  size: number;
+  /** Indices the owner may tap during the pick window (glowing "+" cells). */
+  selectable?: number[];
+  onPickCell?: (index: number) => void;
+}) {
   const rows = Array.from({ length: size }, (_, r) =>
     board.slice(r * size, (r + 1) * size)
   );
@@ -69,7 +79,20 @@ function BingoGrid({ board, size }: { board: BingoBoard; size: number }) {
       {rows.map((cells, r) => (
         <View key={`row-${r}`} style={styles.gridRow}>
           {cells.map((cell, c) => {
+            const idx = r * size + c;
             const color = CATEGORY_COLOR[cell.color];
+            const pickable = !!onPickCell && !!selectable?.includes(idx);
+            if (pickable) {
+              return (
+                <PressableButton
+                  key={`cell-${r}-${c}`}
+                  style={[styles.cell, { borderColor: color }, glow(color, { radius: 10, opacity: 0.9 })]}
+                  onPress={() => onPickCell(idx)}
+                >
+                  <Text style={[styles.cellPick, { color }]}>+</Text>
+                </PressableButton>
+              );
+            }
             return (
               <View
                 key={`cell-${r}-${c}`}
@@ -134,6 +157,8 @@ export default function BingoGameScreen() {
   const [yearGuess, setYearGuess] = useState(1990);
   const [endedHandled, setEndedHandled] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
+  // Win-line interstitial shown once before the victory celebration.
+  const [finaleDone, setFinaleDone] = useState(false);
 
   const myId = Online.getPlayerId();
 
@@ -224,6 +249,83 @@ export default function BingoGameScreen() {
   const winnerIds = gs?.winnerIds ?? (gs?.winnerId ? [gs.winnerId] : []);
   const winners = players.filter((p) => winnerIds.includes(p.player_id));
   const winnerNames = winners.map((p) => p.player_name).join(' & ');
+
+  // ---- Cell-pick window (after resolution; see pickBingoCell) ----
+  const myBoard = me?.bingo_board ?? null;
+  const myExpected = gs?.expectedMarks?.[myId];
+  const iWasCorrect = roundPhase === 'resolved' && gs?.roundResults?.[myId] === 'correct';
+  const pickPending =
+    iWasCorrect &&
+    round != null &&
+    myBoard != null &&
+    myExpected != null &&
+    countMarked(myBoard) < myExpected;
+  const pickableCells =
+    pickPending && myBoard && round ? freeCellIndices(myBoard, round.type) : [];
+  // Correct, but the color is already full on my board: nothing to gain.
+  const colorFull =
+    iWasCorrect &&
+    round != null &&
+    myBoard != null &&
+    freeCellIndices(myBoard, round.type).length === 0;
+
+  const pickBusyRef = useRef(false);
+  const onPickCell = (index: number) => {
+    if (pickBusyRef.current) return;
+    pickBusyRef.current = true;
+    Online.pickBingoCell(lobbyId, index)
+      .then(() => refresh())
+      .catch((e: any) => setError(e?.message ?? String(e)))
+      .finally(() => {
+        pickBusyRef.current = false;
+      });
+  };
+
+  // Auto-pick: a single option needs no choice UI; on timeout the own client
+  // picks randomly so the earned mark isn't lost by idling.
+  const pickableRef = useRef<number[]>([]);
+  pickableRef.current = pickableCells;
+  useEffect(() => {
+    if (!pickPending) return;
+    if (pickableCells.length === 1) {
+      onPickCell(pickableCells[0]);
+      return;
+    }
+    if (gs?.pickDeadline == null) return;
+    const t = setTimeout(() => {
+      const opts = pickableRef.current;
+      if (opts.length > 0) onPickCell(opts[Math.floor(Math.random() * opts.length)]);
+    }, Math.max(0, gs.pickDeadline - Date.now()));
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickPending, pickableCells.length === 1, gs?.pickDeadline, gs?.roundNumber]);
+
+  // Host gate for "Nächste Runde": everyone picked or the window is over
+  // (mirrors nextBingoRound's server-side check).
+  const [pickWindowOver, setPickWindowOver] = useState(false);
+  useEffect(() => {
+    if (roundPhase !== 'resolved' || gs?.pickDeadline == null) {
+      setPickWindowOver(true);
+      return;
+    }
+    const remaining = gs.pickDeadline - Date.now();
+    if (remaining <= 0) {
+      setPickWindowOver(true);
+      return;
+    }
+    setPickWindowOver(false);
+    const t = setTimeout(() => setPickWindowOver(true), remaining);
+    return () => clearTimeout(t);
+  }, [roundPhase, gs?.pickDeadline, gs?.roundNumber]);
+  const allPicked =
+    players.length > 0 &&
+    players.every(
+      (p) => countMarked(p.bingo_board) >= (gs?.expectedMarks?.[p.player_id] ?? 0)
+    );
+  const nextReady = allPicked || pickWindowOver;
+  const someoneHasBingo = players.some(
+    (p) => p.bingo_board && hasBingo(p.bingo_board, size)
+  );
 
   // Host ended the lobby -> everyone returns home (once).
   useEffect(() => {
@@ -334,6 +436,23 @@ export default function BingoGameScreen() {
 
   // ----- Game over -----
   if (gs.phase === 'finished') {
+    // First the automatic interstitial: the winning line is traced on each
+    // winner's board (sequentially on multi-win). Skipped defensively when no
+    // winner board is available yet (e.g. players list still loading).
+    if (gs.winnerId && !finaleDone) {
+      const revealWinners = winners
+        .filter((p) => p.bingo_board && p.bingo_board.length > 0)
+        .map((p) => ({ name: p.player_name, board: p.bingo_board! }));
+      if (revealWinners.length > 0) {
+        return (
+          <BingoLineReveal
+            winners={revealWinners}
+            size={size}
+            onDone={() => setFinaleDone(true)}
+          />
+        );
+      }
+    }
     if (gs.winnerId && !showStats) {
       return (
         <VictoryCelebration
@@ -429,13 +548,16 @@ export default function BingoGameScreen() {
               <>
                 {round.type === 'decade' && (
                   <View style={styles.choiceWrap}>
+                    {/* Pool-span options (up to 8) -> compact buttons, 4/row. */}
                     {(round.decadeOptions ?? []).map((d) => (
                       <PressableButton
                         key={d}
-                        style={styles.choiceBtn}
+                        style={[styles.choiceBtn, styles.choiceBtnDecade]}
                         onPress={() => submit({ kind: 'decade', decade: d })}
                       >
-                        <Text style={styles.choiceText}>{d}er</Text>
+                        <Text style={[styles.choiceText, styles.choiceTextDecade]}>
+                          {d}er
+                        </Text>
                       </PressableButton>
                     ))}
                   </View>
@@ -549,9 +671,38 @@ export default function BingoGameScreen() {
             );
           })}
 
+          {/* ---- cell-pick window ---- */}
+          {pickPending && pickableCells.length > 1 && (
+            <View style={[styles.pickBox, { borderColor: categoryColor }]}>
+              <Text style={[styles.pickTitle, { color: categoryColor }]}>
+                ✓ Richtig! Such dir dein Feld aus
+              </Text>
+              <Text style={styles.hint}>
+                Tippe unten auf deinem Board ein leuchtendes „+"-Feld an.
+              </Text>
+              {gs.pickDeadline != null && <RoundCountdown deadlineMs={gs.pickDeadline} />}
+            </View>
+          )}
+          {colorFull && (
+            <Text style={styles.hint}>
+              ✓ Richtig — aber alle Felder dieser Farbe sind auf deinem Board schon
+              markiert. Nichts mehr zu holen.
+            </Text>
+          )}
+
           {isHost ? (
-            <PressableButton style={styles.primaryBtn} onPress={onNextRound}>
-              <Text style={styles.primaryBtnText}>Nächste Runde</Text>
+            <PressableButton
+              style={[styles.primaryBtn, !nextReady && styles.primaryBtnDisabled]}
+              onPress={onNextRound}
+              disabled={!nextReady}
+            >
+              <Text style={styles.primaryBtnText}>
+                {!nextReady
+                  ? 'Warte auf Feld-Auswahl…'
+                  : someoneHasBingo
+                    ? '🎉 BINGO! Ergebnis anzeigen'
+                    : 'Nächste Runde'}
+              </Text>
             </PressableButton>
           ) : (
             <Text style={styles.hint}>Warte auf den Host…</Text>
@@ -562,7 +713,12 @@ export default function BingoGameScreen() {
       {/* ---- own board + legend ---- */}
       <Text style={styles.sectionLabel}>DEIN BOARD</Text>
       {me?.bingo_board ? (
-        <BingoGrid board={me.bingo_board} size={size} />
+        <BingoGrid
+          board={me.bingo_board}
+          size={size}
+          selectable={pickPending && pickableCells.length > 1 ? pickableCells : undefined}
+          onPickCell={pickPending && pickableCells.length > 1 ? onPickCell : undefined}
+        />
       ) : (
         <Text style={styles.muted}>Board wird geladen…</Text>
       )}
@@ -685,6 +841,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   choiceText: { color: COLORS.text, fontSize: 16, fontWeight: '900', textAlign: 'center' },
+  // Decade MC can show up to 8 pool decades -> narrower buttons, 4 per row.
+  choiceBtnDecade: { flexBasis: '21%', minHeight: 48 },
+  choiceTextDecade: { fontSize: 14 },
   choiceYes: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   choiceYesText: { color: COLORS.background, fontSize: 16, fontWeight: '900', textAlign: 'center' },
 
@@ -743,6 +902,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cellCheck: { color: COLORS.background, fontSize: 26, fontWeight: '900' },
+  cellPick: { fontSize: 26, fontWeight: '900' },
+
+  pickBox: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 2,
+    padding: 14,
+    gap: 6,
+    alignItems: 'center',
+  },
+  pickTitle: { fontSize: 17, fontWeight: '900', textAlign: 'center' },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -784,4 +954,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  primaryBtnDisabled: { opacity: 0.5 },
 });

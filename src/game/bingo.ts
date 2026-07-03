@@ -26,6 +26,17 @@ export const BINGO_CATEGORIES: BingoCategoryType[] = [
 /** Answer window per round (all clients arm the resolve trigger on this). */
 export const BINGO_ROUND_SECONDS = 30;
 
+/**
+ * Window after resolution in which correct players PICK the cell to mark
+ * (strategic choice instead of the old random mark). Long enough to read the
+ * reveal + tap a cell, short enough that one idle player can't stall the
+ * round; on timeout the player's own client auto-picks a random free cell.
+ */
+export const BINGO_PICK_SECONDS = 15;
+
+/** Layout cap for decade multiple-choice buttons (2 rows of 4). */
+export const BINGO_DECADE_OPTIONS_MAX = 8;
+
 /** Allowed deviation for the year-guess category. */
 export const BINGO_YEAR_TOLERANCE = 3;
 
@@ -65,21 +76,62 @@ export function decadeOf(year: number): number {
 }
 
 /**
- * Draw the round's category for a card. For 'decade' the multiple-choice
- * options are generated here (correct decade + 3 nearby distractors, shuffled)
- * and synced via game_state, so every client shows the same choices.
+ * All decades spanned by a card set (contiguous from oldest to newest, so no
+ * gap leaks "this decade has no songs" info). Computed once at game start and
+ * stored in game_state, so every round offers the same, pool-matched choices.
  */
-export function drawBingoRound(card: GameCard): BingoRoundSpec {
+export function decadeRange(cards: GameCard[]): number[] {
+  if (cards.length === 0) return [];
+  let min = Infinity;
+  let max = -Infinity;
+  for (const c of cards) {
+    const d = decadeOf(c.year);
+    if (d < min) min = d;
+    if (d > max) max = d;
+  }
+  const out: number[] = [];
+  for (let d = min; d <= max; d += 10) out.push(d);
+  return out;
+}
+
+/**
+ * The decade multiple-choice options for one round. With a pool span the
+ * options are ALL of the pool's decades in chronological order (stable across
+ * rounds, no info leak); above the layout cap a random contiguous window that
+ * contains the correct decade is cut out (random offset, so the correct one
+ * doesn't always sit in the middle). Without a span (defensive fallback) the
+ * old behavior: correct + 3 nearby distractors, shuffled.
+ */
+function decadeOptionsFor(correct: number, decadePool?: number[]): number[] {
+  if (decadePool && decadePool.length >= 2) {
+    let range = decadePool.includes(correct)
+      ? [...decadePool]
+      : [...decadePool, correct].sort((a, b) => a - b);
+    if (range.length > BINGO_DECADE_OPTIONS_MAX) {
+      const ci = range.indexOf(correct);
+      const minStart = Math.max(0, ci - (BINGO_DECADE_OPTIONS_MAX - 1));
+      const maxStart = Math.min(ci, range.length - BINGO_DECADE_OPTIONS_MAX);
+      const start = minStart + Math.floor(Math.random() * (maxStart - minStart + 1));
+      range = range.slice(start, start + BINGO_DECADE_OPTIONS_MAX);
+    }
+    return range;
+  }
+  const candidates: number[] = [];
+  for (let d = correct - 40; d <= correct + 40; d += 10) {
+    if (d !== correct && d >= 1920 && d <= 2020) candidates.push(d);
+  }
+  return shuffle([correct, ...shuffle(candidates).slice(0, 3)]);
+}
+
+/**
+ * Draw the round's category for a card. For 'decade' the multiple-choice
+ * options are generated here and synced via game_state, so every client shows
+ * the same choices. `decadePool` is the game's pool decade span (decadeRange).
+ */
+export function drawBingoRound(card: GameCard, decadePool?: number[]): BingoRoundSpec {
   const type = BINGO_CATEGORIES[Math.floor(Math.random() * BINGO_CATEGORIES.length)];
   if (type === 'decade') {
-    const correct = decadeOf(card.year);
-    // Candidate decades around the correct one (clamped to a sane range).
-    const candidates: number[] = [];
-    for (let d = correct - 40; d <= correct + 40; d += 10) {
-      if (d !== correct && d >= 1920 && d <= 2020) candidates.push(d);
-    }
-    const distractors = shuffle(candidates).slice(0, 3);
-    return { type, decadeOptions: shuffle([correct, ...distractors]) };
+    return { type, decadeOptions: decadeOptionsFor(decadeOf(card.year), decadePool) };
   }
   if (type === 'year_guess') {
     return { type, tolerance: BINGO_YEAR_TOLERANCE };
@@ -118,24 +170,44 @@ export function evaluateBingoAnswer(
   }
 }
 
-/**
- * Mark one random FREE cell of the round's color. Returns the new board and
- * which index was marked, or markedIndex null when no free cell of that color
- * is left (correct answer, but nothing to gain).
- */
-export function markRandomFreeCell(
-  board: BingoBoard,
-  color: BingoCategoryType
-): { board: BingoBoard; markedIndex: number | null } {
-  const free = board
+/** Indices of all FREE cells of one color (the pickable cells after a win). */
+export function freeCellIndices(board: BingoBoard, color: BingoCategoryType): number[] {
+  return board
     .map((cell, i) => (!cell.marked && cell.color === color ? i : -1))
     .filter((i) => i >= 0);
-  if (free.length === 0) return { board, markedIndex: null };
-  const idx = free[Math.floor(Math.random() * free.length)];
-  return {
-    board: board.map((cell, i) => (i === idx ? { ...cell, marked: true } : cell)),
-    markedIndex: idx,
-  };
+}
+
+/** Immutably mark one cell. */
+export function markCell(board: BingoBoard, index: number): BingoBoard {
+  return board.map((cell, i) => (i === index ? { ...cell, marked: true } : cell));
+}
+
+/** Number of marked cells ("picked" detection compares this to expectedMarks). */
+export function countMarked(board?: BingoBoard | null): number {
+  return (board ?? []).filter((c) => c.marked).length;
+}
+
+/**
+ * All completed lines (rows, columns, diagonals) as cell-index arrays, each in
+ * draw order (left->right / top->bottom). Used by the win-line reveal to trace
+ * the winning line; hasBingo stays the cheap boolean check.
+ */
+export function winningLines(board: BingoBoard, size: number): number[][] {
+  const isMarked = (i: number) => !!board[i]?.marked;
+  const lines: number[][] = [];
+  for (let r = 0; r < size; r++) {
+    const line = Array.from({ length: size }, (_, c) => r * size + c);
+    if (line.every(isMarked)) lines.push(line);
+  }
+  for (let c = 0; c < size; c++) {
+    const line = Array.from({ length: size }, (_, r) => r * size + c);
+    if (line.every(isMarked)) lines.push(line);
+  }
+  const d1 = Array.from({ length: size }, (_, i) => i * size + i);
+  if (d1.every(isMarked)) lines.push(d1);
+  const d2 = Array.from({ length: size }, (_, i) => i * size + (size - 1 - i));
+  if (d2.every(isMarked)) lines.push(d2);
+  return lines;
 }
 
 /** True when any full row, column or diagonal is marked. */

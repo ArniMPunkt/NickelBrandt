@@ -18,12 +18,16 @@ import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
 import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
 import {
+  BINGO_PICK_SECONDS,
   BINGO_ROUND_SECONDS,
+  countMarked,
+  decadeRange,
   drawBingoRound,
   evaluateBingoAnswer,
+  freeCellIndices,
   generateBingoBoard,
   hasBingo,
-  markRandomFreeCell,
+  markCell,
 } from '../game/bingo';
 import {
   QUIZ_ROUND_SECONDS,
@@ -1174,9 +1178,11 @@ export async function resolveSimulRound(
 //
 // Flow: startBingoGame (boards + first round) -> everyone submits via
 // submitRoundAnswer -> ANY client resolves via resolveBingoRound (deadline
-// timer on all clients + "all answered" trigger; the claim dedupes) -> host
-// taps "Nächste Runde" (nextBingoRound) until someone has a full row/column/
-// diagonal -> phase 'finished' + winnerId (same finish contract as hitster).
+// timer on all clients + "all answered" trigger; the claim dedupes) -> the
+// PICK WINDOW opens: correct players choose their own cell (pickBingoCell) ->
+// host taps "Nächste Runde" (nextBingoRound: pick gate, then win check on the
+// boards, then draw) until someone has a full row/column/diagonal -> phase
+// 'finished' + winnerId/winnerIds (same finish contract as hitster).
 // ---------------------------------------------------------------------------
 
 /**
@@ -1223,7 +1229,10 @@ export async function startBingoGame(
     winnerId: null,
     gameMode: 'bingo',
     modeConfig: { bingoGridSize: config.bingoGridSize },
-    bingoRound: drawBingoRound(first),
+    // Decade MC options are cut from the pool's real span (fixed at start, so
+    // the shrinking deck can't narrow the choices over the game).
+    bingoDecades: decadeRange(cards),
+    bingoRound: drawBingoRound(first, decadeRange(cards)),
   };
   const { error } = await supabase
     .from('lobbies')
@@ -1238,14 +1247,15 @@ export async function startBingoGame(
 /**
  * Resolve the current bingo round. Safe to call from ANY client and multiple
  * times (deadline timers run everywhere + the "all answered" trigger); the
- * foundation's atomic claim guarantees exactly one caller proceeds to the
- * side effects: mark a random free cell of the round's color for every
- * correct player, then check for a full row/column/diagonal. If several
- * players complete their board in the same resolution, they ALL win together
- * (winnerIds; winnerId carries the first entry for the shared finish contract).
+ * foundation's atomic claim dedupes. The resolution no longer marks cells
+ * itself: it opens the PICK WINDOW (pickDeadline) in the same write and
+ * records expectedMarks - each correct player then chooses their own cell via
+ * pickBingoCell (own row = single writer). Win detection happens in
+ * nextBingoRound AFTER the pick window, so simultaneous multi-wins within the
+ * same window still share the victory (Doppelsieg contract).
  */
 export async function resolveBingoRound(lobbyId: string): Promise<void> {
-  const claimed = await resolveSimulRound(lobbyId, (answers, gs) => {
+  await resolveSimulRound(lobbyId, async (answers, gs) => {
     const card = gs.currentCard;
     const round = gs.bingoRound;
     const results: Record<string, RoundOutcome> = {};
@@ -1256,41 +1266,83 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
           : 'incorrect';
       }
     }
-    return { results };
+
+    // Pick targets: base mark count per player, +1 only for correct players
+    // that still HAVE a free cell of the round color. Everyone can then tell
+    // "has picked" by comparing countMarked(board) against this - no extra
+    // column, no concurrent game_state writers.
+    const players = await getLobbyPlayers(lobbyId);
+    const expectedMarks: Record<string, number> = {};
+    for (const p of players) {
+      const board = p.bingo_board ?? [];
+      const earnsPick =
+        round != null &&
+        results[p.player_id] === 'correct' &&
+        freeCellIndices(board, round.type).length > 0;
+      expectedMarks[p.player_id] = countMarked(board) + (earnsPick ? 1 : 0);
+    }
+
+    return {
+      results,
+      patch: {
+        pickDeadline: Date.now() + BINGO_PICK_SECONDS * 1000,
+        expectedMarks,
+      },
+    };
   });
-  if (!claimed) return;
-
-  // Post-claim side effects - exactly ONE client runs this.
-  const { game_state: gs } = await getLobby(lobbyId);
-  if (!gs || gs.gameMode !== 'bingo' || !gs.bingoRound) return;
-  const size = gs.modeConfig?.bingoGridSize ?? 4;
-  const players = await getLobbyPlayers(lobbyId);
-
-  const winnerIds: string[] = [];
-  for (const p of players) {
-    if (gs.roundResults?.[p.player_id] !== 'correct' || !p.bingo_board) continue;
-    const { board, markedIndex } = markRandomFreeCell(p.bingo_board, gs.bingoRound.type);
-    if (markedIndex == null) continue; // no free cell of that color left
-    await supabase.from('lobby_players').update({ bingo_board: board }).eq('id', p.id);
-    if (hasBingo(board, size)) winnerIds.push(p.player_id);
-  }
-
-  if (winnerIds.length > 0) {
-    await writeGameState(lobbyId, {
-      ...gs,
-      phase: 'finished',
-      winnerId: winnerIds[0],
-      winnerIds,
-    });
-    await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
-  }
 }
 
 /**
- * Host draws the next bingo round (button on the result view). Atomic on
+ * A correct player marks the free cell of the round color THEY chose (called
+ * by the picker's own client - tap, single-option auto-pick or the timeout
+ * random pick). Only the owner writes their board row, so a plain update is
+ * race-free; the expectedMarks cap plus the phase/color/free guards make
+ * double or foreign marks impossible. Silently a no-op when the round has
+ * moved on (late pick after the window: the mark is forfeited, see
+ * nextBingoRound's gate).
+ */
+export async function pickBingoCell(lobbyId: string, cellIndex: number): Promise<void> {
+  const myId = getPlayerId();
+  const [{ game_state: gs }, players] = await Promise.all([
+    getLobby(lobbyId),
+    getLobbyPlayers(lobbyId),
+  ]);
+  const me = players.find((p) => p.player_id === myId);
+  if (
+    !gs ||
+    gs.gameMode !== 'bingo' ||
+    gs.roundPhase !== 'resolved' ||
+    !gs.bingoRound ||
+    !me?.bingo_board ||
+    gs.roundResults?.[myId] !== 'correct'
+  ) {
+    return;
+  }
+  const expected = gs.expectedMarks?.[myId];
+  if (expected == null || countMarked(me.bingo_board) >= expected) return; // already picked
+  const cell = me.bingo_board[cellIndex];
+  if (!cell || cell.marked || cell.color !== gs.bingoRound.type) return;
+
+  const { error } = await supabase
+    .from('lobby_players')
+    .update({ bingo_board: markCell(me.bingo_board, cellIndex) })
+    .eq('id', me.id);
+  if (error) throw new Error(`Feld konnte nicht markiert werden: ${error.message}`);
+}
+
+/**
+ * Host advances the bingo game (button on the result view). Atomic on
  * roundPhase 'resolved' + the current roundNumber, so a double-tap can never
- * skip a card or bump the round twice. Empty deck ends the game without a
- * winner (like drawNextCard).
+ * skip a card or bump the round twice.
+ *
+ * Order of checks:
+ *   1. PICK GATE: while the pick window is open and not everyone has picked
+ *      (countMarked vs. expectedMarks), do nothing - a slow picker keeps their
+ *      choice. After pickDeadline the round moves on regardless; an unpicked
+ *      mark is forfeited (never blocks the party on one absent player).
+ *   2. WIN CHECK: full row/column/diagonal on the CURRENT boards - everyone
+ *      who completed during the same pick window wins together (Doppelsieg).
+ *   3. Otherwise draw the next card; empty deck ends the game without winner.
  */
 export async function nextBingoRound(lobbyId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
@@ -1303,8 +1355,47 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
   ) {
     return;
   }
+
+  const players = await getLobbyPlayers(lobbyId);
+  const allPicked = players.every(
+    (p) => countMarked(p.bingo_board) >= (gs.expectedMarks?.[p.player_id] ?? 0)
+  );
+  if (!allPicked && gs.pickDeadline != null && Date.now() < gs.pickDeadline) return;
+
+  const size = gs.modeConfig?.bingoGridSize ?? 4;
+  const winnerIds = players
+    .filter((p) => p.bingo_board && hasBingo(p.bingo_board, size))
+    .map((p) => p.player_id);
+  if (winnerIds.length > 0) {
+    const { data } = await supabase
+      .from('lobbies')
+      .update({
+        game_state: {
+          ...gs,
+          phase: 'finished',
+          winnerId: winnerIds[0],
+          winnerIds,
+          pickDeadline: null,
+          expectedMarks: null,
+        } as OnlineGameState,
+      })
+      .eq('id', lobbyId)
+      .filter('game_state->>roundPhase', 'eq', 'resolved')
+      .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber))
+      .select();
+    if (data && data.length > 0) {
+      await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+    }
+    return;
+  }
+
   if (gs.deck.length === 0) {
-    await writeGameState(lobbyId, { ...gs, phase: 'finished' });
+    await writeGameState(lobbyId, {
+      ...gs,
+      phase: 'finished',
+      pickDeadline: null,
+      expectedMarks: null,
+    });
     await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
     return;
   }
@@ -1317,11 +1408,13 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         ...gs,
         deck: rest,
         currentCard: next,
-        bingoRound: drawBingoRound(next),
+        bingoRound: drawBingoRound(next, gs.bingoDecades ?? undefined),
         roundNumber: gs.roundNumber + 1,
         roundDeadline: Date.now() + BINGO_ROUND_SECONDS * 1000,
         roundPhase: 'collecting',
         roundResults: null,
+        pickDeadline: null,
+        expectedMarks: null,
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
