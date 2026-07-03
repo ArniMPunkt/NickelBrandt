@@ -172,7 +172,15 @@ export default function TimelineQuizScreen() {
 
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
-  const [answers, setAnswers] = useState<RoundAnswer[]>([]);
+  // Answers are TAGGED with the round they were fetched for: lobby state and
+  // answer list update in two separate renders (await between the setters), so
+  // right after a round change the old round's full answer list would briefly
+  // count as "everyone answered" for the NEW round - firing the early resolve
+  // with zero answers and killing every second round instantly.
+  const [answersFor, setAnswersFor] = useState<{
+    round: number | null;
+    list: RoundAnswer[];
+  }>({ round: null, list: [] });
   const [error, setError] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [endedHandled, setEndedHandled] = useState(false);
@@ -190,7 +198,7 @@ export default function TimelineQuizScreen() {
       setPlayers(list);
       const round = lb.game_state?.roundNumber;
       if (round != null) {
-        setAnswers(await Online.getRoundAnswers(lobbyId, round));
+        setAnswersFor({ round, list: await Online.getRoundAnswers(lobbyId, round) });
       }
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -253,6 +261,8 @@ export default function TimelineQuizScreen() {
   const isHost = !!me?.is_host;
   const card = gs?.currentCard ?? null;
   const roundPhase = gs?.roundPhase ?? null;
+  // Stale-tagged answers (from a previous round) count as "none yet".
+  const answers = answersFor.round === gs?.roundNumber ? answersFor.list : [];
   const timeline = gs?.quizTimeline ?? [];
   const totalRounds = gs?.quizTotalRounds ?? gs?.modeConfig?.timelineCardCount ?? 0;
   const myAnswer = answers.find((a) => a.player_id === myId);
@@ -317,6 +327,23 @@ export default function TimelineQuizScreen() {
     }
   }, [roundPhase, answers.length, players.length, lobbyId]);
 
+  // Stuck-resolving watchdog: if the claim winner died before the final write,
+  // any client may re-claim after RESOLVE_STALE_MS (atomic in the service).
+  useEffect(() => {
+    if (roundPhase !== 'resolving') return;
+    const claimedAt = gs?.resolveClaimedAt ?? gs?.roundDeadline ?? Date.now();
+    const wait = Math.max(
+      0,
+      claimedAt + Online.RESOLVE_STALE_MS + RESOLVE_GRACE_MS - Date.now()
+    );
+    const t = setTimeout(() => {
+      Online.resolveTimelineQuizRound(lobbyId).catch((e: any) =>
+        setError(e?.message ?? String(e))
+      );
+    }, wait);
+    return () => clearTimeout(t);
+  }, [roundPhase, gs?.resolveClaimedAt, gs?.roundDeadline, gs?.roundNumber, lobbyId]);
+
   const onPick = (slot: number) => {
     if (iAnswered) return;
     setError(null);
@@ -329,6 +356,54 @@ export default function TimelineQuizScreen() {
     Online.nextTimelineQuizRound(lobbyId).catch((e: any) =>
       setError(e?.message ?? String(e))
     );
+
+  // Exit (same split as LobbyScreen): host ends the lobby for everyone,
+  // a non-host only removes himself - the rest keeps playing.
+  const onExit = () => {
+    if (isHost) {
+      Alert.alert(
+        'Spiel wirklich verlassen?',
+        'Du bist der Host — die Lobby wird für alle Mitspieler beendet.',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Beenden',
+            style: 'destructive',
+            onPress: async () => {
+              setEndedHandled(true); // suppress our own "host ended" alert
+              try {
+                await Online.endLobby(lobbyId);
+              } catch (e: any) {
+                setError(e?.message ?? String(e));
+              } finally {
+                navigation.navigate('OnlineHome');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Spiel wirklich verlassen?',
+        'Die anderen spielen ohne dich weiter.',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Verlassen',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await Online.leaveLobby(lobbyId);
+              } catch {
+                // ignore - leaving anyway
+              }
+              navigation.navigate('OnlineHome');
+            },
+          },
+        ]
+      );
+    }
+  };
 
   if (!gs) {
     return (
@@ -402,6 +477,9 @@ export default function TimelineQuizScreen() {
         </View>
         {/* Backup play: only the host's device plays audio. */}
         {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
+        <PressableButton style={styles.iconBtn} onPress={onExit} hitSlop={8}>
+          <Text style={styles.iconBtnText}>✕</Text>
+        </PressableButton>
       </View>
 
       {/* ---- collecting: mystery song + shared timeline with tap gaps ---- */}
@@ -548,6 +626,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   roundPillText: { color: COLORS.text, fontWeight: '900', fontSize: 14 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '900' },
 
   mysteryBox: {
     backgroundColor: COLORS.backgroundAlt,

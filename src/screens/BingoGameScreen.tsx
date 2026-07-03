@@ -118,7 +118,15 @@ export default function BingoGameScreen() {
 
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
-  const [answers, setAnswers] = useState<RoundAnswer[]>([]);
+  // Answers are TAGGED with the round they were fetched for: lobby state and
+  // answer list update in two separate renders (await between the setters), so
+  // right after a round change the old round's full answer list would briefly
+  // count as "everyone answered" for the NEW round - firing the early resolve
+  // with zero answers and killing every second round instantly.
+  const [answersFor, setAnswersFor] = useState<{
+    round: number | null;
+    list: RoundAnswer[];
+  }>({ round: null, list: [] });
   const [error, setError] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
   // year_guess slider (local until submitted).
@@ -141,7 +149,7 @@ export default function BingoGameScreen() {
       setPlayers(list);
       const round = lb.game_state?.roundNumber;
       if (round != null) {
-        setAnswers(await Online.getRoundAnswers(lobbyId, round));
+        setAnswersFor({ round, list: await Online.getRoundAnswers(lobbyId, round) });
       }
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -206,6 +214,8 @@ export default function BingoGameScreen() {
   const round = gs?.bingoRound ?? null;
   const roundPhase = gs?.roundPhase ?? null;
   const size = gs?.modeConfig?.bingoGridSize ?? 4;
+  // Stale-tagged answers (from a previous round) count as "none yet".
+  const answers = answersFor.round === gs?.roundNumber ? answersFor.list : [];
   const iAnswered = answers.some((a) => a.player_id === myId);
   // Simultaneous multi-win is allowed; winnerIds carries everyone, winnerId is
   // only the compat field (first entry) for the shared finish contract.
@@ -252,6 +262,21 @@ export default function BingoGameScreen() {
     }
   }, [roundPhase, answers.length, players.length, lobbyId]);
 
+  // Stuck-resolving watchdog: if the claim winner died before the final write,
+  // any client may re-claim after RESOLVE_STALE_MS (atomic in the service).
+  useEffect(() => {
+    if (roundPhase !== 'resolving') return;
+    const claimedAt = gs?.resolveClaimedAt ?? gs?.roundDeadline ?? Date.now();
+    const wait = Math.max(
+      0,
+      claimedAt + Online.RESOLVE_STALE_MS + RESOLVE_GRACE_MS - Date.now()
+    );
+    const t = setTimeout(() => {
+      Online.resolveBingoRound(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+    }, wait);
+    return () => clearTimeout(t);
+  }, [roundPhase, gs?.resolveClaimedAt, gs?.roundDeadline, gs?.roundNumber, lobbyId]);
+
   // Reset the year slider for each new round.
   useEffect(() => {
     setYearGuess(1990);
@@ -266,6 +291,54 @@ export default function BingoGameScreen() {
 
   const onNextRound = () =>
     Online.nextBingoRound(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
+
+  // Exit (same split as LobbyScreen): host ends the lobby for everyone,
+  // a non-host only removes himself - the rest keeps playing.
+  const onExit = () => {
+    if (isHost) {
+      Alert.alert(
+        'Spiel wirklich verlassen?',
+        'Du bist der Host — die Lobby wird für alle Mitspieler beendet.',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Beenden',
+            style: 'destructive',
+            onPress: async () => {
+              setEndedHandled(true); // suppress our own "host ended" alert
+              try {
+                await Online.endLobby(lobbyId);
+              } catch (e: any) {
+                setError(e?.message ?? String(e));
+              } finally {
+                navigation.navigate('OnlineHome');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Spiel wirklich verlassen?',
+        'Die anderen spielen ohne dich weiter.',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Verlassen',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await Online.leaveLobby(lobbyId);
+              } catch {
+                // ignore - leaving anyway
+              }
+              navigation.navigate('OnlineHome');
+            },
+          },
+        ]
+      );
+    }
+  };
 
   const markedCount = useMemo(
     () => (b?: BingoBoard | null) => (b ?? []).filter((c) => c.marked).length,
@@ -352,6 +425,9 @@ export default function BingoGameScreen() {
         </View>
         {/* Backup play: only the host's device plays audio. */}
         {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
+        <PressableButton style={styles.iconBtn} onPress={onExit} hitSlop={8}>
+          <Text style={styles.iconBtnText}>✕</Text>
+        </PressableButton>
       </View>
 
       {/* ---- collecting: mystery song + category + input ---- */}
@@ -565,6 +641,17 @@ const styles = StyleSheet.create({
   },
   deckCount: { color: COLORS.secondary, fontWeight: '900', fontSize: 18 },
   deckLabel: { color: COLORS.textMuted, fontWeight: '700', fontSize: 10, letterSpacing: 1 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '900' },
 
   mysteryBox: {
     backgroundColor: COLORS.backgroundAlt,

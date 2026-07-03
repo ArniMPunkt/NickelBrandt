@@ -163,6 +163,15 @@ export interface OnlineGameState {
   /** Epoch ms deadline of the current round (host writes; clients count down). */
   roundDeadline?: number | null;
   roundPhase?: SimulRoundPhase | null;
+  /**
+   * Resolution claim token + timestamp (written together with roundPhase
+   * 'resolving'). If the claim winner dies before the final 'resolved' write,
+   * any client may atomically RE-claim after RESOLVE_STALE_MS by swapping the
+   * token; the original winner's late final write (guarded on its own token)
+   * then matches nothing and stays side-effect free.
+   */
+  resolveClaimId?: string | null;
+  resolveClaimedAt?: number | null;
   /** Written ONCE at resolution: player_id -> outcome (single writer: host). */
   roundResults?: Record<string, RoundOutcome> | null;
   /** Bingo: the current round's category (drawn together with the card). */

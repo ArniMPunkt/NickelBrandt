@@ -9,6 +9,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -92,6 +94,7 @@ function EqualizerBars() {
 export default function OnlineHomeScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
@@ -206,7 +209,17 @@ export default function OnlineHomeScreen() {
   };
 
   return (
+    // Keyboard handling: the code input sits in the bottom third, so the
+    // keyboard covered it. The KAV shrinks/pads the scroll area ('padding' on
+    // iOS, 'height' on Android per RN recommendation) and the code input
+    // additionally scrolls itself into view on focus - the KAV alone only
+    // makes room, it never scrolls.
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}
       keyboardShouldPersistTaps="handled"
@@ -293,6 +306,11 @@ export default function OnlineHomeScreen() {
           autoCapitalize="characters"
           autoCorrect={false}
           maxLength={6}
+          onFocus={() => {
+            // Delay until the KAV has made room, then bring the join card
+            // (input + button, the end of the content) above the keyboard.
+            setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+          }}
         />
         <PressableButton
           style={[styles.joinBtn, (!configured || busy) && styles.disabled]}
@@ -313,6 +331,7 @@ export default function OnlineHomeScreen() {
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

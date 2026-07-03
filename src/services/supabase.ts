@@ -1027,6 +1027,16 @@ export async function getRoundAnswers(
 }
 
 /**
+ * A round stuck in 'resolving' this long after its claim may be RE-claimed by
+ * any client (the original claim winner evidently died before the final
+ * write). Screens arm their watchdog timers on the same constant.
+ */
+export const RESOLVE_STALE_MS = 15000;
+
+/** Fresh collecting window after a failed resolution attempt (rollback path). */
+const RESOLVE_RETRY_WINDOW_MS = 10000;
+
+/**
  * Host-authoritative round resolution. Call it when all players answered OR
  * when the deadline passed - both triggers may fire; the atomic claim
  * (collecting -> resolving, guarded on phase + roundNumber) guarantees exactly
@@ -1035,6 +1045,20 @@ export async function getRoundAnswers(
  * outcomes; every player without an answer is 'missed'. Returns true for the
  * caller that actually resolved (that caller may then apply mode-specific
  * side effects like score/board updates, knowing it is the single winner).
+ *
+ * Recovery paths (a claim that never reaches the final write must not strand
+ * the round in 'resolving' forever):
+ *   - RE-CLAIM: after RESOLVE_STALE_MS a round still in 'resolving' can be
+ *     claimed again, atomically guarded on the PREVIOUS claim token. Safe to
+ *     re-run in full: every persistent side effect (scores, boards, finish)
+ *     only happens after the final write landed, so a dead claim left nothing
+ *     behind. The final write is guarded on OUR token - if a slow original
+ *     winner wakes up after being superseded, its write matches nothing and
+ *     it returns false (no double side effects).
+ *   - ROLLBACK: if answers/roster/evaluate throw AFTER the claim (e.g. a
+ *     network error), the round is put back to 'collecting' with a short fresh
+ *     deadline - the clients' deadline timers re-arm and retry, and the error
+ *     surfaces to the caller instead of hanging invisibly.
  */
 export async function resolveSimulRound(
   lobbyId: string,
@@ -1046,37 +1070,103 @@ export async function resolveSimulRound(
     | Promise<{ results: Record<string, RoundOutcome>; patch?: Partial<OnlineGameState> }>
 ): Promise<boolean> {
   const { game_state: gs } = await getLobby(lobbyId);
-  if (!gs || gs.roundPhase !== 'collecting' || gs.roundNumber == null) return false;
+  if (!gs || gs.roundNumber == null) return false;
 
-  // Step 1: atomic claim (deadline timer vs. "all answered" race).
-  const { data } = await supabase
+  // Step 1: atomic claim (deadline timer vs. "all answered" race - and the
+  // stale re-claim, all funneled through conditional single-row updates).
+  const claimId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const claimedState: OnlineGameState = {
+    ...gs,
+    roundPhase: 'resolving',
+    resolveClaimId: claimId,
+    resolveClaimedAt: Date.now(),
+  };
+  let claim = supabase
     .from('lobbies')
-    .update({ game_state: { ...gs, roundPhase: 'resolving' } as OnlineGameState })
+    .update({ game_state: claimedState })
     .eq('id', lobbyId)
-    .filter('game_state->>roundPhase', 'eq', 'collecting')
-    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber))
-    .select();
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+  if (gs.roundPhase === 'collecting') {
+    // Defense-in-depth against premature client triggers (e.g. an effect
+    // firing with stale state): a collecting round may only be resolved once
+    // its deadline passed OR everyone actually answered - checked against the
+    // CURRENT answer rows, not whatever the caller believed.
+    const deadlinePassed = gs.roundDeadline == null || Date.now() >= gs.roundDeadline;
+    if (!deadlinePassed) {
+      const [answers, players] = await Promise.all([
+        getRoundAnswers(lobbyId, gs.roundNumber),
+        getLobbyPlayers(lobbyId),
+      ]);
+      if (players.length === 0 || answers.length < players.length) return false;
+    }
+    claim = claim.filter('game_state->>roundPhase', 'eq', 'collecting');
+  } else if (gs.roundPhase === 'resolving') {
+    // Stale re-claim: only when the previous claim visibly died. Guarded on
+    // the previous token (or its absence, for rounds stuck before this fix),
+    // so two rescuers can never both win.
+    const claimedAt = gs.resolveClaimedAt ?? gs.roundDeadline ?? 0;
+    if (Date.now() - claimedAt < RESOLVE_STALE_MS) return false;
+    claim = claim.filter('game_state->>roundPhase', 'eq', 'resolving');
+    claim =
+      gs.resolveClaimId != null
+        ? claim.filter('game_state->>resolveClaimId', 'eq', gs.resolveClaimId)
+        : claim.filter('game_state->>resolveClaimId', 'is', null);
+  } else {
+    return false;
+  }
+  const { data } = await claim.select();
   if (!data || data.length === 0) return false;
 
-  // Step 2: frozen snapshot of answers + roster.
-  const [answers, players] = await Promise.all([
-    getRoundAnswers(lobbyId, gs.roundNumber),
-    getLobbyPlayers(lobbyId),
-  ]);
+  try {
+    // Step 2: frozen snapshot of answers + roster.
+    const [answers, players] = await Promise.all([
+      getRoundAnswers(lobbyId, gs.roundNumber),
+      getLobbyPlayers(lobbyId),
+    ]);
 
-  // Step 3: mode-specific evaluation; default everyone to 'missed'.
-  const results: Record<string, RoundOutcome> = {};
-  for (const p of players) results[p.player_id] = 'missed';
-  const evaluated = await evaluate(answers, gs);
-  Object.assign(results, evaluated.results);
+    // Step 3: mode-specific evaluation; default everyone to 'missed'.
+    const results: Record<string, RoundOutcome> = {};
+    for (const p of players) results[p.player_id] = 'missed';
+    const evaluated = await evaluate(answers, gs);
+    Object.assign(results, evaluated.results);
 
-  await writeGameState(lobbyId, {
-    ...gs,
-    ...(evaluated.patch ?? {}),
-    roundPhase: 'resolved',
-    roundResults: results,
-  });
-  return true;
+    // Final write, guarded on OUR claim token: if a rescuer superseded us in
+    // the meantime, this matches nothing and we must NOT run side effects.
+    const { data: final } = await supabase
+      .from('lobbies')
+      .update({
+        game_state: {
+          ...gs,
+          ...(evaluated.patch ?? {}),
+          roundPhase: 'resolved',
+          roundResults: results,
+          resolveClaimId: null,
+          resolveClaimedAt: null,
+        } as OnlineGameState,
+      })
+      .eq('id', lobbyId)
+      .filter('game_state->>resolveClaimId', 'eq', claimId)
+      .select();
+    return !!final && final.length > 0;
+  } catch (e) {
+    // Controlled rollback instead of a silent hang: reopen the round with a
+    // short fresh deadline (clients re-arm + retry), then surface the error.
+    // Guarded on our token so a rescuer's progress can't be clobbered.
+    await supabase
+      .from('lobbies')
+      .update({
+        game_state: {
+          ...gs,
+          roundPhase: 'collecting',
+          roundDeadline: Date.now() + RESOLVE_RETRY_WINDOW_MS,
+          resolveClaimId: null,
+          resolveClaimedAt: null,
+        } as OnlineGameState,
+      })
+      .eq('id', lobbyId)
+      .filter('game_state->>resolveClaimId', 'eq', claimId);
+    throw e;
+  }
 }
 
 // ---------------------------------------------------------------------------
