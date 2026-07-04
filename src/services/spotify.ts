@@ -535,24 +535,65 @@ function isConnectionLostError(e: any): boolean {
   );
 }
 
+/** Resulting playback state after a togglePlayback() call, for the button icon. */
+export type PlaybackState = 'playing' | 'paused';
+
 /**
- * Backup-play: make sure the CURRENT song is actually playing, reconnecting
- * first if the App Remote session is gone. Used by the manual ▶ button (the
- * auto-play effects stay optimistic).
+ * Play/pause decision when the App Remote is (believed to be) connected. Reads
+ * the real player state so the manual button behaves like a Play/Pause toggle
+ * instead of always restarting:
+ *   - our current card is loaded & paused  -> resume (keeps the position)
+ *   - our current card is loaded & playing -> pause
+ *   - a DIFFERENT track (or none) is loaded -> first play of this card: playUri
+ *     from the start.
+ * A hung getPlayerState() surfaces as a timeout, which isConnectionLostError()
+ * treats as a lost session, so the caller falls through to reconnect + playUri.
+ */
+async function toggleWhileConnected(uri: string): Promise<PlaybackState> {
+  const state = await withTimeout(
+    getRemote().getPlayerState(),
+    STATUS_CHECK_TIMEOUT_MS,
+    'Spotify-Status'
+  );
+  const sameTrack = !!state?.track?.uri && state.track.uri === uri;
+  if (sameTrack) {
+    if (state.isPaused) {
+      await withTimeout(getRemote().resume(), APP_REMOTE_TIMEOUT_MS, 'Spotify-Wiedergabe');
+      return 'playing';
+    }
+    await withTimeout(getRemote().pause(), APP_REMOTE_TIMEOUT_MS, 'Spotify-Wiedergabe');
+    return 'paused';
+  }
+  // A different card (or nothing) is loaded -> this is the first play of this
+  // card, so start it from the beginning rather than resuming whatever's loaded.
+  await playUri(uri);
+  return 'playing';
+}
+
+/**
+ * Backup Play/Pause toggle for the CURRENT song, reconnecting first if the App
+ * Remote session is gone. Used by the manual ▶/⏸ button (the auto-play effects
+ * stay optimistic). Returns the resulting state so the button can show the right
+ * icon. Behaviour (vs the old "always restart"):
+ *   - nothing playing yet / paused -> resume at the last position (or start from
+ *     0 if this card was never played this round)
+ *   - already playing -> pause
  *
- * `getCurrentUri` is called at PLAY time, not captured at press time: a
- * reconnect can take seconds and the game may move on meanwhile - if the
- * current card changed during the reconnect, we abort silently instead of
- * replaying a stale song (the auto-play effect owns the new card).
+ * `getCurrentUri` is called at ACTION time, not captured at press time: a
+ * reconnect can take seconds and the game may move on meanwhile - if the current
+ * card changed during the reconnect, we abort silently instead of replaying a
+ * stale song (the auto-play effect owns the new card).
  *
  * Flow: probe remote.isConnectedAsync() (ground truth - the in-memory
- * `connected` flag is optimistic and never learns about a real drop; we sync
- * it here) -> connected: play directly, falling through to ONE reconnect on a
- * connection-lost error -> not connected: reuse connect() (full platform flow
- * incl. stale-auth self-heal) -> re-resolve the uri -> play. Errors are
+ * `connected` flag is optimistic and never learns about a real drop; we sync it
+ * here) -> connected: toggle via player state, falling through to ONE reconnect
+ * on a connection-lost error -> not connected: reuse connect() (full platform
+ * flow incl. stale-auth self-heal) -> re-resolve the uri -> play. Errors are
  * THROWN, never swallowed - the button surfaces them.
  */
-export async function ensurePlaying(getCurrentUri: () => string | null): Promise<void> {
+export async function togglePlayback(
+  getCurrentUri: () => string | null
+): Promise<PlaybackState> {
   const uriBefore = getCurrentUri();
   if (!uriBefore) throw new Error('Kein aktiver Song zum Abspielen.');
 
@@ -570,11 +611,10 @@ export async function ensurePlaying(getCurrentUri: () => string | null): Promise
 
   if (isConnected) {
     try {
-      await playUri(uriBefore);
-      return;
+      return await toggleWhileConnected(uriBefore);
     } catch (e) {
       if (!isConnectionLostError(e)) throw e;
-      // Session died between probe and play -> one reconnect attempt below.
+      // Session died between probe and action -> one reconnect attempt below.
     }
   }
 
@@ -582,9 +622,10 @@ export async function ensurePlaying(getCurrentUri: () => string | null): Promise
 
   const uriAfter = getCurrentUri();
   if (!uriAfter || uriAfter !== uriBefore) {
-    return; // game moved on during the reconnect - never replay a stale card
+    return 'paused'; // game moved on during the reconnect - never replay a stale card
   }
   await playUri(uriAfter);
+  return 'playing';
 }
 
 /** Build a readable error from an already-read Web API response body. */

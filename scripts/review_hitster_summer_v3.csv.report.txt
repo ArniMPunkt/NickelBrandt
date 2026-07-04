@@ -1,0 +1,63 @@
+Analysebericht
+==============
+Gesamtzahl Songs: 308
+Automatisch entschieden: 275
+Bestehende starke Jahre bestaetigt: 0
+Offene Reviews: 0
+MusicBrainz plausibel: 285
+MusicBrainz fehlend/unsicher: 23
+MB-ISRC-Treffer: 278
+MB-Fallback-Texttreffer: 7
+Weiterhin mb_no_match: 7
+mb_match_uncertain: 16
+MB-Falschmatch-Warnungen durch Discogs-frueher: 0
+Compilation-/Katalogverdacht-Faelle: 74
+Deezer ungueltig/verdaechtig: 1
+Ausgeschlossen: 1
+Hinweis: upload-song-pool.js muss excluded_from_pool spaeter ueberspringen, bevor diese Zeilen hochgeladen werden.
+
+Spotify estimated_year abweichend von MB: 94
+  Durchschnittliche Abweichung: 17.5 Jahre
+  Spotify estimated_year spaeter als MB: 83
+  1. American Pie - Single Version - Don McLean: MB 1971, Spotify 2019, diff +48
+  2. Night Fever - From "Saturday Night Fever" Soundtrack - Bee Gees: MB 1977, Spotify 2020, diff +43
+  3. Funkytown - Lipps Inc.: MB 1979, Spotify 2018, diff +39
+  4. A Horse With No Name - America: MB 1973, Spotify 2011, diff +38
+  5. Heart Of Gold - Neil Young: MB 1972, Spotify 2010, diff +38
+  6. La Vie en rose - Grace Jones: MB 1977, Spotify 2015, diff +38
+  7. Rock Your Baby - George McCrae: MB 1974, Spotify 2010, diff +36
+  8. Nutbush City Limits - Ike & Tina Turner: MB 1973, Spotify 2008, diff +35
+  9. Radar Love - Golden Earring: MB 1973, Spotify 2008, diff +35
+  10. Let The Music Play - Barry White: MB 1975, Spotify 2009, diff +34
+
+Deezer abweichend von MB: 159
+  Durchschnittliche Abweichung: 22.0 Jahre
+  Deezer spaeter als MB: 154
+  1. You Really Got Me - The Kinks: MB 1964, Deezer 2023, diff +59
+  2. La Bamba - Single Version - Ritchie Valens: MB 1958, Deezer 2011, diff +53
+  3. Stop! In The Name Of Love - The Supremes: MB 1965, Deezer 2018, diff +53
+  4. Get Down - Gilbert O'Sullivan: MB 1973, Deezer 2026, diff +53
+  5. Rocket Man (I Think It's Going To Be A Long, Long Time) - Elton John: MB 1972, Deezer 2023, diff +51
+  6. Spirit In The Sky - Deluxe Edition - Norman Greenbaum: MB 1969, Deezer 2019, diff +50
+  7. American Pie - Single Version - Don McLean: MB 1971, Deezer 2020, diff +49
+  8. Israelites - Desmond Dekker: MB 1966, Deezer 2014, diff +48
+  9. Here Comes The Sun - Remastered 2009 - The Beatles: MB 1969, Deezer 2015, diff +46
+  10. Let It Be - Remastered 2009 - The Beatles: MB 1970, Deezer 2015, diff +45
+
+Discogs abweichend von MB: 2
+  Verworfene Discogs-Treffer: 1
+  Durchschnittliche Abweichung: 32.0 Jahre
+  1. I Want To Break Free - Queen: MB 2018, Discogs 1984, diff -34
+  2. Jumpin' Jack Flash - The Rolling Stones: MB 2021, Discogs 1991, diff -30
+
+Spotify/Deezer gemeinsam frueher als MB: 2
+Spotify/Deezer gemeinsam spaeter als MB: 31
+
+Top 20 mb_no_match
+  1. Boys - Summertime Love - Sabrina | ISRC GBJUT1009950 | Album Sabrina | Type album | Dauer 234812
+  2. Bella Isola - Radio - Bata Illic | ISRC DEQ090300067 | Album Bella Isola | Type single | Dauer 239827
+  3. Strandbikini - Club Honululu Itsy Bitsy Teenie Weenie Honolulu | ISRC DEU241266207 | Album So wie damals - Rock 'n' Roll aus Deutschland, Vol.3 | Type compilation | Dauer 130506
+  4. I.O.I.O. - Radio Edit - B 3 | ISRC DEPI82100993 | Album I.O.I.O. | Type single | Dauer 183000
+  5. Dance Little Birdie - De Electronica's | ISRC NLA342200075 | Album Dance Little Birdie | Type single | Dauer 157028
+  6. Aloha-Ahe - Freddy Quinn | ISRC QMDA71378219 | Album Weit ist der Weg | Type compilation | Dauer 213893
+  7. Nossa Nossa (Ai Se Eu Te Pego) - Single Version - Ai Se Eu Te Pego Nossa Nossa | ISRC DEY691200102 | Album Nossa Nossa (Ai Se Eu Te Pego) | Type single | Dauer 167916

@@ -68,8 +68,13 @@ async function main() {
 
   // --- Partition rows ---
   const skippedNoSpotify = [];
+  const skippedExcluded = [];
   const candidates = []; // spotify_found === true
   for (const o of objects) {
+    if (String(o.status || '').trim() === 'excluded_from_pool') {
+      skippedExcluded.push(o);
+      continue;
+    }
     if (String(o.spotify_found).toLowerCase() === 'true') candidates.push(o);
     else skippedNoSpotify.push(o);
   }
@@ -154,6 +159,10 @@ async function main() {
   const line = '─'.repeat(60);
   console.log(`\n${line}\nUPLOAD ZUSAMMENFASSUNG\n${line}`);
   console.log(`Zeilen in Review-CSV insgesamt:        ${totalRows}`);
+  console.log(`Uebersprungen (excluded_from_pool):    ${skippedExcluded.length}`);
+  if (skippedExcluded.length) {
+    for (const o of skippedExcluded) console.log(`   - ${o.title} - ${o.artist}`);
+  }
   console.log(`Übersprungen (kein Spotify-Treffer):   ${skippedNoSpotify.length}`);
   if (skippedNoSpotify.length) {
     for (const o of skippedNoSpotify) console.log(`   ✗ ${o.title} — ${o.artist}`);

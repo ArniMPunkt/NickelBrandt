@@ -687,7 +687,9 @@ export default function BingoGameScreen() {
     >
       {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>BINGO</Text>
+        <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+          BINGO
+        </Text>
         <View style={styles.roundPill}>
           <Text style={styles.roundPillText}>Runde {gs.roundNumber ?? 1}</Text>
         </View>
