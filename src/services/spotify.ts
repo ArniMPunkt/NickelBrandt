@@ -21,6 +21,9 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as SecureStore from 'expo-secure-store';
 import type { GameCard } from '../types/game';
+// Type-only import: erased at runtime, so it never touches the SDK's native
+// bridge at module load (see the top-of-file note about lazy require()).
+import type { PlayerState } from 'react-native-spotify-remote';
 
 // Lets expo-auth-session finish the redirect when the browser returns.
 WebBrowser.maybeCompleteAuthSession();
@@ -626,6 +629,73 @@ export async function togglePlayback(
   }
   await playUri(uriAfter);
   return 'playing';
+}
+
+/**
+ * Best-effort snapshot of the current playback state for the manual button's
+ * icon: 'playing'/'paused' ONLY when the App Remote is connected AND the given
+ * card is the loaded track, else null. Never reconnects, never throws, and is
+ * timeout-boxed so a hung SDK call can't block the UI - the button falls back to
+ * the default ▶ on null. Covers the "button rendered mid-song" case that emits
+ * no state-change event; live transitions come from subscribePlaybackState.
+ */
+export async function probePlaybackState(uri: string): Promise<PlaybackState | null> {
+  try {
+    const connectedNow = await withTimeout(
+      getRemote().isConnectedAsync(),
+      STATUS_CHECK_TIMEOUT_MS,
+      'Spotify-Status'
+    );
+    if (!connectedNow) return null;
+    const state = await withTimeout(
+      getRemote().getPlayerState(),
+      STATUS_CHECK_TIMEOUT_MS,
+      'Spotify-Status'
+    );
+    if (!state?.track?.uri || state.track.uri !== uri) return null;
+    return state.isPaused ? 'paused' : 'playing';
+  } catch {
+    return null; // SDK not ready / probe hung / no state -> keep the default icon
+  }
+}
+
+/**
+ * Subscribe to live player-state changes so the manual button's icon reflects
+ * reality WITHOUT a tap - notably when auto-play starts a new card. `cb` fires
+ * with 'playing'/'paused' whenever the CURRENT track (per getUri, read at event
+ * time so it always compares against the card on screen) changes state; events
+ * for any other track are ignored. Best-effort: returns a no-op unsubscribe if
+ * the SDK isn't ready. Never throws. Using the SDK's own playerStateChanged
+ * event (not a poll) avoids racing the auto-play playUri: the event fires when
+ * playback actually starts.
+ */
+export function subscribePlaybackState(
+  getUri: () => string | null,
+  cb: (state: PlaybackState) => void
+): () => void {
+  let remote: ReturnType<typeof getRemote>;
+  try {
+    remote = getRemote();
+  } catch {
+    return () => {}; // SDK not ready -> tap-driven icon only
+  }
+  const listener = (state: PlayerState) => {
+    const uri = getUri();
+    if (!uri || state?.track?.uri !== uri) return;
+    cb(state.isPaused ? 'paused' : 'playing');
+  };
+  try {
+    remote.on('playerStateChanged', listener);
+  } catch {
+    return () => {};
+  }
+  return () => {
+    try {
+      remote.off('playerStateChanged', listener);
+    } catch {
+      // ignore - unsubscribing a dead emitter is harmless
+    }
+  };
 }
 
 /** Build a readable error from an already-read Web API response body. */
