@@ -117,15 +117,29 @@ const SORT_RANK = {
 };
 
 function parseArgs(argv) {
-  const args = { inputCsv: null, outputCsv: null, interactive: true, reviewAll: false, deezerMode: 'needed' };
+  const args = {
+    inputCsv: null,
+    outputCsv: null,
+    interactive: true,
+    reviewAll: false,
+    deezerMode: 'needed',
+    discogsMode: 'needed',
+    deep: false,
+  };
   for (const arg of argv) {
     if (arg === '--interactive') args.interactive = true;
     else if (arg === '--no-interactive') args.interactive = false;
     else if (arg === '--review-all') args.reviewAll = true;
+    else if (arg === '--deep' || arg === '--deep-original-search') args.deep = true;
     else if (arg.startsWith('--deezer=')) {
       const mode = arg.slice('--deezer='.length);
       if (!['needed', 'full', 'off'].includes(mode)) throw new Error(`Unknown Deezer mode: ${mode}`);
       args.deezerMode = mode;
+    }
+    else if (arg.startsWith('--discogs=')) {
+      const mode = arg.slice('--discogs='.length);
+      if (!['needed', 'full', 'off'].includes(mode)) throw new Error(`Unknown Discogs mode: ${mode}`);
+      args.discogsMode = mode;
     }
     else if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`);
     else if (!args.inputCsv) args.inputCsv = arg;
@@ -137,7 +151,7 @@ function parseArgs(argv) {
 
 function usageAndExit() {
   console.error(
-    'Usage: node scripts/precheck-song-pool.js <inputCsvPath> <outputCsvPath> [--interactive|--no-interactive] [--review-all] [--deezer=needed|full|off]'
+    'Usage: node scripts/precheck-song-pool.js <inputCsvPath> <outputCsvPath> [--interactive|--no-interactive] [--review-all] [--deezer=needed|full|off] [--discogs=needed|full|off] [--deep]'
   );
   process.exit(1);
 }
@@ -834,10 +848,13 @@ function buildAnalysisReport(rows, summary, stats = {}, totalMs = 0) {
   const deezerInvalid = rows.filter((row) => row.deezer_invalid_year).length;
   const excluded = rows.filter((row) => row.status === 'excluded_from_pool').length;
   const dzStats = stats.deezer || {};
+  const dcStats = stats.discogs || {};
   const timings = stats.timings || {};
   const deezerMs = timings.deezerMs || 0;
+  const discogsMs = timings.discogsMs || 0;
   const avgDeezerCallMs = dzStats.calls ? (dzStats.callMs / dzStats.calls).toFixed(0) : '0';
   const deezerShare = totalMs ? ((deezerMs / totalMs) * 100).toFixed(1) : '0.0';
+  const dcReasons = dcStats.reasons || {};
 
   return [
     'Analysebericht',
@@ -870,6 +887,20 @@ function buildAnalysisReport(rows, summary, stats = {}, totalMs = 0) {
     `  Laufzeit Deezer-Pass: ${(deezerMs / 1000).toFixed(1)}s`,
     `  Ø Zeit pro Deezer-Call: ${avgDeezerCallMs}ms`,
     `  Anteil an Gesamtzeit: ${deezerShare}%`,
+    '',
+    'Discogs-Laufzeit',
+    `  Modus: ${dcStats.mode || 'needed'}`,
+    `  Planned Calls: ${dcStats.planned || 0}`,
+    `  Calls ausgefuehrt: ${dcStats.calls || 0}`,
+    `  Cache-Hits: ${dcStats.cacheHits || 0}`,
+    `  Skips/Caps: ${dcStats.skips || 0}/${dcStats.capped || 0}`,
+    `  Laufzeit Discogs-Pass: ${(discogsMs / 1000).toFixed(1)}s`,
+    '  Gruende:',
+    `    mb_no_match: ${dcReasons.mb_no_match || 0}`,
+    `    mb_uncertain: ${dcReasons.mb_uncertain || 0}`,
+    `    catalog_suspected_with_late_mb: ${dcReasons.catalog_suspected_with_late_mb || 0}`,
+    `    earlier_source_conflict: ${dcReasons.earlier_source_conflict || 0}`,
+    `    full_mode: ${dcReasons.full_mode || 0}`,
     '',
     `Spotify estimated_year abweichend von MB: ${spotify.length}`,
     `  Durchschnittliche Abweichung: ${averageAbsDiff(spotify)} Jahre`,
@@ -943,7 +974,15 @@ function printSummary({ rows, results, stats, inputs, outputCsv, tScript }) {
         `Input ${stats.deezer.inputHits}, Skips ${stats.deezer.skips}, Fehler ${stats.deezer.errors}, Timeouts ${stats.deezer.timeouts}`
     );
   }
-  console.log(`   Discogs (nur bei Bedarf):                 ${s1(t.discogsMs)}s (${t.discogsCalls || 0} Calls)`);
+  if (stats.discogs) {
+    const dc = stats.discogs;
+    console.log(
+      `   Discogs-Modus ${dc.mode}: geplant ${dc.planned}, Calls ${dc.calls}, Cache ${dc.cacheHits}, ` +
+        `Skips ${dc.skips}, Cap ${dc.capped}`
+    );
+  } else {
+    console.log(`   Discogs (nur bei Bedarf):                 ${s1(t.discogsMs)}s (${t.discogsCalls || 0} Calls)`);
+  }
   console.log(`Review-CSV geschrieben: ${outputCsv}`);
   console.log(`Analysebericht geschrieben: ${reportPath}`);
   console.log(line);
@@ -974,7 +1013,8 @@ async function main() {
   console.log(`\nLoaded ${inputs.length} song row(s) from ${args.inputCsv}`);
   console.log(
     `Modus: ${args.interactive ? 'interaktiv (Default)' : 'nicht-interaktiv'}${args.reviewAll ? ' + review-all' : ''}, ` +
-      `Deezer=${args.deezerMode}${hydratedDeezer ? `, Deezer aus Output uebernommen: ${hydratedDeezer}` : ''}\n`
+      `Deezer=${args.deezerMode}, Discogs=${args.discogsMode}${args.deep ? ', deep' : ''}` +
+      `${hydratedDeezer ? `, Deezer aus Output uebernommen: ${hydratedDeezer}` : ''}\n`
   );
   console.log('Phase 1/3: CSV/Spotify-Daten vorbereiten');
 
@@ -989,7 +1029,10 @@ async function main() {
         else if (event === 'credits-done') console.log(`Credits.fm fertig: ${info.resolved}/${info.total}. Spotify-Aufloesung startet.\n`);
         else if (event === 'years-start') {
           console.log('\nPhase 2/3: MusicBrainz/Deezer/Discogs abfragen');
-          console.log(`Frage MusicBrainz ab; Deezer-Modus: ${info.deezerMode || args.deezerMode}.`);
+          console.log(
+            `Frage MusicBrainz ab; Deezer=${info.deezerMode || args.deezerMode}, ` +
+              `Discogs=${args.discogsMode}${args.deep ? ', deep' : ''}.`
+          );
           phaseStartedAt = Date.now();
           phaseTimer = clearTimer(phaseTimer);
           phaseTimer = setInterval(() => {
@@ -1003,6 +1046,18 @@ async function main() {
             `MusicBrainz/Deezer fertig: MB ${(info.mbMs / 1000).toFixed(1)}s, ` +
               `Deezer ${(info.deezerMs / 1000).toFixed(1)}s (${dz.calls || 0} Calls, ${dz.cacheHits || 0} Cache, ${dz.skips || 0} Skips).`
           );
+        } else if (event === 'discogs-plan') {
+          const reasons = info.reasons || {};
+          console.log('\nDiscogs geplant:');
+          console.log(`- total planned calls: ${info.originallyPlanned != null ? info.originallyPlanned : info.total}`);
+          if (info.capped) console.log(`- executed in this run: ${info.total} (capped ${info.capped})`);
+          console.log('- reasons:');
+          console.log(`  - mb_no_match: ${reasons.mb_no_match || 0}`);
+          console.log(`  - mb_uncertain: ${reasons.mb_uncertain || 0}`);
+          console.log(`  - catalog_suspected_with_late_mb: ${reasons.catalog_suspected_with_late_mb || 0}`);
+          console.log(`  - earlier_source_conflict: ${reasons.earlier_source_conflict || 0}`);
+          console.log(`  - full_mode: ${reasons.full_mode || 0}`);
+          if (info.warning) console.log(info.warning);
         } else if (event === 'discogs-start') {
           console.log(`Discogs: ${info.total} Call(s), ${info.skipped} uebersprungen.`);
         } else if (event === 'discogs-done') {
@@ -1023,6 +1078,8 @@ async function main() {
         console.log(status);
       },
       deezerMode: args.deezerMode,
+      discogsMode: args.discogsMode,
+      deepOriginalSearch: args.deep,
       reviewAll: args.reviewAll,
     });
   } catch (e) {
