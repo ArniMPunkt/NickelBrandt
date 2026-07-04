@@ -16,7 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'NickelBrandt',
   slug: 'nickelbrandt',
-  version: '1.0.1',
+  version: '1.0.2',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -30,7 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.nickelbrandt.app',
     icon: './assets/icon.png',
     // iOS build number (CFBundleVersion). Bump on every TestFlight/App Store build.
-    buildNumber: '5',
+    buildNumber: '6',
     infoPlist: {
       // Only standard TLS/HTTPS (Supabase, Spotify SDK, Expo) — no custom
       // crypto. Answers App Store Connect's export-compliance question
