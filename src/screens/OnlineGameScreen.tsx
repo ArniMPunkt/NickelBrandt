@@ -36,6 +36,7 @@ import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
+import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
@@ -289,6 +290,8 @@ export default function OnlineGameScreen() {
   const gs = lobby?.game_state ?? null;
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
+  // Host plays audio -> silently reconnect Spotify after a background/foreground.
+  useSpotifyReconnect(isHost);
   const phase = gs?.phase;
   const activePlayer = gs ? players.find((p) => p.player_id === gs.activePlayerId) : undefined;
   const isActive = !!gs && gs.activePlayerId === myId;
@@ -312,7 +315,9 @@ export default function OnlineGameScreen() {
   // the next card's playUri replaces it.
   useEffect(() => {
     if (!isHost) return;
-    if (phase === 'card_drawn' && card) Spotify.playUri(card.trackUri).catch(() => {});
+    if (phase === 'card_drawn' && card) {
+      Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
+    }
     if (phase === 'finished' && gs?.winnerId) Spotify.pause().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, phase, isHost, gs?.winnerId]);

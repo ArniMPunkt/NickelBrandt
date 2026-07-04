@@ -15,7 +15,10 @@
  *     "https://open.spotify.com/playlist/26zIHVncgI9HmHlgYWwnDi?si=abc" scripts/raw.csv
  *   node scripts/import-spotify-playlist.js spotify:playlist:26zIHVncgI9HmHlgYWwnDi scripts/raw.csv
  *
- * Output CSV columns: title,artist,estimated_year,spotify_track_id,isrc
+ * Output CSV columns: title,artist,estimated_year,spotify_track_id,isrc,
+ * spotify_album_name,spotify_album_type,spotify_album_release_date,
+ * spotify_duration_ms,spotify_album_artist,spotify_track_number,
+ * spotify_disc_number
  *   - estimated_year is album.release_date's year ONLY as a rough hint; the
  *     precheck step still verifies the year via MusicBrainz.
  *
@@ -53,7 +56,20 @@ const { fetchWithRetry } = require('./lib/verify-songs');
 
 loadEnv(path.join(__dirname, '.env'));
 
-const COLUMNS = ['title', 'artist', 'estimated_year', 'spotify_track_id', 'isrc'];
+const COLUMNS = [
+  'title',
+  'artist',
+  'estimated_year',
+  'spotify_track_id',
+  'isrc',
+  'spotify_album_name',
+  'spotify_album_type',
+  'spotify_album_release_date',
+  'spotify_duration_ms',
+  'spotify_album_artist',
+  'spotify_track_number',
+  'spotify_disc_number',
+];
 
 // --- User-login (Authorization Code + PKCE) config -------------------------
 const REDIRECT_URI = process.env.SPOTIFY_PLAYLIST_REDIRECT_URI || 'http://127.0.0.1:8888/callback';
@@ -124,14 +140,26 @@ function accumulatePage(items, acc) {
       acc.skipped.incomplete++;
       continue;
     }
+    const album = t.album || {};
     const isrc = (t.external_ids && t.external_ids.isrc) || '';
+    const albumArtist = (album.artists || [])
+      .map((a) => (a && a.name ? a.name.trim() : ''))
+      .filter(Boolean)
+      .join(', ');
     if (!isrc) acc.withoutIsrc++;
     acc.rows.push({
       title,
       artist,
-      estimated_year: yearOf(t.album && t.album.release_date),
+      estimated_year: yearOf(album.release_date),
       spotify_track_id: t.id,
       isrc,
+      spotify_album_name: album.name || '',
+      spotify_album_type: album.album_type || '',
+      spotify_album_release_date: album.release_date || '',
+      spotify_duration_ms: t.duration_ms || '',
+      spotify_album_artist: albumArtist,
+      spotify_track_number: t.track_number || '',
+      spotify_disc_number: t.disc_number || '',
     });
   }
   return acc;
@@ -324,7 +352,7 @@ async function main() {
   // (was `{ is_local, track }`). `next` is a full URL carrying the offset; even
   // if it dropped the field filter our parser reads the full object anyway.
   const fields =
-    'items(is_local,item(name,id,is_local,artists(name),external_ids(isrc),album(release_date))),next,total';
+    'items(is_local,item(name,id,is_local,duration_ms,track_number,disc_number,artists(name),external_ids(isrc),album(name,album_type,release_date,artists(name)))),next,total';
   let url =
     `https://api.spotify.com/v1/playlists/${id}/items` +
     `?limit=100&fields=${encodeURIComponent(fields)}`;
