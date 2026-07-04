@@ -15,7 +15,7 @@
  */
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -96,14 +96,30 @@ function SettingsTabIcon({ focused }: { focused: boolean }) {
   return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>⚙️</Text>;
 }
 
+// Tab-bar sizing. The visible content band (icon + label) is the same on both
+// platforms; the bottom safe-area inset is added on top so the labels never
+// overlap the home indicator / gesture bar.
+//
+// We set an explicit height, which makes React Navigation use it verbatim and
+// skip its own inset math (verified in @react-navigation/bottom-tabs v7
+// getTabBarHeight) — so we add insets.bottom back ourselves, to BOTH height and
+// paddingBottom. That is NOT a double inset: the two share the same inset and it
+// cancels out of the content band; our paddingBottom also overrides the
+// library's default paddingBottom rather than stacking on it.
+//
+// TABBAR_BOTTOM_GAP is a fixed gap BELOW the labels, needed only on platforms
+// without a bottom inset: Android 3-button nav sits flush to the screen edge, so
+// 10px keeps the labels off it. On iOS the home-indicator inset already provides
+// that separation, so adding the gap on top just inflates the bar (this was the
+// "iOS tab bar too tall" bug — one shared value, no platform split). Hence iOS
+// drops the gap; Android keeps it. Content band stays 46px on both.
+const TABBAR_CONTENT_HEIGHT = 46; // icon (20) + label (13) + breathing room
+const TABBAR_TOP_PAD = 8;
+const TABBAR_BOTTOM_GAP = Platform.OS === 'ios' ? 0 : 10;
+
 /**
  * The bottom-tab root. Split into its own component so it can read the bottom
  * safe-area inset (useSafeAreaInsets only works *inside* SafeAreaProvider).
- *
- * We set an explicit tab-bar height, which would otherwise disable React
- * Navigation's automatic safe-area handling — so we add the bottom inset back
- * ourselves. Without this the labels sit in the home-indicator / gesture-bar
- * zone and the OS indicator line cuts through the text.
  */
 function RootTabs() {
   const insets = useSafeAreaInsets();
@@ -118,11 +134,10 @@ function RootTabs() {
             backgroundColor: COLORS.backgroundAlt,
             borderTopColor: COLORS.border,
             borderTopWidth: 1,
-            // Reserve room for the label + icon AND the bottom safe area, so the
-            // labels never overlap the home indicator / gesture bar.
-            height: 64 + insets.bottom,
-            paddingBottom: insets.bottom + 10,
-            paddingTop: 8,
+            height:
+              TABBAR_CONTENT_HEIGHT + TABBAR_TOP_PAD + TABBAR_BOTTOM_GAP + insets.bottom,
+            paddingTop: TABBAR_TOP_PAD,
+            paddingBottom: TABBAR_BOTTOM_GAP + insets.bottom,
           },
           tabBarLabelStyle: { fontSize: 13, fontWeight: '800', marginBottom: 2 },
         }}
