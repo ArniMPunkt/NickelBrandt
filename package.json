@@ -34,7 +34,7 @@
     "web": "expo start --web",
     "android:aab": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1 -Type aab",
     "android:apk": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1 -Type apk",
-    "release:ios": "rm -f NickelBrandt.ipa && expo prebuild --platform ios --clean && eas build --platform ios --local --profile production --output ./NickelBrandt.ipa && eas submit --platform ios --path ./NickelBrandt.ipa",
+    "release:ios": "node scripts/release-ios.js",
     "postinstall": "patch-package && node scripts/copy-spotify-xcframework.js"
   },
   "private": true
