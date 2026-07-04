@@ -30,6 +30,7 @@ import { FinalCardReveal } from '../components/FinalCardReveal';
 import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
+import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../types/game';
@@ -160,6 +161,8 @@ export default function GameScreen() {
   const insets = useSafeAreaInsets();
   const { state, dispatch } = useGame();
   const [playError, setPlayError] = useState<string | null>(null);
+  // Single-device play -> silently reconnect Spotify after a background/foreground.
+  useSpotifyReconnect(true);
 
   const chipsEnabled = state.settings.chipsEnabled;
   const player: Player | undefined = state.players[state.currentPlayerIndex];
@@ -215,7 +218,7 @@ export default function GameScreen() {
       ]).catch(() => {});
     }
     setPlayError(null);
-    Spotify.playUri(card.trackUri)
+    Spotify.playUriGuarded(card.trackUri)
       .then(() => Spotify.markTrackPlayed(card.id))
       .catch((e: any) => setPlayError(e?.message ?? String(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps

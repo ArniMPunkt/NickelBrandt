@@ -10,7 +10,7 @@
  * existing Spotify service. Status refreshes on focus, so connecting here and
  * switching tabs updates the gated start/create buttons automatically.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -87,6 +87,16 @@ export default function SettingsScreen() {
       refresh();
     }, [refresh])
   );
+
+  // Live status: react to connect/disconnect events (e.g. iOS dropping the App
+  // Remote in the background) even while this tab is already open - not just on
+  // focus. subscribeConnection fires immediately with the current value too.
+  useEffect(() => {
+    const unsub = Spotify.subscribeConnection(() => {
+      refresh();
+    });
+    return unsub;
+  }, [refresh]);
 
   const connect = async () => {
     setBusy(true);

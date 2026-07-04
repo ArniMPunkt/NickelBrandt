@@ -43,6 +43,7 @@ import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
+import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type {
@@ -337,6 +338,8 @@ export default function BingoGameScreen() {
   const gs = lobby?.game_state ?? null;
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
+  // Host plays audio -> silently reconnect Spotify after a background/foreground.
+  useSpotifyReconnect(isHost);
   const card = gs?.currentCard ?? null;
   const round = gs?.bingoRound ?? null;
   const roundPhase = gs?.roundPhase ?? null;
@@ -442,7 +445,7 @@ export default function BingoGameScreen() {
     if (gs?.phase === 'finished') {
       Spotify.pause().catch(() => {});
     } else if (card && roundPhase === 'collecting') {
-      Spotify.playUri(card.trackUri).catch(() => {});
+      Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, roundPhase === 'collecting', gs?.phase, isHost]);

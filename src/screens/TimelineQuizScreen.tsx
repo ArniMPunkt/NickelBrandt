@@ -28,6 +28,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
 import { PressableButton } from '../components/PressableButton';
+import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type {
@@ -261,6 +262,8 @@ export default function TimelineQuizScreen() {
   const gs = lobby?.game_state ?? null;
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
+  // Host plays audio -> silently reconnect Spotify after a background/foreground.
+  useSpotifyReconnect(isHost);
   const card = gs?.currentCard ?? null;
   const roundPhase = gs?.roundPhase ?? null;
   // Stale-tagged answers (from a previous round) count as "none yet".
@@ -301,7 +304,7 @@ export default function TimelineQuizScreen() {
     if (gs?.phase === 'finished') {
       Spotify.pause().catch(() => {});
     } else if (card && roundPhase === 'collecting') {
-      Spotify.playUri(card.trackUri).catch(() => {});
+      Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, roundPhase === 'collecting', gs?.phase, isHost]);

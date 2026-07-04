@@ -99,8 +99,86 @@ const REDIRECT_URL = process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI ?? '';
 
 /** True once we have authorized AND connected the App Remote at least once. */
 let connected = false;
+/**
+ * iOS only: the App-Remote access token captured at the last authorize(). Reused
+ * for a SILENT reconnect (remote.connect(token) attaches to the running Spotify
+ * app without an interactive app switch - only authorize() switches apps).
+ */
+let iosAppRemoteToken: string | null = null;
 /** Track ids already used this session, so the deck never repeats a track. */
 const playedTrackIds = new Set<string>();
+
+// ---------------------------------------------------------------------------
+// Live connection status (Baustein a)
+//
+// The `connected` flag used to be purely optimistic - it never learned about a
+// real drop (e.g. iOS tearing down the App Remote when we background). We now
+// (1) subscribe to the native remoteConnected/remoteDisconnected events so the
+// flag tracks reality, and (2) let UI subscribe to status changes so the connect
+// button reflects them live instead of only on tab focus.
+// ---------------------------------------------------------------------------
+
+type ConnectionListener = (ready: boolean) => void;
+const connectionListeners = new Set<ConnectionListener>();
+let connectionListenersAttached = false;
+
+/** Push the current readiness to all UI subscribers (setState is idempotent). */
+function notifyConnection(): void {
+  const ready = isReadyToPlay();
+  connectionListeners.forEach((l) => {
+    try {
+      l(ready);
+    } catch {
+      // a listener throwing must not break the others / the caller
+    }
+  });
+}
+
+/** Update the connection flag AND notify subscribers. Single source of truth. */
+function setConnected(next: boolean): void {
+  connected = next;
+  notifyConnection();
+}
+
+/**
+ * Attach the native App-Remote connect/disconnect listeners once, so the flag
+ * self-updates when iOS drops the session in the background (and when a silent
+ * reconnect re-establishes it). Best-effort: if the SDK isn't ready yet it stays
+ * unattached and a later call (connect / subscribeConnection) retries.
+ */
+function ensureConnectionListeners(): void {
+  if (connectionListenersAttached) return;
+  let remote: ReturnType<typeof getRemote>;
+  try {
+    remote = getRemote();
+  } catch {
+    return; // SDK not ready -> retry on the next connect/subscribe
+  }
+  try {
+    remote.on('remoteConnected', () => setConnected(true));
+    remote.on('remoteDisconnected', () => setConnected(false));
+    connectionListenersAttached = true;
+  } catch {
+    // leave unattached; a later call retries
+  }
+}
+
+/**
+ * Subscribe to live connection-readiness changes (Baustein d). Fires with the
+ * current value immediately, then on every change. Returns an unsubscribe.
+ */
+export function subscribeConnection(cb: ConnectionListener): () => void {
+  ensureConnectionListeners();
+  connectionListeners.add(cb);
+  try {
+    cb(isReadyToPlay());
+  } catch {
+    // ignore
+  }
+  return () => {
+    connectionListeners.delete(cb);
+  };
+}
 
 // Hard bound for the App Remote native calls. The interactive PKCE browser step
 // settles on its own (cancel/dismiss); these native bridge calls can silently
@@ -199,12 +277,15 @@ async function connectAppRemote(): Promise<void> {
         'Spotify authorization did not return an access token. Check the iOS redirect callback.'
       );
     }
+    // Keep the App-Remote token for a later silent reconnect (no app switch).
+    iosAppRemoteToken = session.accessToken;
     await withTimeout(
       getRemote().connect(session.accessToken),
       APP_REMOTE_TIMEOUT_MS,
       'Spotify-Verbindung'
     );
-    connected = true;
+    setConnected(true);
+    ensureConnectionListeners();
     return;
   }
 
@@ -218,7 +299,8 @@ async function connectAppRemote(): Promise<void> {
     APP_REMOTE_TIMEOUT_MS,
     'Spotify-Verbindung'
   );
-  connected = true;
+  setConnected(true);
+  ensureConnectionListeners();
 }
 
 /** One connect attempt: Web API authorization + App Remote connection. */
@@ -282,10 +364,11 @@ async function clearAuthState(): Promise<void> {
   } catch {
     // ignore - we still clear the local/persisted state below
   }
-  connected = false;
+  iosAppRemoteToken = null;
   webApiToken = null;
   webApiRefreshToken = null;
   webApiTokenExpiresAt = 0;
+  setConnected(false); // after clearing tokens, so readiness reflects the reset
   try {
     await SecureStore.deleteItemAsync(TOKEN_STORE_KEY);
   } catch {
@@ -610,7 +693,7 @@ export async function togglePlayback(
   } catch {
     isConnected = false; // SDK not ready / probe hung -> treat as disconnected
   }
-  connected = isConnected;
+  setConnected(isConnected);
 
   if (isConnected) {
     try {
@@ -646,6 +729,7 @@ export async function probePlaybackState(uri: string): Promise<PlaybackState | n
       STATUS_CHECK_TIMEOUT_MS,
       'Spotify-Status'
     );
+    setConnected(connectedNow); // fresh ground truth -> keep the UI status honest
     if (!connectedNow) return null;
     const state = await withTimeout(
       getRemote().getPlayerState(),
@@ -656,6 +740,117 @@ export async function probePlaybackState(uri: string): Promise<PlaybackState | n
     return state.isPaused ? 'paused' : 'playing';
   } catch {
     return null; // SDK not ready / probe hung / no state -> keep the default icon
+  }
+}
+
+/**
+ * Silent App Remote reconnect (Baustein b): reattach to the ALREADY-RUNNING
+ * Spotify app WITHOUT the interactive authorize() app switch.
+ *
+ * Verified against the SDK/native bridge: remote.connect(token) maps to
+ * SPTAppRemote's `connect` (RNSpotifyRemoteAppRemote.m), which attaches to the
+ * running Spotify app and never foregrounds it - only auth.authorize() /
+ * authorizeAndPlayURI do. Android's connectWithoutAuth likewise binds to the
+ * Spotify service without a switch. So this is safe to run automatically.
+ *
+ * Uses a token we already hold (iOS: the token from the last authorize(); it can
+ * expire after ~1h). Returns true on success. On failure (token stale, Spotify
+ * not running) it returns false WITHOUT escalating to an interactive authorize()
+ * - the caller surfaces the status and the user reconnects explicitly.
+ */
+async function reconnectSilently(): Promise<boolean> {
+  try {
+    if (Platform.OS === 'ios') {
+      if (!iosAppRemoteToken) return false; // never authorized -> can't heal silently
+      await withTimeout(
+        getRemote().connect(iosAppRemoteToken),
+        APP_REMOTE_TIMEOUT_MS,
+        'Spotify-Verbindung'
+      );
+    } else {
+      const remote = getRemote() as unknown as {
+        connectWithoutAuth: (token: string, clientId: string, redirectUri: string) => Promise<void>;
+      };
+      await withTimeout(
+        remote.connectWithoutAuth('', CLIENT_ID, REDIRECT_URL),
+        APP_REMOTE_TIMEOUT_MS,
+        'Spotify-Verbindung'
+      );
+    }
+    setConnected(true);
+    ensureConnectionListeners();
+    return true;
+  } catch {
+    setConnected(false);
+    return false;
+  }
+}
+
+/**
+ * On returning to the foreground (Baustein b): if the App Remote dropped while
+ * backgrounded (expected on iOS - the OS tears it down when we're suspended),
+ * silently reconnect. Only acts when we've connected before (a token exists) and
+ * never triggers an interactive app switch, so it is safe to call on every
+ * foreground. No-op if still connected. Status is pushed to subscribers either
+ * way, so the connect button reflects a drop even if the silent heal fails.
+ */
+export async function reconnectIfDropped(): Promise<void> {
+  if (!iosAppRemoteToken && !webApiToken && !webApiRefreshToken) return; // never connected
+  let isConnected = false;
+  try {
+    isConnected = await withTimeout(
+      getRemote().isConnectedAsync(),
+      STATUS_CHECK_TIMEOUT_MS,
+      'Spotify-Status'
+    );
+  } catch {
+    isConnected = false;
+  }
+  if (isConnected) {
+    setConnected(true);
+    return;
+  }
+  await reconnectSilently();
+}
+
+/**
+ * Guarded auto-play entry point for the game screens (Baustein c): play `uri`,
+ * but make sure the App Remote is actually connected first, self-healing a silent
+ * drop (e.g. iOS background). Mirrors togglePlayback's probe+reconnect, minus the
+ * toggle, and reuses the SILENT reconnect (no app switch). THROWS on failure so
+ * the auto-play call sites can surface it - they no longer swallow the error, so
+ * "no music" never goes unnoticed.
+ */
+export async function playUriGuarded(uri: string): Promise<void> {
+  let isConnected = false;
+  try {
+    isConnected = await withTimeout(
+      getRemote().isConnectedAsync(),
+      STATUS_CHECK_TIMEOUT_MS,
+      'Spotify-Status'
+    );
+  } catch {
+    isConnected = false;
+  }
+  setConnected(isConnected);
+
+  if (!isConnected) {
+    const ok = await reconnectSilently();
+    if (!ok) {
+      throw new Error(
+        'Spotify-Verbindung verloren. Tippe auf ▶ oder verbinde dich in den Einstellungen neu.'
+      );
+    }
+  }
+
+  try {
+    await playUri(uri);
+  } catch (e) {
+    if (!isConnectionLostError(e)) throw e;
+    // Dropped between the probe and the play -> one silent reconnect, then retry.
+    const ok = await reconnectSilently();
+    if (!ok) throw e;
+    await playUri(uri);
   }
 }
 
