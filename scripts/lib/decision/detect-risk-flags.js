@@ -7,6 +7,7 @@ const COMPILATION_RE =
   /\b(compilation|various artists|best of|greatest hits|collection|anthology|hits|singles|essentials?)\b/i;
 const REMASTER_DELUXE_RE =
   /\b(remaster(?:ed)?|deluxe|anniversary|reissue|expanded|special edition|legacy edition|bonus tracks?)\b/i;
+const MIN_RELEASE_YEAR = 1900;
 
 function firstValue(input, names) {
   for (const name of names) {
@@ -16,15 +17,21 @@ function firstValue(input, names) {
   return null;
 }
 
-function parseYear(value) {
+function parseYear(value, currentYear = new Date().getFullYear()) {
   if (value == null) return null;
-  if (typeof value === 'number' && Number.isInteger(value) && value >= 1000 && value <= 9999) {
+  const maxReleaseYear = currentYear + 1;
+  if (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= MIN_RELEASE_YEAR &&
+    value <= maxReleaseYear
+  ) {
     return value;
   }
   const match = String(value).trim().match(/^(\d{4})/);
   if (!match) return null;
   const year = parseInt(match[1], 10);
-  return Number.isFinite(year) && year >= 1000 && year <= 9999 ? year : null;
+  return Number.isFinite(year) && year >= MIN_RELEASE_YEAR && year <= maxReleaseYear ? year : null;
 }
 
 function parseScore(value) {
@@ -81,7 +88,6 @@ function getDiscogsYear(input) {
 
 function contextText(input) {
   return [
-    firstValue(input, ['title']),
     firstValue(input, ['spotify_album_name', 'spotifyAlbumName', 'album_name', 'albumName']),
     firstValue(input, ['spotify_album_artist', 'spotifyAlbumArtist', 'album_artist', 'albumArtist']),
   ]

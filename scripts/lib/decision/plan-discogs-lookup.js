@@ -6,9 +6,6 @@ const DISCOGS_TRIGGER_FLAGS = [
   'mb_no_match',
   'mb_uncertain',
   'mb_text_match_only',
-  'catalog_context',
-  'remaster_or_deluxe_context',
-  'compilation_context',
   'mb_year_suspicious_late',
   'existing_year_conflict',
 ];
