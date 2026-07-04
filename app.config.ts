@@ -75,6 +75,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     './plugins/withAndroidReleaseSigning',
     // Sets C++17 on the fmt pod to fix consteval errors with newer Xcode/Clang.
     './plugins/withFmtCppStandard',
+    // iOS: persists uncaught native exceptions (name/reason) to UserDefaults so
+    // the Einstellungen tab can show them - TestFlight reports strip exactly
+    // that. Diagnoses the 100% launch crash of build 5.
+    './plugins/withCrashDiagnostics',
     // iOS signing for both configurations, survives prebuild --clean:
     // Debug = Automatic signing (device Build & Run), Release = manual
     // "iPhone Distribution" + "NickelBrandt AppStore" (Archive/TestFlight).

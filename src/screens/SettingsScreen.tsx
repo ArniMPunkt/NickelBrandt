@@ -13,7 +13,9 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
+  Settings,
   StyleSheet,
   Switch,
   Text,
@@ -31,6 +33,22 @@ import { glow } from '../theme/glow';
 const APP_VERSION = 'v0.6.0';
 const SPOTIFY_GREEN = '#1DB954';
 
+// iOS only: the native uncaught-exception handler (plugins/withCrashDiagnostics)
+// persists the last fatal NSException (name/reason/stack) to NSUserDefaults -
+// RN's Settings module reads the same store. Survives app updates, so a crash
+// of a build that never got past startup is still readable here later.
+const CRASH_RECORD_KEY = 'NBLastNativeCrash';
+
+function readCrashRecord(): string | null {
+  if (Platform.OS !== 'ios') return null;
+  try {
+    const v = Settings.get(CRASH_RECORD_KEY);
+    return typeof v === 'string' && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { settings, update } = useSettings();
@@ -38,6 +56,16 @@ export default function SettingsScreen() {
   const [name, setName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [crashRecord, setCrashRecord] = useState<string | null>(readCrashRecord);
+
+  const clearCrashRecord = () => {
+    try {
+      Settings.set({ [CRASH_RECORD_KEY]: '' });
+    } catch {
+      // best effort
+    }
+    setCrashRecord(null);
+  };
 
   const refresh = useCallback(async () => {
     const isConnected = Spotify.isReadyToPlay();
@@ -292,6 +320,21 @@ export default function SettingsScreen() {
         </Text>
       </View>
 
+      {/* ---- Crash diagnostics (iOS): last recorded native exception ---- */}
+      {crashRecord != null && (
+        <>
+          <Text style={styles.section}>LETZTER NATIVER CRASH</Text>
+          <View style={[styles.card, styles.crashCard]}>
+            <Text style={styles.crashText} selectable>
+              {crashRecord}
+            </Text>
+            <PressableButton style={styles.placeholderBtn} onPress={clearCrashRecord}>
+              <Text style={styles.placeholderText}>Eintrag verwerfen</Text>
+            </PressableButton>
+          </View>
+        </>
+      )}
+
       {/* ---- Data ---- */}
       <Text style={styles.section}>DATEN</Text>
       <View style={styles.card}>
@@ -395,4 +438,12 @@ const styles = StyleSheet.create({
   },
   placeholderText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '800' },
   placeholderHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+
+  crashCard: { borderColor: COLORS.incorrect, borderWidth: 2 },
+  crashText: {
+    color: COLORS.text,
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    lineHeight: 15,
+  },
 });
