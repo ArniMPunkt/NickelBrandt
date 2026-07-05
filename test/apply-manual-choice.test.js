@@ -56,6 +56,33 @@ test('applyManualChoice accepts Discogs year', () => {
   assert.equal(updated.status, 'manual_confirmed_discogs');
 });
 
+test('applyManualChoice accepts Spotify fallback year', () => {
+  const updated = applyManualChoice(row({ estimated_year: '2012' }), {
+    type: 'accept_spotify',
+  });
+
+  assert.equal(updated.final_year, '2012');
+  assert.equal(updated.final_source, 'spotify');
+  assert.equal(updated.chosen_candidate, '2012');
+  assert.equal(updated.status, 'manual_confirmed_spotify');
+});
+
+test('applyManualChoice accepts computed default year', () => {
+  const updated = applyManualChoice(row(), {
+    type: 'accept_default',
+    year: 1969,
+    source: 'musicbrainz',
+    status: 'manual_confirmed_mb',
+    reason: 'default_candidate_confirmed',
+  });
+
+  assert.equal(updated.final_year, '1969');
+  assert.equal(updated.final_source, 'musicbrainz');
+  assert.equal(updated.chosen_candidate, '1969');
+  assert.equal(updated.status, 'manual_confirmed_mb');
+  assert.equal(updated.review_reason, 'default_candidate_confirmed');
+});
+
 test('applyManualChoice accepts manual year', () => {
   const updated = applyManualChoice(row(), {
     type: 'manual_year',

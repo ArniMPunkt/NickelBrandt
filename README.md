@@ -106,3 +106,23 @@ with these patches on Expo SDK 54 / RN 0.81.
   `<queries>` visibility for `com.spotify.music`.
 - If the legacy module ever fails to build on a newer SDK, pin back to Expo
   SDK 53 (last resort).
+
+## Songpool Scripts
+
+Precheck:
+
+```bash
+node scripts/precheck-song-pool.js scripts/raw_hitster_summer_v2.csv scripts/review.csv --no-interactive --deezer=off --discogs=needed --listenbrainz=needed --lb-auto-accept=safe
+```
+
+Review-only:
+
+```bash
+node scripts/review-song-pool.js scripts/review.csv scripts/review_final.csv
+```
+
+Upload:
+
+```bash
+node scripts/upload-song-pool.js scripts/review_final.csv "<Pool Name>" "<Description>"
+```

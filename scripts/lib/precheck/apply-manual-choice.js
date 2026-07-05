@@ -54,6 +54,28 @@ function applyManualChoice(inputRow, choice = {}) {
       note: choice.note || `manual: confirmed Discogs year ${year}`,
       reason: choice.reason || 'manual_confirmed_discogs',
     });
+  } else if (type === 'accept_spotify') {
+    const year = yearOrThrow(
+      choice.year || row.estimated_year || row.spotify_year || row.csv_year,
+      'Spotify fallback year'
+    );
+    applyAccept(row, {
+      year,
+      status: 'manual_confirmed_spotify',
+      source: 'spotify',
+      note: choice.note || `manual: confirmed Spotify fallback year ${year}`,
+      reason: choice.reason || 'manual_confirmed_spotify',
+    });
+  } else if (type === 'accept_default') {
+    const year = yearOrThrow(choice.year, 'default year');
+    applyAccept(row, {
+      year,
+      status: choice.status || 'manual_confirmed_default',
+      source: choice.source || 'manual',
+      candidate: choice.candidate || year,
+      note: choice.note || `manual: confirmed default year ${year}`,
+      reason: choice.reason || 'manual_confirmed_default',
+    });
   } else if (type === 'manual_year') {
     const year = yearOrThrow(choice.year, 'manual year');
     applyAccept(row, {
