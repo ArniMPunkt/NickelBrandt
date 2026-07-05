@@ -1,0 +1,1358 @@
+{
+  "ai se eu te pego nossa nossa|nossa nossa (ai se eu te pego) - single version|nossa nossa (ai se eu te pego)": {
+    "status": "no_match",
+    "query": {
+      "title": "Nossa Nossa (Ai Se Eu Te Pego) - Single Version",
+      "artist": "Ai Se Eu Te Pego Nossa Nossa",
+      "releaseName": "Nossa Nossa (Ai Se Eu Te Pego)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783246700"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "america|a horse with no name|hits": {
+    "status": "ok",
+    "query": {
+      "title": "A Horse With No Name",
+      "artist": "America",
+      "releaseName": "Hits"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783246710"
+    },
+    "recording_mbid": "c44ad598-6f91-48d7-8502-c1708d99bc42",
+    "recording_name": "A Horse With No Name",
+    "release_mbid": "a2a252b2-2602-4ae1-9bc3-e53f6339e6df",
+    "release_name": "Hits",
+    "artist_credit_name": "America",
+    "artist_mbids": [
+      "34cf95c7-4be9-4efd-a48a-c2ea4a0bb114"
+    ]
+  },
+  "b 3|i.o.i.o. - radio edit|i.o.i.o.": {
+    "status": "ok",
+    "query": {
+      "title": "I.O.I.O. - Radio Edit",
+      "artist": "B 3",
+      "releaseName": "I.O.I.O."
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783246710"
+    },
+    "recording_mbid": "26e20aa3-a922-4597-84ee-f7d18f83f54a",
+    "recording_name": "I.O.I.O.",
+    "release_mbid": "e917a3f0-2dda-4242-9a88-a02518a52985",
+    "release_name": "First",
+    "artist_credit_name": "B3",
+    "artist_mbids": [
+      "e26cbb66-82dc-474a-9cdd-70490ac1e266"
+    ]
+  },
+  "bata illic|bella isola - radio|bella isola": {
+    "status": "no_match",
+    "query": {
+      "title": "Bella Isola - Radio",
+      "artist": "Bata Illic",
+      "releaseName": "Bella Isola"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783246710"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "beagle music|like ice in the sunshine|like ice in the sunshine": {
+    "status": "ok",
+    "query": {
+      "title": "Like Ice in the Sunshine",
+      "artist": "Beagle Music",
+      "releaseName": "Like Ice in the Sunshine"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783246710"
+    },
+    "recording_mbid": "0c94c1e0-2e4c-46de-9f97-3a8e10b078fa",
+    "recording_name": "Like Ice in the Sunshine (original version)",
+    "release_mbid": "cd318d15-533a-403b-80be-deadf2b1c355",
+    "release_name": "Die ultimative Chartshow: Die erfolgreichsten Ballermann Hits – 50 Jahre Ballermann",
+    "artist_credit_name": "Beagle Music Ltd.",
+    "artist_mbids": [
+      "7757938c-f190-43f2-add4-37d345ad4921"
+    ]
+  },
+  "black eyed peas|i gotta feeling|the e.n.d. (the energy never dies) [deluxe version]": {
+    "status": "ok",
+    "query": {
+      "title": "I Gotta Feeling",
+      "artist": "Black Eyed Peas",
+      "releaseName": "THE E.N.D. (THE ENERGY NEVER DIES) [Deluxe Version]"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783246710"
+    },
+    "recording_mbid": "95849cc7-fa62-4953-803e-69ac1eded36f",
+    "recording_name": "I Gotta Feeling",
+    "release_mbid": "8e066a9a-2073-4474-8ae3-11a1b16757a7",
+    "release_name": "Major Flavours 5",
+    "artist_credit_name": "Black Eyed Peas",
+    "artist_mbids": [
+      "d5be5333-4171-427e-8e12-732087c6b78e"
+    ]
+  },
+  "bob sinclar, gary pine|love generation - radio edit|la saga des hits": {
+    "status": "ok",
+    "query": {
+      "title": "Love Generation - Radio Edit",
+      "artist": "Bob Sinclar, Gary Pine",
+      "releaseName": "La Saga Des Hits"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "24",
+      "reset": "1783246710"
+    },
+    "recording_mbid": "7caa8131-c126-4e23-8355-ae5da7f1fb0c",
+    "recording_name": "Love Generation (radio edit)",
+    "release_mbid": "13bccf8e-1cc0-447f-be1a-fe62898f4e6e",
+    "release_name": "Love Generation",
+    "artist_credit_name": "Bob Sinclar feat. Gary Pine",
+    "artist_mbids": [
+      "f9ab44f1-7b19-4ecb-830c-403abcf36cd1",
+      "5871b8a4-c00f-4546-bf3b-c4297e51dd1a"
+    ]
+  },
+  "bryan adams|summer of '69|reckless (30th anniversary / deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Summer Of '69",
+      "artist": "Bryan Adams",
+      "releaseName": "Reckless (30th Anniversary / Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "63829f37-1e41-4f31-a5c8-4dfa78e0aa9d",
+    "recording_name": "Summer of ’69",
+    "release_mbid": "4954d1c6-b98e-4ea2-b12f-b0a4c8f31ee3",
+    "release_name": "Reckless",
+    "artist_credit_name": "Bryan Adams",
+    "artist_mbids": [
+      "4dbf5678-7a31-406a-abbe-232f8ac2cd63"
+    ]
+  },
+  "buddy|ab in den süden - neuaufnahme|dschungel fieber 2014 - dschungel party hits der stars": {
+    "status": "ok",
+    "query": {
+      "title": "Ab in den Süden - Neuaufnahme",
+      "artist": "Buddy",
+      "releaseName": "Dschungel Fieber 2014 - Dschungel Party Hits der Stars"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "f717a7bf-fdd8-42d4-95c7-fd5d973bc2a0",
+    "recording_name": "Ab in den Süden (Neuaufnahme)",
+    "release_mbid": "02ea964f-145c-47f6-a4f2-63a700ce4cb0",
+    "release_name": "Ab in den Süden 2014",
+    "artist_credit_name": "Buddy",
+    "artist_mbids": [
+      "4a97b59d-853c-4ed2-a573-eb05680181ec"
+    ]
+  },
+  "club honululu itsy bitsy teenie weenie honolulu|strandbikini|so wie damals - rock 'n' roll aus deutschland, vol.3": {
+    "status": "no_match",
+    "query": {
+      "title": "Strandbikini",
+      "artist": "Club Honululu Itsy Bitsy Teenie Weenie Honolulu",
+      "releaseName": "So wie damals - Rock 'n' Roll aus Deutschland, Vol.3"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "creedence clearwater revival|have you ever seen the rain|pendulum (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Have You Ever Seen The Rain",
+      "artist": "Creedence Clearwater Revival",
+      "releaseName": "Pendulum (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "b5634bbd-cf5c-4206-8063-f7f5079eaa29",
+    "recording_name": "Have You Ever Seen the Rain?",
+    "release_mbid": "933f90d8-a468-4f77-83e7-7b0826696106",
+    "release_name": "Pendulum",
+    "artist_credit_name": "Creedence Clearwater Revival",
+    "artist_mbids": [
+      "109958eb-a335-4c5e-907e-597ff4c6af46"
+    ]
+  },
+  "daniel boone|beautiful sunday|rewind the 70s - volume 2": {
+    "status": "ok",
+    "query": {
+      "title": "Beautiful Sunday",
+      "artist": "Daniel Boone",
+      "releaseName": "Rewind the 70s - Volume 2"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "d91e5bec-87fd-4886-a74d-f4ed66d1d21b",
+    "recording_name": "Beautiful Sunday",
+    "release_mbid": "0e8db110-5773-48b3-b9cc-5e0e881924fe",
+    "release_name": "Beautiful Sunday",
+    "artist_credit_name": "Daniel Boone",
+    "artist_mbids": [
+      "d8f1f54d-6b46-425e-9d16-f5cf88628162"
+    ]
+  },
+  "das bo|türlich, türlich (sicher, dicker)|nur der zorn zählt": {
+    "status": "ok",
+    "query": {
+      "title": "Türlich, Türlich (Sicher, Dicker)",
+      "artist": "Das Bo",
+      "releaseName": "Nur der Zorn zählt"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "24",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "aa90bbf9-9493-4010-8b8b-66f3ec81899d",
+    "recording_name": "Türlich, türlich (sicher, Dicker)",
+    "release_mbid": "04a28739-fffc-375c-b2d9-b4996c2924a1",
+    "release_name": "Türlich, türlich (sicher, Dicker)",
+    "artist_credit_name": "Das Bo",
+    "artist_mbids": [
+      "4e9037f4-af08-43a4-b3fb-c6b3e79db7fe"
+    ]
+  },
+  "david guetta, kelly rowland|when love takes over (feat. kelly rowland)|one more love": {
+    "status": "ok",
+    "query": {
+      "title": "When Love Takes Over (feat. Kelly Rowland)",
+      "artist": "David Guetta, Kelly Rowland",
+      "releaseName": "One More Love"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "23",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "fe607407-bc4e-4b49-957d-58facce39e74",
+    "recording_name": "When Love Takes Over",
+    "release_mbid": "969bedb6-49d6-43db-9c36-5468ef6d082f",
+    "release_name": "One Love",
+    "artist_credit_name": "David Guetta feat. Kelly Rowland",
+    "artist_mbids": [
+      "302bd7b9-d012-4360-897a-93b00c855680",
+      "31bea673-d23a-4889-8da1-7cb040863268"
+    ]
+  },
+  "de electronica's|dance little birdie|dance little birdie": {
+    "status": "ok",
+    "query": {
+      "title": "Dance Little Birdie",
+      "artist": "De Electronica's",
+      "releaseName": "Dance Little Birdie"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "22",
+      "reset": "1783246720"
+    },
+    "recording_mbid": "5b5f3eec-4a53-49dd-a26b-4548e0dd620f",
+    "recording_name": "Dance Little Bird",
+    "release_mbid": "18f160f5-16d3-4be6-999a-68f2aa1403f4",
+    "release_name": "Boemelen met De Electronica’s",
+    "artist_credit_name": "De Electronica’s",
+    "artist_mbids": [
+      "129ad98d-16d8-4abd-be3d-be16630e649b"
+    ]
+  },
+  "diether krebs|ich bin der martin 'ne|ich bin der martin 'ne": {
+    "status": "ok",
+    "query": {
+      "title": "Ich bin der Martin 'ne",
+      "artist": "Diether Krebs",
+      "releaseName": "Ich bin der Martin 'ne"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "77f34807-cda2-4427-99e3-382f3f45c965",
+    "recording_name": "Ich bin der Martin, ne…?!",
+    "release_mbid": "331c0734-e312-42e6-a14d-b21258c6c85b",
+    "release_name": "Martin, ne...?!",
+    "artist_credit_name": "Diether Krebs",
+    "artist_mbids": [
+      "e7d7d5b1-da23-47c4-9013-8bfa868ed684"
+    ]
+  },
+  "domenico modugno|volare|volare": {
+    "status": "ok",
+    "query": {
+      "title": "Volare",
+      "artist": "Domenico Modugno",
+      "releaseName": "Volare"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "358794a1-b8df-4245-acb1-1489b813e297",
+    "recording_name": "Volare",
+    "release_mbid": "e3a8c625-5b3e-4627-ae13-3e01fd0bce9c",
+    "release_name": "Filmmusik von Eis am Stiel",
+    "artist_credit_name": "Domenico Modugno",
+    "artist_mbids": [
+      "b8e60837-e646-4f18-8f92-27d1173511b0"
+    ]
+  },
+  "dua lipa|dance the night|barbie the album": {
+    "status": "ok",
+    "query": {
+      "title": "Dance The Night",
+      "artist": "Dua Lipa",
+      "releaseName": "Barbie The Album"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "4fbf9706-4e50-4e0d-b98b-a94c930839ae",
+    "recording_name": "Dance the Night",
+    "release_mbid": "91f0bc3d-9d61-45f9-b10a-33ad431b1a6e",
+    "release_name": "Barbie: The Album",
+    "artist_credit_name": "Dua Lipa",
+    "artist_mbids": [
+      "6f1a58bf-9b1b-49cf-a44a-6cefad7ae04f"
+    ]
+  },
+  "ed sheeran|shape of you|÷ (deluxe)": {
+    "status": "ok",
+    "query": {
+      "title": "Shape of You",
+      "artist": "Ed Sheeran",
+      "releaseName": "÷ (Deluxe)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "d7500dd6-b815-4299-88c6-3fbda358f1fc",
+    "recording_name": "Shape of You",
+    "release_mbid": "769e64d7-b7a8-4ad1-84d8-0e0063d8fe64",
+    "release_name": "÷",
+    "artist_credit_name": "Ed Sheeran",
+    "artist_mbids": [
+      "b8a7c51f-362c-4dcb-a259-bc6e0095f0a6"
+    ]
+  },
+  "freddy quinn|aloha-ahe|weit ist der weg": {
+    "status": "ok",
+    "query": {
+      "title": "Aloha-Ahe",
+      "artist": "Freddy Quinn",
+      "releaseName": "Weit ist der Weg"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "7f8e0462-d7c2-494b-9d79-8d400071db01",
+    "recording_name": "Alo-Ahe",
+    "release_mbid": "434ce46e-c7b7-41df-a2b3-a4d9d9c2843d",
+    "release_name": "Ein Abend mit Freddy",
+    "artist_credit_name": "Freddy Quinn",
+    "artist_mbids": [
+      "9f23b139-e3b7-49c4-b17c-460c5d50ae52"
+    ]
+  },
+  "gilbert o'sullivan|get down|i'm a writer, not a fighter (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Get Down",
+      "artist": "Gilbert O'Sullivan",
+      "releaseName": "I'm a Writer, Not a Fighter (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "24",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "aeba05a5-3cfd-4023-a7f3-1d6b35768f7f",
+    "recording_name": "Get Down",
+    "release_mbid": "644a41ee-780f-46c1-b7bf-cdf69bd64835",
+    "release_name": "The Best of Gilbert O'Sullivan",
+    "artist_credit_name": "Gilbert O’Sullivan",
+    "artist_mbids": [
+      "215394ba-3d0c-4b57-b284-ec5bb4a5ad25"
+    ]
+  },
+  "gusttavo lima|balada|caribe 2012: ai se o verão te pega!": {
+    "status": "ok",
+    "query": {
+      "title": "Balada",
+      "artist": "Gusttavo Lima",
+      "releaseName": "Caribe 2012: Ai Se o Verão Te Pega!"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "23",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "97d1aac6-8257-4e79-ac65-97e94545e113",
+    "recording_name": "Balada",
+    "release_mbid": "e70dfaac-8a6b-4817-8e4a-1464e5ea20bd",
+    "release_name": "Ao vivo em São Paulo",
+    "artist_credit_name": "Gusttavo Lima",
+    "artist_mbids": [
+      "48a3a1c5-8cf3-4a9a-bd5c-5082cf8d3639"
+    ]
+  },
+  "gwen stefani|hollaback girl|love. angel. music. baby. (deluxe version)": {
+    "status": "ok",
+    "query": {
+      "title": "Hollaback Girl",
+      "artist": "Gwen Stefani",
+      "releaseName": "Love. Angel. Music. Baby. (Deluxe Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "22",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "e7e7c3b8-0b9f-4c13-812a-8ff5516ab5f5",
+    "recording_name": "Hollaback Girl",
+    "release_mbid": "f95f2e84-92ab-3410-bebd-78c6c3f8c5dc",
+    "release_name": "Love. Angel. Music. Baby.",
+    "artist_credit_name": "Gwen Stefani",
+    "artist_mbids": [
+      "2e41ae9c-afd2-4f20-8f1e-17281ce9b472"
+    ]
+  },
+  "hanson|mmmbop|middle of nowhere": {
+    "status": "ok",
+    "query": {
+      "title": "MMMBop",
+      "artist": "Hanson",
+      "releaseName": "Middle Of Nowhere"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "21",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "8ff4f281-2c0d-443c-b1bf-83ce6167f6bb",
+    "recording_name": "MMMBop",
+    "release_mbid": "459d8a9d-89ff-4353-8ef6-aacc3ae552ce",
+    "release_name": "Middle of Nowhere",
+    "artist_credit_name": "Hanson",
+    "artist_mbids": [
+      "3c0a0074-4f26-4d3b-b723-a66bf6cc3753"
+    ]
+  },
+  "hermes house band|country roads (dance radio version)|country roads": {
+    "status": "ok",
+    "query": {
+      "title": "Country Roads (Dance Radio Version)",
+      "artist": "Hermes House Band",
+      "releaseName": "Country Roads"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "20",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "586105fd-b34b-4433-a580-39e9bd4ab12a",
+    "recording_name": "Country Roads (dance Radio version)",
+    "release_mbid": "5a06edf6-9462-48cb-91b2-f258c16325b0",
+    "release_name": "Collected",
+    "artist_credit_name": "Hermes House Band",
+    "artist_mbids": [
+      "6d2f839e-b871-4b6c-bbf8-da73553d203e"
+    ]
+  },
+  "ibo|ratzfatz nach mallorca|lieblingsschlager": {
+    "status": "ok",
+    "query": {
+      "title": "Ratzfatz nach Mallorca",
+      "artist": "Ibo",
+      "releaseName": "Lieblingsschlager"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "19",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "12d5018e-d0e1-4389-928b-0024bdf75399",
+    "recording_name": "Ratzfatz nach Mallorca",
+    "release_mbid": "059d576f-74a3-4a8f-b9f6-cfbf9525a6ea",
+    "release_name": "Ich zuerst",
+    "artist_credit_name": "Ibo",
+    "artist_mbids": [
+      "91240b3a-856a-4db1-b1a6-a65b1186e87a"
+    ]
+  },
+  "irene cara|what a feeling|what a feeling": {
+    "status": "ok",
+    "query": {
+      "title": "What A Feeling",
+      "artist": "Irene Cara",
+      "releaseName": "What A Feeling"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "18",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "74ac3a16-fe79-4227-9589-85c692bcf4eb",
+    "recording_name": "What A Feeling",
+    "release_mbid": "1bb54315-f682-4f72-9f49-efcc7d638eb7",
+    "release_name": "What A Feeling",
+    "artist_credit_name": "Irene Cara",
+    "artist_mbids": [
+      "26358fa2-80c2-47b0-a08b-33817caca7e8"
+    ]
+  },
+  "john travolta, olivia newton-john|you're the one that i want - from “grease”|grease (the original motion picture soundtrack)": {
+    "status": "ok",
+    "query": {
+      "title": "You're The One That I Want - From “Grease”",
+      "artist": "John Travolta, Olivia Newton-John",
+      "releaseName": "Grease (The Original Motion Picture Soundtrack)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "17",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "a96f557b-67eb-4c07-bc59-eeb48c3fce38",
+    "recording_name": "You’re the One That I Want (from “Grease”)",
+    "release_mbid": "a95c06df-8c6b-4012-aee6-de384d7cb92f",
+    "release_name": "1978 Best Of by uDiscover",
+    "artist_credit_name": "John Travolta & Olivia Newton‐John",
+    "artist_mbids": [
+      "94f4c61e-5cf3-4cba-ab3e-9bd5be99f6ab",
+      "10ccb5d8-f9d5-4954-9441-3419b522a214"
+    ]
+  },
+  "julian sommer|dicht im flieger|dicht im flieger": {
+    "status": "ok",
+    "query": {
+      "title": "Dicht im Flieger",
+      "artist": "Julian Sommer",
+      "releaseName": "Dicht im Flieger"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "16",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "7092314e-b331-49a8-8834-ded2cba862a3",
+    "recording_name": "Dicht im Flieger",
+    "release_mbid": "cf995edc-09de-439c-9958-4516df485e1e",
+    "release_name": "Dicht im Flieger",
+    "artist_credit_name": "Julian Sommer",
+    "artist_mbids": [
+      "2044a4b8-1980-47ee-a452-9511ff137444"
+    ]
+  },
+  "justin timberlake|can't stop the feeling! (from dreamworks animation's \"trolls\")|trolls (original motion picture soundtrack)": {
+    "status": "ok",
+    "query": {
+      "title": "CAN'T STOP THE FEELING! (from DreamWorks Animation's \"TROLLS\")",
+      "artist": "Justin Timberlake",
+      "releaseName": "TROLLS (Original Motion Picture Soundtrack)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "15",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d",
+    "recording_name": "CAN’T STOP THE FEELING!",
+    "release_mbid": "d8700b06-a696-4fad-90ec-6b6ce59b7eb1",
+    "release_name": "CAN’T STOP THE FEELING!",
+    "artist_credit_name": "Justin Timberlake",
+    "artist_mbids": [
+      "596ffa74-3d08-44ef-b113-765d43d12738"
+    ]
+  },
+  "kaoma|lambada - original version 1989|lambada - les originaux no. 1 de l'été (original 1989)": {
+    "status": "ok",
+    "query": {
+      "title": "Lambada - Original Version 1989",
+      "artist": "Kaoma",
+      "releaseName": "Lambada - Les originaux No. 1 de l'été (Original 1989)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "14",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "df6d11f9-0191-49ce-932d-bbc19144195a",
+    "recording_name": "Lambada (Original Version 1989)",
+    "release_mbid": "3a523c86-f8fe-4729-acc8-ca988ada3671",
+    "release_name": "THE \"LAMBADA\" BY THE WORLDBEAT GROUP KAOMA",
+    "artist_credit_name": "Kaoma",
+    "artist_mbids": [
+      "bc5e04ab-51fe-4364-ac78-54b657ea2848"
+    ]
+  },
+  "kool & the gang|fresh|emergency (reissue)": {
+    "status": "ok",
+    "query": {
+      "title": "Fresh",
+      "artist": "Kool & The Gang",
+      "releaseName": "Emergency (Reissue)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "13",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "3e40448d-a96f-4337-aa73-c2f73bdf8e3c",
+    "recording_name": "Fresh",
+    "release_mbid": "09bb02b4-16f7-4559-904b-e7ab915f03d8",
+    "release_name": "Emergency",
+    "artist_credit_name": "Kool & the Gang",
+    "artist_mbids": [
+      "2469950a-f0ca-425a-bfbc-baf55ea3afde"
+    ]
+  },
+  "lady gaga|the edge of glory|born this way (international special edition version)": {
+    "status": "ok",
+    "query": {
+      "title": "The Edge Of Glory",
+      "artist": "Lady Gaga",
+      "releaseName": "Born This Way (International Special Edition Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "12",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "36119119-c128-4c87-bdc8-83af13021534",
+    "recording_name": "The Edge of Glory",
+    "release_mbid": "b19d5cee-b579-400f-93ce-3327cc9d057a",
+    "release_name": "Born This Way",
+    "artist_credit_name": "Lady Gaga",
+    "artist_mbids": [
+      "650e7db6-b795-4eb5-a702-5ea2fc46c848"
+    ]
+  },
+  "maroon 5|this love|songs about jane: 10th anniversary edition": {
+    "status": "ok",
+    "query": {
+      "title": "This Love",
+      "artist": "Maroon 5",
+      "releaseName": "Songs About Jane: 10th Anniversary Edition"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "11",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "38dc35cd-6023-43c5-a968-3a932c22517d",
+    "recording_name": "This Love",
+    "release_mbid": "32d2e4c9-6144-45f9-9203-b5a1a0e4aa94",
+    "release_name": "Songs About Jane (10th anniversary edition)",
+    "artist_credit_name": "Maroon 5",
+    "artist_mbids": [
+      "0ab49580-c84f-44d4-875f-d83760ea2cfe"
+    ]
+  },
+  "nana darkman, alexandra prince|lonely - re-recorded 2021|lonely (re-recorded 2021)": {
+    "status": "ok",
+    "query": {
+      "title": "Lonely - Re-Recorded 2021",
+      "artist": "Nana Darkman, Alexandra Prince",
+      "releaseName": "Lonely (Re-Recorded 2021)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "10",
+      "reset": "1783246730"
+    },
+    "recording_mbid": "7a5441ad-aa4e-4f13-afa3-a9d6dc5fb8ca",
+    "recording_name": "Lonely (remastered)",
+    "release_mbid": "dd20a265-b86b-4580-83cd-9a802ae7dca0",
+    "release_name": "Love Lounge Deluxe",
+    "artist_credit_name": "Nana Darkman feat. Alexandra Prince",
+    "artist_mbids": [
+      "a700afd5-0df8-4f3a-9704-d49f89c08d47",
+      "4939dfab-2d9f-462a-aa12-8ff648248063"
+    ]
+  },
+  "nana mouskouri|guten morgen sonnenschein|glück ist wie ein schmetterling (originale)": {
+    "status": "ok",
+    "query": {
+      "title": "Guten Morgen Sonnenschein",
+      "artist": "Nana Mouskouri",
+      "releaseName": "Glück ist wie ein Schmetterling (Originale)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "a0deb2c9-c5f3-4cfe-88bb-2863990b3c26",
+    "recording_name": "Guten Morgen Sonnenschein",
+    "release_mbid": "55618cb4-e70f-4ad3-be8d-96475978e36a",
+    "release_name": "Glück ist wie ein Schmetterling",
+    "artist_credit_name": "Nana Mouskouri",
+    "artist_mbids": [
+      "09b8609a-ca39-4f34-a2f6-5b81afc2c32d"
+    ]
+  },
+  "nancy sinatra, lee hazlewood|summer wine|nancy & lee": {
+    "status": "ok",
+    "query": {
+      "title": "Summer Wine",
+      "artist": "Nancy Sinatra, Lee Hazlewood",
+      "releaseName": "Nancy & Lee"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "8f940a24-e542-488a-bcfb-bbbc36ddab10",
+    "recording_name": "Summer Wine",
+    "release_mbid": "9269354c-0fa9-4753-9588-b9fcbaf5010b",
+    "release_name": "Nancy & Lee",
+    "artist_credit_name": "Nancy Sinatra & Lee Hazlewood",
+    "artist_mbids": [
+      "c2e36518-9c3b-4dcb-82ad-a3fc7fe99c67",
+      "56d9908f-548e-40c1-837f-cd006d79d3a0"
+    ]
+  },
+  "naughty boy, sam smith|la la la|hotel cabana (deluxe version)": {
+    "status": "ok",
+    "query": {
+      "title": "La La La",
+      "artist": "Naughty Boy, Sam Smith",
+      "releaseName": "Hotel Cabana (Deluxe Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "4ebe0e2a-948e-4703-a872-ef1bc21d8c8c",
+    "recording_name": "La La La",
+    "release_mbid": "7a924948-07e1-44df-8ba7-b459f6b84e31",
+    "release_name": "La La La (Edits)",
+    "artist_credit_name": "Naughty Boy & Sam Smith",
+    "artist_mbids": [
+      "1e4460c9-4d4a-4eb7-b2a6-3718e6e1020b",
+      "5a85c140-dcf9-4dd2-b2c8-aff0471549f3"
+    ]
+  },
+  "norman greenbaum|spirit in the sky - deluxe edition|spirit in the sky (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Spirit In The Sky - Deluxe Edition",
+      "artist": "Norman Greenbaum",
+      "releaseName": "Spirit In The Sky (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "b2823384-7ee0-4cb3-942a-f93b52cb5389",
+    "recording_name": "Spirit in the Sky",
+    "release_mbid": "7e2f87f5-cf22-4cf0-af87-47216cb1eaa6",
+    "release_name": "Spirit in the Sky",
+    "artist_credit_name": "Norman Greenbaum",
+    "artist_mbids": [
+      "8f6ade41-0e4d-477c-9ef7-42591fed1133"
+    ]
+  },
+  "oliver onions|flying through the air|bud spencer / terence hill greatest hits": {
+    "status": "ok",
+    "query": {
+      "title": "Flying Through the Air",
+      "artist": "Oliver Onions",
+      "releaseName": "Bud Spencer / Terence Hill Greatest Hits"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "977b652e-2211-4cb5-983c-61a1fd42b9c5",
+    "recording_name": "Flying Through the Air",
+    "release_mbid": "3303cefe-2e77-4a77-9848-150b5014f0e2",
+    "release_name": "Bud Spencer / Terence Hill Greatest Hits",
+    "artist_credit_name": "Oliver Onions",
+    "artist_mbids": [
+      "26abed3a-65f3-4484-83b0-117d0fe29278"
+    ]
+  },
+  "oliver onions|santamaria|santamaria": {
+    "status": "ok",
+    "query": {
+      "title": "Santamaria",
+      "artist": "Oliver Onions",
+      "releaseName": "Santamaria"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "24",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "d3662b79-edc0-45d5-b8c2-3b09a6418ace",
+    "recording_name": "Santa Maria",
+    "release_mbid": "ddb2ed42-6832-4482-816c-95131ef663c6",
+    "release_name": "Santa Maria",
+    "artist_credit_name": "Oliver Onions",
+    "artist_mbids": [
+      "26abed3a-65f3-4484-83b0-117d0fe29278"
+    ]
+  },
+  "opus|live is life (digitally remastered) - single version|live is life": {
+    "status": "ok",
+    "query": {
+      "title": "Live Is Life (Digitally Remastered) - Single Version",
+      "artist": "Opus",
+      "releaseName": "Live Is Life"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "23",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "c8a637ff-f4e2-4b8c-ba9d-b75b502cb721",
+    "recording_name": "Live Is Life (live)",
+    "release_mbid": "34ceb157-678c-4623-8d86-808985a2787a",
+    "release_name": "Der Ö La Palöma Party Mix",
+    "artist_credit_name": "Opus",
+    "artist_mbids": [
+      "1ade789e-c133-43f3-8a92-ec69a30acb85"
+    ]
+  },
+  "p!nk, willow sage hart|cover me in sunshine|cover me in sunshine": {
+    "status": "ok",
+    "query": {
+      "title": "Cover Me In Sunshine",
+      "artist": "P!nk, Willow Sage Hart",
+      "releaseName": "Cover Me In Sunshine"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "22",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "a8acab82-3308-40a0-bbc4-eb390237b853",
+    "recording_name": "Cover Me in Sunshine",
+    "release_mbid": "936a0a82-11b1-4d3b-8202-dde08daccd10",
+    "release_name": "Cover Me in Sunshine",
+    "artist_credit_name": "P!nk + Willow Sage Hart",
+    "artist_mbids": [
+      "f4d5cc07-3bc9-4836-9b15-88a08359bc63",
+      "9193bb79-a196-4931-a461-68a3fa3cbeb3"
+    ]
+  },
+  "paul anka|zwei mädchen aus germany|die besten deutschen teenager-hits der 50er & 60er": {
+    "status": "ok",
+    "query": {
+      "title": "Zwei Mädchen aus Germany",
+      "artist": "Paul Anka",
+      "releaseName": "Die besten deutschen Teenager-Hits der 50er & 60er"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "21",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "c1fcb464-6085-4466-b8e1-cd9cdf45c52d",
+    "recording_name": "Zwei Mädchen aus Germany",
+    "release_mbid": "76d1fd4d-8e48-4690-940a-8b257cac3c21",
+    "release_name": "Ein Sonny Boy und eine kleine Signorina",
+    "artist_credit_name": "Paul Anka",
+    "artist_mbids": [
+      "420c6768-0885-415a-bb59-d6a275121125"
+    ]
+  },
+  "peter kent, luisa fernandez|it's a real good feeling|lay love on you": {
+    "status": "ok",
+    "query": {
+      "title": "It's a Real Good Feeling",
+      "artist": "Peter Kent, Luisa Fernandez",
+      "releaseName": "Lay Love on You"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "20",
+      "reset": "1783246740"
+    },
+    "recording_mbid": "3a7d85fa-ba3f-4437-abb8-ac31048d73d4",
+    "recording_name": "It’s a Real Good Feeling",
+    "release_mbid": "1090eb1c-7524-4b9e-9273-f6e7c7aad5b1",
+    "release_name": "I Feel Good",
+    "artist_credit_name": "Peter Kent",
+    "artist_mbids": [
+      "66915ba6-9fef-41b5-9645-a612ab465e79"
+    ]
+  },
+  "queen|i want to break free|bohemian rhapsody (the original soundtrack)": {
+    "status": "ok",
+    "query": {
+      "title": "I Want To Break Free",
+      "artist": "Queen",
+      "releaseName": "Bohemian Rhapsody (The Original Soundtrack)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "970170b6-9719-497b-95f5-099410075b50",
+    "recording_name": "I Want to Break Free",
+    "release_mbid": "bb918b7b-021f-4cf9-94a2-460636bca89b",
+    "release_name": "Bohemian Rhapsody: The Original Soundtrack",
+    "artist_credit_name": "Queen",
+    "artist_mbids": [
+      "0383dadf-2a4e-4d10-a46a-e9e041da8eb3"
+    ]
+  },
+  "rod stewart|sailing|atlantic crossing": {
+    "status": "ok",
+    "query": {
+      "title": "Sailing",
+      "artist": "Rod Stewart",
+      "releaseName": "Atlantic Crossing"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "6f379c0e-82a9-450c-8bc4-5cbae9182866",
+    "recording_name": "Sailing",
+    "release_mbid": "8ce5f0d7-c8c1-3685-a94e-9a501b63d354",
+    "release_name": "Atlantic Crossing",
+    "artist_credit_name": "Rod Stewart",
+    "artist_mbids": [
+      "a35237a0-4f47-40a6-b6f3-1e786db23402"
+    ]
+  },
+  "sabrina|boys - summertime love|sabrina": {
+    "status": "ok",
+    "query": {
+      "title": "Boys - Summertime Love",
+      "artist": "Sabrina",
+      "releaseName": "Sabrina"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "02727dab-4efa-4da1-94db-e31faeff6a39",
+    "recording_name": "Boys (Summer Time Love)",
+    "release_mbid": "ce75eafb-6168-4b2b-a3d6-e0547214826a",
+    "release_name": "Sabrina",
+    "artist_credit_name": "Sabrina",
+    "artist_mbids": [
+      "3a4fc9e1-81af-4f1e-8ccf-e8e9ab77b3c1"
+    ]
+  },
+  "safri duo|played-a-live (the bongo song) - radio edit|hits for børn 2": {
+    "status": "ok",
+    "query": {
+      "title": "Played-A-Live (The Bongo Song) - Radio Edit",
+      "artist": "Safri Duo",
+      "releaseName": "Hits For Børn 2"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "c73f45f8-4822-4619-a302-b00911c6f243",
+    "recording_name": "Played-A-Live (The Bongo Song) (radio edit)",
+    "release_mbid": "b8451c34-d1a4-4745-9cda-5bf74c9dc2e4",
+    "release_name": "Played-A-Live (The Bongo Song)",
+    "artist_credit_name": "Safri Duo",
+    "artist_mbids": [
+      "2d6a30a0-3925-4fad-84ed-a568872b081c"
+    ]
+  },
+  "santana, rob thomas|smooth (feat. rob thomas)|supernatural (remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Smooth (feat. Rob Thomas)",
+      "artist": "Santana, Rob Thomas",
+      "releaseName": "Supernatural (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "93af7ccf-22d1-44b1-9757-bc17016979a7",
+    "recording_name": "Smooth",
+    "release_mbid": "e89db478-8f15-4cd8-8d2d-13ca208d78d7",
+    "release_name": "Corazón: Live From México - Live It to Believe It",
+    "artist_credit_name": "Santana",
+    "artist_mbids": [
+      "9a3bf45c-347d-4630-894d-7cf3e8e0b632"
+    ]
+  },
+  "soul control|chocolate (choco choco) - single version|here we go": {
+    "status": "ok",
+    "query": {
+      "title": "Chocolate (Choco Choco) - Single Version",
+      "artist": "Soul Control",
+      "releaseName": "Here We Go"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "24",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "3786759e-76ec-4adb-adcf-d9cd4a46b0be",
+    "recording_name": "Chocolate (choco Choco) (single version)",
+    "release_mbid": "a69b4332-fb47-4da3-bf85-0dc7174b785c",
+    "release_name": "Chocolate (Choco Choco)",
+    "artist_credit_name": "Soul Control",
+    "artist_mbids": [
+      "5ab15cd2-bf08-4621-83c9-1a4904334235"
+    ]
+  },
+  "t. rex|get it on|electric warrior": {
+    "status": "ok",
+    "query": {
+      "title": "Get It On",
+      "artist": "T. Rex",
+      "releaseName": "Electric Warrior"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "23",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "b33fd2b7-b06d-4d6f-a065-18f7bbc7bbc9",
+    "recording_name": "Get It On",
+    "release_mbid": "dab6bd8e-7c6d-4828-9930-98061aef527e",
+    "release_name": "Electric Warrior",
+    "artist_credit_name": "T. Rex",
+    "artist_mbids": [
+      "c842d29f-a297-48cd-bb71-4f77fd672b16"
+    ]
+  },
+  "tacabro|tacata|latin hits summer 2013": {
+    "status": "ok",
+    "query": {
+      "title": "Tacata",
+      "artist": "Tacabro",
+      "releaseName": "Latin Hits Summer 2013"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "22",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "eb5663f8-c3de-4b20-8087-da18e061d2cf",
+    "recording_name": "Tacata'",
+    "release_mbid": "3a241f40-9827-4ce3-9075-a0d4a8fa0df1",
+    "release_name": "Ritmo de La Calle",
+    "artist_credit_name": "Tacabro",
+    "artist_mbids": [
+      "2c35e6ad-3046-46cf-bbe3-dc112870cc86"
+    ]
+  },
+  "terry jacks|seasons in the sun|seasons in the sun (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Seasons in the Sun",
+      "artist": "Terry Jacks",
+      "releaseName": "Seasons In The Sun (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "21",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "4a708ce4-740e-4d97-a25b-8e9c9e88caa5",
+    "recording_name": "Seasons in the Sun",
+    "release_mbid": "f14cb1f9-e6db-4679-9330-dbc4ca8d95f4",
+    "release_name": "Seasons in the Sun (Expanded Edition)",
+    "artist_credit_name": "Terry Jacks",
+    "artist_mbids": [
+      "d8ae63c6-6fce-41b2-98ba-e570bc4007ca"
+    ]
+  },
+  "the beatles|here comes the sun - remastered 2009|abbey road (remastered)": {
+    "status": "no_match",
+    "query": {
+      "title": "Here Comes The Sun - Remastered 2009",
+      "artist": "The Beatles",
+      "releaseName": "Abbey Road (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "20",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "the beatles|let it be - remastered 2009|let it be (remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Let It Be - Remastered 2009",
+      "artist": "The Beatles",
+      "releaseName": "Let It Be (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "19",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "881ea822-c5b6-4c1e-b01d-ae2c058984d7",
+    "recording_name": "Let It Be (Remastered 2009)",
+    "release_mbid": "b0d3e068-90dd-4129-8768-d1f42f66d995",
+    "release_name": "Now That’s What I Call Winter Anthems",
+    "artist_credit_name": "The Beatles",
+    "artist_mbids": [
+      "b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d"
+    ]
+  },
+  "the kinks|you really got me|kinks (deluxe)": {
+    "status": "ok",
+    "query": {
+      "title": "You Really Got Me",
+      "artist": "The Kinks",
+      "releaseName": "Kinks (Deluxe)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "18",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "7491cee5-32f2-4d5e-82d1-9823418e38fb",
+    "recording_name": "You Really Got Me",
+    "release_mbid": "4df4fcae-8d23-4c75-85b6-7c9f53831f1f",
+    "release_name": "Kinks (deluxe)",
+    "artist_credit_name": "The Kinks",
+    "artist_mbids": [
+      "17b53d9f-5c63-4a09-a593-dde4608e0db9"
+    ]
+  },
+  "the supremes|stop! in the name of love|more hits by the supremes": {
+    "status": "ok",
+    "query": {
+      "title": "Stop! In The Name Of Love",
+      "artist": "The Supremes",
+      "releaseName": "More Hits By The Supremes"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "16",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "f3eeea0d-5622-4904-b8f9-582cdd2d5c68",
+    "recording_name": "Stop! In the Name of Love",
+    "release_mbid": "f099dd43-0031-3012-8655-73c711bc531b",
+    "release_name": "At the Copa",
+    "artist_credit_name": "The Supremes",
+    "artist_mbids": [
+      "c1aa2ec9-53e7-4d90-8d36-bac75832e986"
+    ]
+  },
+  "trio rio|new york-rio-tokyo|trio rio": {
+    "status": "ok",
+    "query": {
+      "title": "New York-Rio-Tokyo",
+      "artist": "Trio Rio",
+      "releaseName": "Trio Rio"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "15",
+      "reset": "1783246750"
+    },
+    "recording_mbid": "b061a7cb-1c75-4766-9949-af0ba12d6819",
+    "recording_name": "New York – Rio – Tokyo",
+    "release_mbid": "5951745e-53c5-4ff0-9c1b-b8865f5ed73f",
+    "release_name": "Trio Rio",
+    "artist_credit_name": "Trio Rio",
+    "artist_mbids": [
+      "fe1b0047-06ea-46cb-a5f9-5d928ce376c2"
+    ]
+  }
+}

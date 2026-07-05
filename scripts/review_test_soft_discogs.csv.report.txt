@@ -1,0 +1,97 @@
+Analysebericht
+==============
+Gesamtzahl Songs: 308
+Automatisch entschieden: 247
+Bestehende starke Jahre bestaetigt: 0
+Offene Reviews: 61
+MusicBrainz plausibel: 284
+MusicBrainz fehlend/unsicher: 24
+MB-ISRC-Treffer: 277
+MB-Fallback-Texttreffer: 7
+Weiterhin mb_no_match: 6
+mb_match_uncertain: 18
+MB-Falschmatch-Warnungen durch Discogs-frueher: 0
+Compilation-/Katalogverdacht-Faelle: 74
+Deezer ungueltig/verdaechtig: 0
+Ausgeschlossen: 0
+
+Soft-Discogs-Checks
+  Pending vor Check: 47
+  Gepruefte Soft-Faelle: 47
+  Freigegeben nach Soft-Check: 46
+  Review nach Discogs: 1
+  Weiterhin soft pending: 0
+  Calls/Cache/Errors/RateLimit: 47/0/0/0
+  Timeouts: 0
+Hinweis: upload-song-pool.js muss excluded_from_pool spaeter ueberspringen, bevor diese Zeilen hochgeladen werden.
+
+Deezer-Laufzeit
+  Modus: off
+  Calls ausgefuehrt: 0
+  Tracks abgefragt: 0
+  Input-Wiederverwendung: 0
+  Cache-Hits: 0
+  Skips: 308
+  Timeouts: 0
+  Fehler: 0
+  Laufzeit Deezer-Pass: 0.0s
+  Ø Zeit pro Deezer-Call: 0ms
+  Anteil an Gesamtzeit: 0.0%
+
+Discogs-Laufzeit
+  Modus: needed
+  Planned Calls: 30
+  Calls ausgefuehrt: 0
+  Cache-Hits: 30
+  Skips/Caps: 278/0
+  Laufzeit Discogs-Pass: 0.0s
+  Gruende:
+    mb_no_match: 6
+    mb_uncertain: 18
+    catalog_suspected_with_late_mb: 0
+    earlier_source_conflict: 6
+    full_mode: 0
+
+Spotify estimated_year abweichend von MB: 95
+  Durchschnittliche Abweichung: 17.8 Jahre
+  Spotify estimated_year spaeter als MB: 83
+  1. American Pie - Single Version - Don McLean: MB 1971, Spotify 2019, diff +48
+  2. Night Fever - From "Saturday Night Fever" Soundtrack - Bee Gees: MB 1977, Spotify 2020, diff +43
+  3. Funkytown - Lipps Inc.: MB 1979, Spotify 2018, diff +39
+  4. A Horse With No Name - America: MB 1973, Spotify 2011, diff +38
+  5. Boys - Summertime Love - Sabrina: MB 2026, Spotify 1988, diff -38
+  6. Heart Of Gold - Neil Young: MB 1972, Spotify 2010, diff +38
+  7. La Vie en rose - Grace Jones: MB 1977, Spotify 2015, diff +38
+  8. Rock Your Baby - George McCrae: MB 1974, Spotify 2010, diff +36
+  9. Nutbush City Limits - Ike & Tina Turner: MB 1973, Spotify 2008, diff +35
+  10. Radar Love - Golden Earring: MB 1973, Spotify 2008, diff +35
+
+Deezer abweichend von MB: 0
+  Durchschnittliche Abweichung: 0.0 Jahre
+  Deezer spaeter als MB: 0
+  - keine
+
+Discogs abweichend von MB: 15
+  Verworfene Discogs-Treffer: 29
+  Durchschnittliche Abweichung: 19.9 Jahre
+  1. Don't Stop - Fleetwood Mac: MB 1977, Discogs 2019, diff +42
+  2. Boys - Summertime Love - Sabrina: MB 2026, Discogs 1987, diff -39
+  3. Volare - Domenico Modugno: MB 2010, Discogs 1972, diff -38
+  4. Zwei Mädchen aus Germany - Paul Anka: MB 2001, Discogs 1964, diff -37
+  5. Sailing - Rod Stewart: MB 2008, Discogs 1975, diff -33
+  6. SOS - ABBA: MB 1975, Discogs 2001, diff +26
+  7. All Night Long (All Night) - Single Version - Lionel Richie: MB 1983, Discogs 2006, diff +23
+  8. Beautiful Sunday - Daniel Boone: MB 1997, Discogs 1977, diff -20
+  9. Summer Wine - Nancy Sinatra, Lee Hazlewood: MB 1986, Discogs 1967, diff -19
+  10. Footloose - Kenny Loggins: MB 1984, Discogs 1989, diff +5
+
+Spotify/Deezer gemeinsam frueher als MB: 0
+Spotify/Deezer gemeinsam spaeter als MB: 0
+
+Top 20 mb_no_match
+  1. Bella Isola - Radio - Bata Illic | ISRC DEQ090300067 | Album Bella Isola | Type single | Dauer 239827
+  2. Strandbikini - Club Honululu Itsy Bitsy Teenie Weenie Honolulu | ISRC DEU241266207 | Album So wie damals - Rock 'n' Roll aus Deutschland, Vol.3 | Type compilation | Dauer 130506
+  3. I.O.I.O. - Radio Edit - B 3 | ISRC DEPI82100993 | Album I.O.I.O. | Type single | Dauer 183000
+  4. Dance Little Birdie - De Electronica's | ISRC NLA342200075 | Album Dance Little Birdie | Type single | Dauer 157028
+  5. Aloha-Ahe - Freddy Quinn | ISRC QMDA71378219 | Album Weit ist der Weg | Type compilation | Dauer 213893
+  6. Nossa Nossa (Ai Se Eu Te Pego) - Single Version - Ai Se Eu Te Pego Nossa Nossa | ISRC DEY691200102 | Album Nossa Nossa (Ai Se Eu Te Pego) | Type single | Dauer 167916
