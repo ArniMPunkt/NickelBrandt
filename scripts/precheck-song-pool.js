@@ -21,9 +21,16 @@ const { buildReviewRow } = require('./lib/precheck/build-review-row');
 const { hydrateInputDeezerFromOutput, loadSmartInputCsv } = require('./lib/precheck/load-smart-input-csv');
 const { computeSummary, printSummary } = require('./lib/precheck/report');
 const { mergeResumeState } = require('./lib/precheck/resume-state');
-const { COLUMNS, STRONG_EXISTING_SOURCES } = require('./lib/precheck/review-schema');
+const {
+  COLUMNS,
+  COLUMNS_WITH_LISTENBRAINZ,
+  STRONG_EXISTING_SOURCES,
+} = require('./lib/precheck/review-schema');
 const { compareRows, hasFinalYear, isOpenReview } = require('./lib/precheck/review-queue');
 const { runSoftDiscogsChecks } = require('./lib/precheck/soft-discogs-checks');
+const {
+  enrichOpenReviewsWithListenBrainz,
+} = require('./lib/precheck/listenbrainz-review-enrichment');
 
 function parseArgs(argv) {
   const args = {
@@ -33,6 +40,7 @@ function parseArgs(argv) {
     reviewAll: false,
     deezerMode: 'needed',
     discogsMode: 'needed',
+    listenbrainzMode: 'off',
     deep: false,
   };
   for (const arg of argv) {
@@ -50,6 +58,11 @@ function parseArgs(argv) {
       if (!['needed', 'full', 'off'].includes(mode)) throw new Error(`Unknown Discogs mode: ${mode}`);
       args.discogsMode = mode;
     }
+    else if (arg.startsWith('--listenbrainz=')) {
+      const mode = arg.slice('--listenbrainz='.length);
+      if (!['needed', 'off'].includes(mode)) throw new Error(`Unknown ListenBrainz mode: ${mode}`);
+      args.listenbrainzMode = mode;
+    }
     else if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`);
     else if (!args.inputCsv) args.inputCsv = arg;
     else if (!args.outputCsv) args.outputCsv = arg;
@@ -60,7 +73,7 @@ function parseArgs(argv) {
 
 function usageAndExit() {
   console.error(
-    'Usage: node scripts/precheck-song-pool.js <inputCsvPath> <outputCsvPath> [--interactive|--no-interactive] [--review-all] [--deezer=needed|full|off] [--discogs=needed|full|off] [--deep]'
+    'Usage: node scripts/precheck-song-pool.js <inputCsvPath> <outputCsvPath> [--interactive|--no-interactive] [--review-all] [--deezer=needed|full|off] [--discogs=needed|full|off] [--listenbrainz=needed|off] [--deep]'
   );
   process.exit(1);
 }
@@ -107,8 +120,8 @@ function hasStrongExistingYear(row) {
   return toIntYear(row.existing_year) != null && isStrongExisting(row);
 }
 
-function saveRows(outputCsv, rows) {
-  writeCsvObjects(outputCsv, COLUMNS, rows.slice().sort(compareRows));
+function saveRows(outputCsv, rows, columns = COLUMNS) {
+  writeCsvObjects(outputCsv, columns, rows.slice().sort(compareRows));
 }
 
 function sourceConfidence(row) {
@@ -238,7 +251,7 @@ function applyManualChoice(row, action, year, extra = {}) {
   }
 }
 
-async function runInteractiveReview(rows, outputCsv, { reviewAll }) {
+async function runInteractiveReview(rows, outputCsv, { reviewAll, columns = COLUMNS }) {
   const reviewRows = reviewAll ? rows : rows.filter(isOpenReview);
   if (reviewRows.length === 0) {
     console.log('\nKeine offenen Reviews. Alle unauffaelligen final_year-Werte sind gesetzt.');
@@ -282,7 +295,7 @@ async function runInteractiveReview(rows, outputCsv, { reviewAll }) {
           applyManualChoice(row, 's');
         } else if (action === 'q') {
           applyManualChoice(row, 'q');
-          saveRows(outputCsv, rows);
+          saveRows(outputCsv, rows, columns);
           console.log(`\nGespeichert: ${outputCsv}`);
           return;
         } else {
@@ -290,7 +303,7 @@ async function runInteractiveReview(rows, outputCsv, { reviewAll }) {
           continue;
         }
 
-        saveRows(outputCsv, rows);
+        saveRows(outputCsv, rows, columns);
         console.log(`Gespeichert: ${outputCsv}`);
         break;
       }
@@ -313,6 +326,7 @@ async function main() {
   }
   if (!args.inputCsv || !args.outputCsv) usageAndExit();
   assertDistinctPaths(args.inputCsv, args.outputCsv);
+  const outputColumns = args.listenbrainzMode === 'needed' ? COLUMNS_WITH_LISTENBRAINZ : COLUMNS;
 
   if (args.interactive && !process.stdin.isTTY) {
     console.log('Kein interaktives Terminal erkannt - laufe als --no-interactive.');
@@ -324,8 +338,8 @@ async function main() {
   const hydratedDeezer = hydrateInputDeezerFromOutput(inputs, args.outputCsv);
   console.log(`Geladen: ${inputs.length} Song-Zeile(n) aus ${args.inputCsv}`);
   console.log(
-    `Modus: ${args.interactive ? 'interaktiv (Default)' : 'nicht-interaktiv'}${args.reviewAll ? ' + review-all' : ''}, ` +
-      `Discogs=${args.discogsMode}${args.deep ? ', deep' : ''}`
+      `Modus: ${args.interactive ? 'interaktiv (Default)' : 'nicht-interaktiv'}${args.reviewAll ? ' + review-all' : ''}, ` +
+      `Discogs=${args.discogsMode}, ListenBrainz=${args.listenbrainzMode}${args.deep ? ', deep' : ''}`
   );
   if (args.deezerMode === 'off') console.log('Deezer: off');
   else console.log(`Deezer: optionaler Kompatibilitaetslauf (${args.deezerMode})${hydratedDeezer ? `, aus Output uebernommen: ${hydratedDeezer}` : ''}`);
@@ -423,7 +437,11 @@ async function main() {
     }
   }
 
-  saveRows(args.outputCsv, rows);
+  stats.listenBrainz = await enrichOpenReviewsWithListenBrainz(rows, {
+    mode: args.listenbrainzMode,
+  });
+
+  saveRows(args.outputCsv, rows, outputColumns);
   console.log(`Review-CSV geschrieben: ${args.outputCsv}`);
 
   const preReviewSummary = computeSummary(rows);
@@ -434,7 +452,7 @@ async function main() {
 
   if (args.interactive) {
     console.log('\nInteraktive Reviews');
-    await runInteractiveReview(rows, args.outputCsv, { reviewAll: args.reviewAll });
+    await runInteractiveReview(rows, args.outputCsv, { reviewAll: args.reviewAll, columns: outputColumns });
   } else {
     console.log('Interaktiver Review uebersprungen (--no-interactive).');
   }

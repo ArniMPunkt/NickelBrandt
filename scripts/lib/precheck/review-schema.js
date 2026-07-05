@@ -43,6 +43,27 @@ const COLUMNS = [
   'final_year',
 ];
 
+const LISTENBRAINZ_COLUMNS = [
+  'listenbrainz_match_status',
+  'listenbrainz_year_signal',
+  'listenbrainz_context_flags',
+  'listenbrainz_version_flags',
+  'listenbrainz_recommendation',
+  'listenbrainz_mb_year',
+  'listenbrainz_mb_year_source',
+  'listenbrainz_year_delta_vs_current_mb',
+  'listenbrainz_year_delta_vs_spotify',
+  'listenbrainz_recording_mbid',
+  'listenbrainz_recording_name',
+  'listenbrainz_release_mbid',
+  'listenbrainz_release_name',
+];
+
+const COLUMNS_WITH_LISTENBRAINZ = [
+  ...COLUMNS,
+  ...LISTENBRAINZ_COLUMNS,
+];
+
 const STRONG_EXISTING_SOURCES = new Set(['final_year', 'release_year', 'csv_year']);
 const OPEN_STATUSES = new Set([
   'review_needed',
@@ -108,6 +129,8 @@ const SORT_RANK = {
 
 module.exports = {
   COLUMNS,
+  COLUMNS_WITH_LISTENBRAINZ,
+  LISTENBRAINZ_COLUMNS,
   MANUAL_FINAL_STATUSES,
   MANUAL_STATUSES,
   OPEN_STATUSES,

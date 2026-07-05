@@ -27,6 +27,7 @@ import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import {
   BINGO_CATEGORY_LABEL,
+  BINGO_COUNTDOWN_MS,
   BINGO_YEAR_MAX,
   BINGO_YEAR_MIN,
   BINGO_SPIN_MS,
@@ -37,6 +38,8 @@ import {
   titleAnswerText,
   type BingoAnswer,
 } from '../game/bingo';
+import { BingoCountdown } from '../components/BingoCountdown';
+import { CategoryWheel } from '../components/CategoryWheel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BingoLineReveal } from '../components/BingoLineReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
@@ -109,98 +112,6 @@ function BingoGrid({
               >
                 {cell.marked && <Text style={styles.cellCheck}>✓</Text>}
               </View>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-/**
- * The 3x4 spin wheel ("digitale Discokugel"). Layout and landing tiles are
- * FIXED constants, so every client shows the identical animation: the
- * highlight races through the tiles, decelerates (ease-out on the shared
- * spinStartedAt timestamp) and stops on the pre-drawn category's landing
- * tile. Pure cosmetics - the category was drawn server-side at round start.
- */
-const SPIN_LAYOUT: BingoCategoryType[] = [
-  'decade', 'before_after_2000', 'year_guess', 'title_artist',
-  'year_guess', 'title_artist', 'decade', 'before_after_2000',
-  'before_after_2000', 'decade', 'title_artist', 'year_guess',
-];
-const SPIN_LANDING: Record<BingoCategoryType, number> = {
-  decade: 6,
-  before_after_2000: 7,
-  title_artist: 10,
-  year_guess: 11,
-};
-/** The wheel keeps glowing on the result this long before onDone fires. */
-const SPIN_HOLD_MS = 700;
-
-function SpinWheel({
-  startedAt,
-  category,
-  onDone,
-}: {
-  /** Shared trigger timestamp; null renders the wheel idle (pre-spin). */
-  startedAt: number | null;
-  category?: BingoCategoryType;
-  onDone?: () => void;
-}) {
-  const [highlight, setHighlight] = useState<number | null>(null);
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
-
-  useEffect(() => {
-    if (startedAt == null || !category) {
-      setHighlight(null);
-      return;
-    }
-    const landing = SPIN_LANDING[category];
-    const totalSteps = 2 * SPIN_LAYOUT.length + landing; // two full laps + stop
-    const animMs = BINGO_SPIN_MS - SPIN_HOLD_MS;
-    let doneFired = false;
-    const iv = setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-      if (elapsed >= BINGO_SPIN_MS) {
-        setHighlight(landing);
-        if (!doneFired) {
-          doneFired = true;
-          clearInterval(iv);
-          onDoneRef.current?.();
-        }
-        return;
-      }
-      if (elapsed >= animMs) {
-        setHighlight(landing); // hold on the result
-        return;
-      }
-      const p = elapsed / animMs;
-      const steps = Math.floor(totalSteps * (1 - Math.pow(1 - p, 2.2)));
-      setHighlight(steps % SPIN_LAYOUT.length);
-    }, 50);
-    return () => clearInterval(iv);
-  }, [startedAt, category]);
-
-  const rows = [0, 1, 2].map((r) => SPIN_LAYOUT.slice(r * 4, r * 4 + 4));
-  return (
-    <View style={styles.spinGrid}>
-      {rows.map((tiles, r) => (
-        <View key={`spinrow-${r}`} style={styles.gridRow}>
-          {tiles.map((t, c) => {
-            const idx = r * 4 + c;
-            const color = CATEGORY_COLOR[t];
-            const lit = highlight === idx;
-            return (
-              <View
-                key={`spintile-${r}-${c}`}
-                style={[
-                  styles.spinTile,
-                  { borderColor: color },
-                  lit && { backgroundColor: color, ...glow(color, { radius: 12, opacity: 0.95 }) },
-                ]}
-              />
             );
           })}
         </View>
@@ -439,16 +350,31 @@ export default function BingoGameScreen() {
     navigation.navigate('OnlineHome');
   }, [lobby?.status, endedHandled, navigation]);
 
-  // Host-only audio: new round card -> play; game over -> pause.
+  // Host-only audio. The round's song starts only AFTER the wheel lands AND the
+  // 3-2-1 countdown ends (spinStartedAt + spin + countdown), so the PREVIOUS song
+  // keeps playing through the draw and the new song never changes before the
+  // category is revealed. Scheduled off the shared spinStartedAt, so a host who
+  // (re)joins mid-round starts it at the right moment (or immediately if already
+  // past). Round 1 needs no special case: there is simply no previous song, so
+  // the wheel + countdown play over silence and the song starts at the same beat.
   useEffect(() => {
     if (!isHost) return;
     if (gs?.phase === 'finished') {
       Spotify.pause().catch(() => {});
-    } else if (card && roundPhase === 'collecting') {
-      Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
+      return;
     }
+    if (roundPhase !== 'collecting' || !card || gs?.spinStartedAt == null) return;
+    const play = () =>
+      Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
+    const wait = gs.spinStartedAt + BINGO_SPIN_MS + BINGO_COUNTDOWN_MS - Date.now();
+    if (wait <= 0) {
+      play();
+      return;
+    }
+    const t = setTimeout(play, wait);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, roundPhase === 'collecting', gs?.phase, isHost]);
+  }, [card?.id, roundPhase, gs?.spinStartedAt, gs?.phase, isHost]);
 
   // Deadline resolve trigger - armed on ALL clients (foundation requirement:
   // a host disconnect must never strand the round; the claim dedupes).
@@ -486,6 +412,8 @@ export default function BingoGameScreen() {
 
   // ---- Spin stage (before the answer window) ----
   const [spinFinished, setSpinFinished] = useState(false);
+  // The 3-2-1 countdown (after the wheel) has run out on this client.
+  const [countdownFinished, setCountdownFinished] = useState(false);
   const [spinOpenForAll, setSpinOpenForAll] = useState(false);
 
   // Reset the per-round inputs for each new round.
@@ -494,6 +422,7 @@ export default function BingoGameScreen() {
     setTitleText('');
     setHostVerdicts({});
     setSpinFinished(false);
+    setCountdownFinished(false);
   }, [gs?.roundNumber]);
   const spinnerId = gs?.spinnerId ?? null;
   const spinnerName =
@@ -523,6 +452,14 @@ export default function BingoGameScreen() {
     gs?.spinStartedAt != null &&
     !spinFinished &&
     Date.now() - gs.spinStartedAt < BINGO_SPIN_MS;
+  // After the wheel and before the song: the 3-2-1 countdown (also shared-clock
+  // driven, so late joiners land on the right beat and skip it if already past).
+  const countdownRunning =
+    roundPhase === 'collecting' &&
+    gs?.spinStartedAt != null &&
+    !spinRunning &&
+    !countdownFinished &&
+    Date.now() - gs.spinStartedAt < BINGO_SPIN_MS + BINGO_COUNTDOWN_MS;
   const onSpin = () =>
     Online.triggerBingoSpin(lobbyId)
       .then(() => refresh())
@@ -711,7 +648,7 @@ export default function BingoGameScreen() {
       {roundPhase === 'spinning' && (
         <View style={styles.spinBox}>
           <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
-          <SpinWheel startedAt={null} />
+          <CategoryWheel startedAt={null} />
           {canSpin ? (
             <PressableButton style={[styles.spinBtn, styles.spinBtnActive]} onPress={onSpin}>
               <Text style={styles.spinBtnText}>🪩 DREHEN!</Text>
@@ -735,7 +672,7 @@ export default function BingoGameScreen() {
       {roundPhase === 'collecting' && round && spinRunning && (
         <View style={styles.spinBox}>
           <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
-          <SpinWheel
+          <CategoryWheel
             startedAt={gs.spinStartedAt ?? null}
             category={round.type}
             onDone={() => setSpinFinished(true)}
@@ -743,8 +680,19 @@ export default function BingoGameScreen() {
         </View>
       )}
 
+      {/* ---- wheel landed, 3-2-1 before the song (old song still playing) ---- */}
+      {roundPhase === 'collecting' && round && countdownRunning && gs.spinStartedAt != null && (
+        <View style={styles.spinBox}>
+          <BingoCountdown
+            startAt={gs.spinStartedAt + BINGO_SPIN_MS}
+            category={round.type}
+            onDone={() => setCountdownFinished(true)}
+          />
+        </View>
+      )}
+
       {/* ---- collecting: mystery song + category + input ---- */}
-      {roundPhase === 'collecting' && round && !spinRunning && (
+      {roundPhase === 'collecting' && round && !spinRunning && !countdownRunning && (
         <>
           <View style={styles.mysteryBox}>
             <Text style={styles.mysteryGlyph}>💿</Text>
@@ -1127,14 +1075,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     ...glow(COLORS.primary, { radius: 16, opacity: 0.6 }),
-  },
-  spinGrid: { gap: 6, alignSelf: 'center' },
-  spinTile: {
-    width: 62,
-    height: 46,
-    borderRadius: 10,
-    borderWidth: 3,
-    backgroundColor: COLORS.background,
   },
   spinBtn: {
     alignSelf: 'stretch',

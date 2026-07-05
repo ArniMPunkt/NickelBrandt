@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { csvEscape, loadEnv, parseCsvObjects } = require('./lib/util');
-const { lookupListenBrainzMetadata } = require('./lib/sources/listenbrainz');
+const {
+  analyzeListenBrainzMusicBrainzCandidate,
+} = require('./lib/precheck/listenbrainz-mb-analysis');
 
 const OPEN_REVIEW_STATUSES = new Set(['review_needed', 'review_needed_after_discogs']);
 const OUTPUT_HEADERS = [
@@ -17,6 +19,17 @@ const OUTPUT_HEADERS = [
   'listenbrainz_recording_name',
   'listenbrainz_release_mbid',
   'listenbrainz_release_name',
+  'listenbrainz_mb_year',
+  'listenbrainz_mb_year_source',
+  'listenbrainz_year_delta_vs_current_mb',
+  'listenbrainz_year_delta_vs_spotify',
+  'listenbrainz_match_status',
+  'listenbrainz_year_signal',
+  'listenbrainz_context_flags',
+  'listenbrainz_version_flags',
+  'listenbrainz_candidate_quality',
+  'listenbrainz_warning_flags',
+  'listenbrainz_recommendation',
   'status',
   'error',
 ];
@@ -27,6 +40,7 @@ function parseArgs(argv) {
     inputPath: '',
     outputPath: '',
     limit: null,
+    listenBrainzResultsPath: '',
   };
 
   for (const arg of argv) {
@@ -35,6 +49,8 @@ function parseArgs(argv) {
     } else if (arg.startsWith('--limit=')) {
       const n = Number.parseInt(arg.slice('--limit='.length), 10);
       options.limit = Number.isFinite(n) && n >= 0 ? n : null;
+    } else if (arg.startsWith('--listenbrainz-results=')) {
+      options.listenBrainzResultsPath = arg.slice('--listenbrainz-results='.length).trim();
     } else if (!options.inputPath) {
       options.inputPath = arg;
     } else if (!options.outputPath) {
@@ -48,34 +64,46 @@ function parseArgs(argv) {
 function usage() {
   return [
     'Usage:',
-    '  node scripts/debug-listenbrainz-open-reviews.js <review.csv> [output-file] [--format=jsonl|csv] [--limit=N]',
+    '  node scripts/debug-listenbrainz-open-reviews.js <review.csv> [output-file] [--format=jsonl|csv] [--limit=N] [--listenbrainz-results=lb.csv]',
     '',
     'Reads only review_needed and review_needed_after_discogs rows.',
   ].join('\n');
 }
 
-function yearFromDate(value) {
-  const match = String(value || '').match(/^(\d{4})/);
-  return match ? match[1] : '';
+function normalizeKeyPart(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-function spotifyYear(row) {
-  return row.estimated_year || row.csv_year || yearFromDate(row.spotify_album_release_date);
+function rowKey(row) {
+  return `${normalizeKeyPart(row.title)}|${normalizeKeyPart(row.artist)}`;
 }
 
-function toOutputRow(row, result) {
+function loadListenBrainzResults(filePath) {
+  if (!filePath) return new Map();
+  const text = fs.readFileSync(filePath, 'utf8');
+  const { objects } = parseCsvObjects(text);
+  const byKey = new Map();
+
+  for (const row of objects) {
+    byKey.set(rowKey(row), row);
+  }
+
+  return byKey;
+}
+
+function mergeListenBrainzResult(row, listenBrainzResults) {
+  if (!listenBrainzResults || listenBrainzResults.size === 0) return row;
+  const found = listenBrainzResults.get(rowKey(row));
+  if (!found) return row;
+
   return {
-    title: row.title || row.spotify_match_name || '',
-    artist: row.artist || row.spotify_match_artist || '',
-    current_mb_year: row.mb_year || '',
-    spotify_year: spotifyYear(row),
-    discogs_year: row.discogs_year || '',
-    listenbrainz_recording_mbid: result.recording_mbid || '',
-    listenbrainz_recording_name: result.recording_name || '',
-    listenbrainz_release_mbid: result.release_mbid || '',
-    listenbrainz_release_name: result.release_name || '',
-    status: result.status || '',
-    error: result.error || '',
+    ...row,
+    listenbrainz_lookup_status: found.status || found.listenbrainz_lookup_status || '',
+    listenbrainz_lookup_error: found.error || found.listenbrainz_lookup_error || '',
+    listenbrainz_recording_mbid: found.listenbrainz_recording_mbid || '',
+    listenbrainz_recording_name: found.listenbrainz_recording_name || '',
+    listenbrainz_release_mbid: found.listenbrainz_release_mbid || '',
+    listenbrainz_release_name: found.listenbrainz_release_name || '',
   };
 }
 
@@ -100,14 +128,12 @@ async function buildListenBrainzReviewOutput(reviewCsvPath, options = {}) {
     rows = rows.slice(0, options.limit);
   }
 
+  const listenBrainzResults = loadListenBrainzResults(options.listenBrainzResultsPath);
   const output = [];
   for (const row of rows) {
-    const result = await lookupListenBrainzMetadata({
-      title: row.title || row.spotify_match_name || '',
-      artist: row.artist || row.spotify_match_artist || '',
-      releaseName: row.spotify_album_name || '',
-    });
-    output.push(toOutputRow(row, result));
+    output.push(await analyzeListenBrainzMusicBrainzCandidate(
+      mergeListenBrainzResult(row, listenBrainzResults)
+    ));
   }
 
   return output;
@@ -148,5 +174,6 @@ module.exports = {
   parseArgs,
   renderCsv,
   renderJsonl,
-  toOutputRow,
+  loadListenBrainzResults,
+  mergeListenBrainzResult,
 };

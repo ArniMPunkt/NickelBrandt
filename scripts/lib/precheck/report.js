@@ -194,6 +194,75 @@ function softDiscogsLines(rows, stats = {}) {
   ];
 }
 
+function listenBrainzLineItem(row) {
+  const flags = [row.listenbrainz_context_flags, row.listenbrainz_version_flags]
+    .filter(Boolean)
+    .join(' | ') || '-';
+  return `  - ${row.title} - ${row.artist} | MB ${row.mb_year || '-'} | Spotify ${row.estimated_year || row.csv_year || '-'} | Discogs ${row.discogs_year || '-'} | LB-MB ${row.listenbrainz_mb_year || '-'} | ${row.listenbrainz_year_signal || '-'} | ${flags}`;
+}
+
+function listenBrainzRows(rows) {
+  return rows.filter((row) =>
+    ['review_needed', 'review_needed_after_discogs', 'soft_discogs_pending'].includes(row.status) &&
+    row.listenbrainz_recommendation
+  );
+}
+
+function listenBrainzRecommendationList(rows, recommendation) {
+  const items = listenBrainzRows(rows).filter((row) => row.listenbrainz_recommendation === recommendation);
+  if (!items.length) return ['  - keine'];
+  return items.map(listenBrainzLineItem);
+}
+
+function listenBrainzReviewLines(rows, stats = {}) {
+  const lb = stats.listenBrainz || { mode: 'off' };
+  const enrichedRows = listenBrainzRows(rows);
+  const recommendationCounts = lb.recommendationCounts && Object.keys(lb.recommendationCounts).length
+    ? lb.recommendationCounts
+    : countBy(enrichedRows.map((row) => row.listenbrainz_recommendation));
+  const yearSignalCounts = lb.yearSignalCounts && Object.keys(lb.yearSignalCounts).length
+    ? lb.yearSignalCounts
+    : countBy(enrichedRows.map((row) => row.listenbrainz_year_signal));
+
+  const lines = [
+    'ListenBrainz->MusicBrainz Review-Empfehlungen:',
+    `  Modus: ${lb.mode || 'off'}`,
+    `  offene Zielzeilen: ${lb.targetRows || 0}`,
+    `  geprueft: ${lb.checked || 0}`,
+    `  skipped/no token: ${lb.skippedNoToken || 0}`,
+    `  errors: ${lb.errors || 0}`,
+    '',
+    '  Recommendation-Verteilung:',
+    ...countLines(recommendationCounts),
+    '',
+    '  Year-Signal-Verteilung:',
+    ...countLines(yearSignalCounts),
+    '',
+    '  useful_alternative_mb_year:',
+    ...listenBrainzRecommendationList(rows, 'useful_alternative_mb_year'),
+    '',
+    '  likely_accept_existing_mb:',
+    ...listenBrainzRecommendationList(rows, 'likely_accept_existing_mb'),
+    '',
+    '  likely_accept_existing_mb_with_context_warning:',
+    ...listenBrainzRecommendationList(rows, 'likely_accept_existing_mb_with_context_warning'),
+    '',
+    '  manual_conflicting_years:',
+    ...listenBrainzRecommendationList(rows, 'manual_conflicting_years'),
+    '',
+    '  manual_noisy_context:',
+    ...listenBrainzRecommendationList(rows, 'manual_noisy_context'),
+    '',
+    '  manual_version_risk:',
+    ...listenBrainzRecommendationList(rows, 'manual_version_risk'),
+    '',
+    '  unusable:',
+    ...listenBrainzRecommendationList(rows, 'unusable'),
+  ];
+
+  return lines;
+}
+
 function reviewReasonLines(rows) {
   const openRows = openReviewRows(rows);
   const reasons = countBy(openRows.map((row) => notePart(row, 'review_reason') || row.status));
@@ -258,6 +327,8 @@ function buildAnalysisReport(rows, summary, stats = {}, totalMs = 0) {
     ...hardDiscogsLines(stats),
     '',
     ...softDiscogsLines(rows, stats),
+    '',
+    ...listenBrainzReviewLines(rows, stats),
     '',
     ...reviewReasonLines(rows),
     '',
@@ -330,6 +401,21 @@ function printSummary({ rows, results, stats, inputs, outputCsv, tScript }) {
   console.log(`  freigegeben: ${soft.autoAcceptedSoftChecked || 0}`);
   console.log(`  review nach Discogs: ${soft.reviewNeededAfterDiscogs || 0}`);
   console.log(`  weiterhin pending: ${soft.stillPending || 0}`);
+  if (stats.listenBrainz) {
+    if (stats.listenBrainz.mode === 'off') {
+      console.log('ListenBrainz->MusicBrainz: off');
+    } else if (stats.listenBrainz.skippedNoToken > 0 && stats.listenBrainz.checked === 0) {
+      console.log('ListenBrainz->MusicBrainz: skipped, no token');
+    } else {
+      console.log('ListenBrainz->MusicBrainz:');
+      console.log(`  Modus: ${stats.listenBrainz.mode || 'off'}`);
+      console.log(`  Geprueft: ${stats.listenBrainz.checked || 0}`);
+      console.log(`  Schnell bestaetigbar: ${stats.listenBrainz.quicklyConfirmable || 0}`);
+      console.log(`  Hilfreiches Alternativjahr: ${stats.listenBrainz.usefulAlternativeYears || 0}`);
+      console.log(`  Manuell pruefen: ${stats.listenBrainz.manualReview || 0}`);
+      console.log(`  Fehler/Skipped: ${stats.listenBrainz.errorOrSkipped || 0}`);
+    }
+  }
   console.log(`Laufzeit gesamt: ${(totalMs / 1000).toFixed(1)}s`);
   console.log(`Review-CSV geschrieben: ${outputCsv}`);
   console.log(`Analysebericht geschrieben: ${reportPath}`);
@@ -341,6 +427,7 @@ function printSummary({ rows, results, stats, inputs, outputCsv, tScript }) {
 module.exports = {
   buildAnalysisReport,
   computeSummary,
+  listenBrainzReviewLines,
   printSummary,
   statusDistribution,
   writeAnalysisReport,

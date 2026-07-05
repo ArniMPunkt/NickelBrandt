@@ -69,6 +69,17 @@ export type BingoAnswer =
 export const BINGO_SPIN_MS = 6200;
 
 /**
+ * The 3-2-1 "get ready" beat between the wheel landing on the category and the
+ * new song starting. The previous song keeps playing through the wheel AND this
+ * countdown, then is replaced by the round's song exactly when it ends - so the
+ * song only ever changes AFTER the category is revealed. The answer deadline
+ * includes this (spin + countdown + BINGO_ROUND_SECONDS), so it costs no answer
+ * time. Shared by the screen (UI + host playback trigger) and the server-side
+ * deadline in triggerBingoSpin, so both agree on the timing.
+ */
+export const BINGO_COUNTDOWN_MS = 3000;
+
+/**
  * If the designated spinner hasn't pressed within this window, the button
  * opens for EVERYONE (an absent player must never stall the game - same
  * philosophy as the review/pick timeouts).

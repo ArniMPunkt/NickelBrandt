@@ -19,6 +19,7 @@ import { isCorrectPlacement } from '../context/GameContext';
 import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
 import {
   BINGO_PICK_SECONDS,
+  BINGO_COUNTDOWN_MS,
   BINGO_REVIEW_SECONDS,
   BINGO_ROUND_SECONDS,
   BINGO_SPIN_MS,
@@ -1307,7 +1308,10 @@ export async function triggerBingoSpin(lobbyId: string): Promise<void> {
         ...gs,
         roundPhase: 'collecting',
         spinStartedAt: now,
-        roundDeadline: now + BINGO_SPIN_MS + BINGO_ROUND_SECONDS * 1000,
+        // Answer window begins only after the wheel AND the 3-2-1 countdown, so
+        // the new song (which starts at the end of the countdown) plays for the
+        // full BINGO_ROUND_SECONDS.
+        roundDeadline: now + BINGO_SPIN_MS + BINGO_COUNTDOWN_MS + BINGO_ROUND_SECONDS * 1000,
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
