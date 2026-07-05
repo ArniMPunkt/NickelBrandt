@@ -7,6 +7,7 @@ const { hasFinalYear, isOpenReview } = require('./review-queue');
 const PRIMARY_STATUSES = [
   'auto_accepted_mb',
   'auto_accepted_mb_soft_checked',
+  'auto_accepted_mb_lb_confirmed',
   'review_needed',
   'review_needed_after_discogs',
   'soft_discogs_pending',
@@ -32,6 +33,7 @@ function computeSummary(rows) {
   const statuses = statusDistribution(rows);
   const uploadReadyDirect = statuses.auto_accepted_mb;
   const uploadReadySoftChecked = statuses.auto_accepted_mb_soft_checked;
+  const uploadReadyLbConfirmed = statuses.auto_accepted_mb_lb_confirmed;
   const manualReviewsOpen = statuses.review_needed + statuses.review_needed_after_discogs;
   const uploadBlocked = rows.filter((row) => row.status !== 'excluded_from_pool' && !hasFinalYear(row)).length;
 
@@ -46,6 +48,7 @@ function computeSummary(rows) {
     statuses,
     uploadReadyDirect,
     uploadReadySoftChecked,
+    uploadReadyLbConfirmed,
     manualReviewsOpen,
     uploadBlocked,
   };
@@ -125,9 +128,10 @@ function resultLines(rows, summary) {
   return [
     'Ergebnis:',
     `  Songs gesamt: ${rows.length}`,
-    `  Upload-ready automatisch: ${summary.uploadReadyDirect + summary.uploadReadySoftChecked}`,
+    `  Upload-ready automatisch: ${summary.uploadReadyDirect + summary.uploadReadySoftChecked + summary.uploadReadyLbConfirmed}`,
     `    - MusicBrainz direkt: ${summary.uploadReadyDirect}`,
     `    - MusicBrainz + Soft-Discogs geprueft: ${summary.uploadReadySoftChecked}`,
+    `    - MusicBrainz + LB->MB bestaetigt: ${summary.uploadReadyLbConfirmed}`,
     `  Manuelle Reviews offen: ${summary.manualReviewsOpen}`,
     `    - review_needed: ${summary.statuses.review_needed}`,
     `    - review_needed_after_discogs: ${summary.statuses.review_needed_after_discogs}`,
@@ -140,6 +144,7 @@ function statusLines(summary) {
     'Statusverteilung:',
     `  auto_accepted_mb: ${summary.statuses.auto_accepted_mb}`,
     `  auto_accepted_mb_soft_checked: ${summary.statuses.auto_accepted_mb_soft_checked}`,
+    `  auto_accepted_mb_lb_confirmed: ${summary.statuses.auto_accepted_mb_lb_confirmed}`,
     `  review_needed: ${summary.statuses.review_needed}`,
     `  review_needed_after_discogs: ${summary.statuses.review_needed_after_discogs}`,
     `  soft_discogs_pending: ${summary.statuses.soft_discogs_pending}`,
@@ -263,6 +268,20 @@ function listenBrainzReviewLines(rows, stats = {}) {
   return lines;
 }
 
+function listenBrainzAutoAcceptLines(stats = {}) {
+  const lb = stats.listenBrainzAutoAccept || { mode: 'off' };
+  return [
+    'LB Auto-Accepts:',
+    `  Modus: ${lb.mode || 'off'}`,
+    `  Kandidaten likely_accept_existing_mb: ${lb.candidates || 0}`,
+    `  automatisch akzeptiert: ${lb.accepted || 0}`,
+    `  wegen Flags/Konflikten uebersprungen: ${lb.skipped || 0}`,
+    `  neuer Status auto_accepted_mb_lb_confirmed: ${lb.accepted || 0}`,
+    '  Skip-Gruende:',
+    ...countLines(lb.skippedReasons || {}),
+  ];
+}
+
 function reviewReasonLines(rows) {
   const openRows = openReviewRows(rows);
   const reasons = countBy(openRows.map((row) => notePart(row, 'review_reason') || row.status));
@@ -329,6 +348,8 @@ function buildAnalysisReport(rows, summary, stats = {}, totalMs = 0) {
     ...softDiscogsLines(rows, stats),
     '',
     ...listenBrainzReviewLines(rows, stats),
+    '',
+    ...listenBrainzAutoAcceptLines(stats),
     '',
     ...reviewReasonLines(rows),
     '',
@@ -416,6 +437,13 @@ function printSummary({ rows, results, stats, inputs, outputCsv, tScript }) {
       console.log(`  Fehler/Skipped: ${stats.listenBrainz.errorOrSkipped || 0}`);
     }
   }
+  if (stats.listenBrainzAutoAccept) {
+    console.log('ListenBrainz Auto-Accept:');
+    console.log(`  Modus: ${stats.listenBrainzAutoAccept.mode || 'off'}`);
+    console.log(`  Kandidaten: ${stats.listenBrainzAutoAccept.candidates || 0}`);
+    console.log(`  akzeptiert: ${stats.listenBrainzAutoAccept.accepted || 0}`);
+    console.log(`  uebersprungen: ${stats.listenBrainzAutoAccept.skipped || 0}`);
+  }
   console.log(`Laufzeit gesamt: ${(totalMs / 1000).toFixed(1)}s`);
   console.log(`Review-CSV geschrieben: ${outputCsv}`);
   console.log(`Analysebericht geschrieben: ${reportPath}`);
@@ -427,6 +455,7 @@ function printSummary({ rows, results, stats, inputs, outputCsv, tScript }) {
 module.exports = {
   buildAnalysisReport,
   computeSummary,
+  listenBrainzAutoAcceptLines,
   listenBrainzReviewLines,
   printSummary,
   statusDistribution,

@@ -31,6 +31,9 @@ const { runSoftDiscogsChecks } = require('./lib/precheck/soft-discogs-checks');
 const {
   enrichOpenReviewsWithListenBrainz,
 } = require('./lib/precheck/listenbrainz-review-enrichment');
+const {
+  applyListenBrainzAutoAccepts,
+} = require('./lib/precheck/apply-listenbrainz-auto-accepts');
 
 function parseArgs(argv) {
   const args = {
@@ -41,6 +44,7 @@ function parseArgs(argv) {
     deezerMode: 'needed',
     discogsMode: 'needed',
     listenbrainzMode: 'off',
+    lbAutoAcceptMode: 'off',
     deep: false,
   };
   for (const arg of argv) {
@@ -63,6 +67,11 @@ function parseArgs(argv) {
       if (!['needed', 'off'].includes(mode)) throw new Error(`Unknown ListenBrainz mode: ${mode}`);
       args.listenbrainzMode = mode;
     }
+    else if (arg.startsWith('--lb-auto-accept=')) {
+      const mode = arg.slice('--lb-auto-accept='.length);
+      if (!['safe', 'off'].includes(mode)) throw new Error(`Unknown LB auto-accept mode: ${mode}`);
+      args.lbAutoAcceptMode = mode;
+    }
     else if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`);
     else if (!args.inputCsv) args.inputCsv = arg;
     else if (!args.outputCsv) args.outputCsv = arg;
@@ -73,7 +82,7 @@ function parseArgs(argv) {
 
 function usageAndExit() {
   console.error(
-    'Usage: node scripts/precheck-song-pool.js <inputCsvPath> <outputCsvPath> [--interactive|--no-interactive] [--review-all] [--deezer=needed|full|off] [--discogs=needed|full|off] [--listenbrainz=needed|off] [--deep]'
+    'Usage: node scripts/precheck-song-pool.js <inputCsvPath> <outputCsvPath> [--interactive|--no-interactive] [--review-all] [--deezer=needed|full|off] [--discogs=needed|full|off] [--listenbrainz=needed|off] [--lb-auto-accept=safe|off] [--deep]'
   );
   process.exit(1);
 }
@@ -326,6 +335,10 @@ async function main() {
   }
   if (!args.inputCsv || !args.outputCsv) usageAndExit();
   assertDistinctPaths(args.inputCsv, args.outputCsv);
+  if (args.lbAutoAcceptMode === 'safe' && args.listenbrainzMode !== 'needed') {
+    console.error('--lb-auto-accept=safe requires --listenbrainz=needed.');
+    process.exit(1);
+  }
   const outputColumns = args.listenbrainzMode === 'needed' ? COLUMNS_WITH_LISTENBRAINZ : COLUMNS;
 
   if (args.interactive && !process.stdin.isTTY) {
@@ -339,7 +352,7 @@ async function main() {
   console.log(`Geladen: ${inputs.length} Song-Zeile(n) aus ${args.inputCsv}`);
   console.log(
       `Modus: ${args.interactive ? 'interaktiv (Default)' : 'nicht-interaktiv'}${args.reviewAll ? ' + review-all' : ''}, ` +
-      `Discogs=${args.discogsMode}, ListenBrainz=${args.listenbrainzMode}${args.deep ? ', deep' : ''}`
+      `Discogs=${args.discogsMode}, ListenBrainz=${args.listenbrainzMode}, LB-Auto=${args.lbAutoAcceptMode}${args.deep ? ', deep' : ''}`
   );
   if (args.deezerMode === 'off') console.log('Deezer: off');
   else console.log(`Deezer: optionaler Kompatibilitaetslauf (${args.deezerMode})${hydratedDeezer ? `, aus Output uebernommen: ${hydratedDeezer}` : ''}`);
@@ -439,6 +452,9 @@ async function main() {
 
   stats.listenBrainz = await enrichOpenReviewsWithListenBrainz(rows, {
     mode: args.listenbrainzMode,
+  });
+  stats.listenBrainzAutoAccept = applyListenBrainzAutoAccepts(rows, {
+    mode: args.listenbrainzMode === 'needed' ? args.lbAutoAcceptMode : 'off',
   });
 
   saveRows(args.outputCsv, rows, outputColumns);

@@ -1,0 +1,136 @@
+Precheck-Report
+===============
+Ergebnis:
+  Songs gesamt: 308
+  Upload-ready automatisch: 247
+    - MusicBrainz direkt: 201
+    - MusicBrainz + Soft-Discogs geprueft: 46
+  Manuelle Reviews offen: 61
+    - review_needed: 60
+    - review_needed_after_discogs: 1
+  Upload-blockiert: 61
+
+Statusverteilung:
+  auto_accepted_mb: 201
+  auto_accepted_mb_soft_checked: 46
+  review_needed: 60
+  review_needed_after_discogs: 1
+  soft_discogs_pending: 0
+  sonstige: 0
+
+MusicBrainz-Qualitaet:
+  plausibel mit Jahr: 285
+  fehlend/unsicher: 23
+  ISRC-Treffer: 277
+  Text-Fallback-Treffer: 8
+  mb_no_match: 6
+  mb_match_uncertain: 17
+
+Discogs-Hard-Checks:
+  geplant: 29
+  externe Calls: 0
+  Cache-Hits: 29
+  uebersprungen: 279
+  begrenzt: 0
+
+Soft-Discogs-Checks:
+  pending vorher: 47
+  geprueft: 47
+  freigegeben: 46
+  review nach Discogs: 1
+  weiterhin pending: 0
+  externe Calls: 47
+  Cache-Hits: 0
+  Fehler: 0
+  RateLimit: 0
+  Timeouts: 0
+
+ListenBrainz->MusicBrainz Review-Empfehlungen:
+  Modus: off
+  offene Zielzeilen: 61
+  geprueft: 0
+  skipped/no token: 0
+  errors: 0
+
+  Recommendation-Verteilung:
+  - keine
+
+  Year-Signal-Verteilung:
+  - keine
+
+  useful_alternative_mb_year:
+  - keine
+
+  likely_accept_existing_mb:
+  - keine
+
+  likely_accept_existing_mb_with_context_warning:
+  - keine
+
+  manual_conflicting_years:
+  - keine
+
+  manual_noisy_context:
+  - keine
+
+  manual_version_risk:
+  - keine
+
+  unusable:
+  - keine
+
+Offene Review-Gruende:
+  - mb_year_suspicious_late: 27
+  - mb_uncertain: 17
+  - mb_text_match_only: 8
+  - mb_no_match: 6
+  - discogs_earlier_than_mb: 2
+  - review_needed_after_discogs: 1
+
+Risk Flags in offenen Reviews:
+  - catalog_context: 36
+  - mb_year_suspicious_late: 36
+  - mb_text_match_only: 25
+  - compilation_context: 20
+  - mb_uncertain: 17
+  - remaster_or_deluxe_context: 16
+  - discogs_earlier_than_mb: 7
+  - mb_no_match: 6
+
+Top offene Reviews:
+  1. Have You Ever Seen The Rain - Creedence Clearwater Revival | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1970 | Discogs -
+  2. MMMBop - Hanson | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+compilation_context+mb_year_suspicious_late | MB 1997 | Discogs -
+  3. I Gotta Feeling - Black Eyed Peas | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2009 | Discogs -
+  4. Here Comes The Sun - Remastered 2009 - The Beatles | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1969 | Discogs -
+  5. A Horse With No Name - America | review_needed_after_discogs | Grund review_needed_after_discogs | Risk catalog_context+compilation_context | MB 1973 | Discogs 1971
+  6. New York-Rio-Tokyo - Trio Rio | review_needed | Grund mb_text_match_only | Risk mb_text_match_only | MB 1986 | Discogs -
+  7. Boys - Summertime Love - Sabrina | review_needed | Grund mb_uncertain | Risk mb_uncertain+mb_text_match_only+discogs_earlier_than_mb+mb_year_suspicious_late | MB 2026 | Discogs 1987
+  8. Flying Through the Air - Oliver Onions | review_needed | Grund mb_uncertain | Risk mb_uncertain+mb_text_match_only+catalog_context+compilation_context | MB 1973 | Discogs 1973
+  9. Volare - Domenico Modugno | review_needed | Grund mb_uncertain | Risk mb_uncertain+mb_text_match_only+discogs_earlier_than_mb+mb_year_suspicious_late | MB 2010 | Discogs 1972
+  10. La La La - Naughty Boy, Sam Smith | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2013 | Discogs -
+  11. Fresh - Kool & The Gang | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1984 | Discogs -
+  12. Ratzfatz nach Mallorca - Ibo | review_needed | Grund mb_uncertain | Risk mb_uncertain+mb_text_match_only | MB 2000 | Discogs -
+  13. I Want To Break Free - Queen | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+compilation_context+mb_year_suspicious_late | MB 2018 | Discogs -
+  14. CAN'T STOP THE FEELING! (from DreamWorks Animation's "TROLLS") - Justin Timberlake | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+compilation_context+mb_year_suspicious_late | MB 2016 | Discogs -
+  15. Hollaback Girl - Gwen Stefani | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2004 | Discogs -
+  16. Bella Isola - Radio - Bata Illic | review_needed | Grund mb_no_match | Risk mb_no_match | MB - | Discogs -
+  17. Lonely - Re-Recorded 2021 - Nana Darkman, Alexandra Prince | review_needed | Grund mb_text_match_only | Risk mb_text_match_only | MB 2021 | Discogs -
+  18. Strandbikini - Club Honululu Itsy Bitsy Teenie Weenie Honolulu | review_needed | Grund mb_no_match | Risk mb_no_match+catalog_context+compilation_context | MB - | Discogs -
+  19. I.O.I.O. - Radio Edit - B 3 | review_needed | Grund mb_no_match | Risk mb_no_match | MB - | Discogs -
+  20. Balada - Gusttavo Lima | review_needed | Grund mb_uncertain | Risk mb_uncertain+mb_text_match_only+catalog_context+compilation_context+mb_year_suspicious_late | MB 2011 | Discogs 2012
+
+Spotify-vs-MusicBrainz-Abweichungen:
+  Abweichungen > 1 Jahr: 96
+  Durchschnittliche Abweichung: 17.4 Jahre
+  1. American Pie - Single Version - Don McLean: MB 1971, Spotify 2019, diff +48
+  2. Night Fever - From "Saturday Night Fever" Soundtrack - Bee Gees: MB 1977, Spotify 2020, diff +43
+  3. Funkytown - Lipps Inc.: MB 1979, Spotify 2018, diff +39
+  4. A Horse With No Name - America: MB 1973, Spotify 2011, diff +38
+  5. Boys - Summertime Love - Sabrina: MB 2026, Spotify 1988, diff -38
+  6. Heart Of Gold - Neil Young: MB 1972, Spotify 2010, diff +38
+  7. La Vie en rose - Grace Jones: MB 1977, Spotify 2015, diff +38
+  8. Rock Your Baby - George McCrae: MB 1974, Spotify 2010, diff +36
+  9. Nutbush City Limits - Ike & Tina Turner: MB 1973, Spotify 2008, diff +35
+  10. Radar Love - Golden Earring: MB 1973, Spotify 2008, diff +35
+
+Deezer: off

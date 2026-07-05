@@ -59,9 +59,15 @@ const LISTENBRAINZ_COLUMNS = [
   'listenbrainz_release_name',
 ];
 
+const LB_AUTO_ACCEPT_COLUMNS = [
+  'final_source',
+  'review_reason',
+];
+
 const COLUMNS_WITH_LISTENBRAINZ = [
   ...COLUMNS,
   ...LISTENBRAINZ_COLUMNS,
+  ...LB_AUTO_ACCEPT_COLUMNS,
 ];
 
 const STRONG_EXISTING_SOURCES = new Set(['final_year', 'release_year', 'csv_year']);
@@ -115,6 +121,7 @@ const SORT_RANK = {
   mb_uncertain_but_year_consensus: 0,
   auto_accepted_mb: 0,
   auto_accepted_mb_soft_checked: 0,
+  auto_accepted_mb_lb_confirmed: 0,
   mb_anchor_ok: 0,
   existing_year_confirmed: 0,
   manual_kept_existing: 0,
@@ -130,6 +137,7 @@ const SORT_RANK = {
 module.exports = {
   COLUMNS,
   COLUMNS_WITH_LISTENBRAINZ,
+  LB_AUTO_ACCEPT_COLUMNS,
   LISTENBRAINZ_COLUMNS,
   MANUAL_FINAL_STATUSES,
   MANUAL_STATUSES,
