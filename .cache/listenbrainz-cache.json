@@ -1378,5 +1378,1863 @@
       "408b2a33-d229-46a5-a361-0667bc616e34",
       "1808c69a-bd9e-473b-9d79-54bf1846a37b"
     ]
+  },
+  "prince|purple rain|purple rain": {
+    "status": "ok",
+    "query": {
+      "title": "Purple Rain",
+      "artist": "Prince",
+      "releaseName": "Purple Rain"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291800"
+    },
+    "recording_mbid": "edeac98e-5750-4f21-9e5a-3ff4717e197a",
+    "recording_name": "Purple Rain",
+    "release_mbid": "8c6d3dbb-1bb1-4497-b31e-5240c53b4271",
+    "release_name": "Sign “☮︎” the Times",
+    "artist_credit_name": "Prince",
+    "artist_mbids": [
+      "070d193a-845c-479f-980e-bef15710653e"
+    ]
+  },
+  "bush|machinehead - remastered 2014|sixteen stone (remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Machinehead - Remastered 2014",
+      "artist": "Bush",
+      "releaseName": "Sixteen Stone (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291800"
+    },
+    "recording_mbid": "af3f426f-db2a-4d72-8ec1-e6c28d0314b7",
+    "recording_name": "Machinehead",
+    "release_mbid": "ca0c253f-74fe-432b-b402-b94626043f8f",
+    "release_name": "Sixteen Stone",
+    "artist_credit_name": "Bush",
+    "artist_mbids": [
+      "93ccd76c-3790-4435-a8bf-02bc26294b93"
+    ]
+  },
+  "lynyrd skynyrd|sweet home alabama|second helping (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Sweet Home Alabama",
+      "artist": "Lynyrd Skynyrd",
+      "releaseName": "Second Helping (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291800"
+    },
+    "recording_mbid": "2b2f23a7-3ee0-4fc0-991c-c0e327ffbb1e",
+    "recording_name": "Sweet Home Alabama",
+    "release_mbid": "d8782628-0d8b-4df0-96b4-3a3cb277977e",
+    "release_name": "Second Helping",
+    "artist_credit_name": "Lynyrd Skynyrd",
+    "artist_mbids": [
+      "c544ed4d-2390-4442-a83e-1ea2883b09c8"
+    ]
+  },
+  "iron maiden|fear of the dark - 2015 remaster|fear of the dark (2015 remaster)": {
+    "status": "ok",
+    "query": {
+      "title": "Fear of the Dark - 2015 Remaster",
+      "artist": "Iron Maiden",
+      "releaseName": "Fear of the Dark (2015 Remaster)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291800"
+    },
+    "recording_mbid": "059a7d04-a424-4f88-9d06-c915ad1e3647",
+    "recording_name": "Fear of the Dark",
+    "release_mbid": "ecc2e9db-637c-4f21-955c-6ab3e1123ffc",
+    "release_name": "Fear of the Dark",
+    "artist_credit_name": "Iron Maiden",
+    "artist_mbids": [
+      "ca891d65-d9b0-4258-89f7-e6ba29d83767"
+    ]
+  },
+  "the cure|just like heaven - remastered 2006|kiss me kiss me kiss me (remastered 2006)": {
+    "status": "no_match",
+    "query": {
+      "title": "Just Like Heaven - Remastered 2006",
+      "artist": "The Cure",
+      "releaseName": "Kiss Me Kiss Me Kiss Me (Remastered 2006)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291810"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "slipknot|psychosocial|all hope is gone (10th anniversary)": {
+    "status": "ok",
+    "query": {
+      "title": "Psychosocial",
+      "artist": "Slipknot",
+      "releaseName": "All Hope Is Gone (10th Anniversary)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291810"
+    },
+    "recording_mbid": "99eafe91-a43c-4adc-b3ea-8b6f8e0e4966",
+    "recording_name": "Psychosocial",
+    "release_mbid": "de1f5051-d1b7-3102-beab-913902ba40ad",
+    "release_name": "All Hope Is Gone",
+    "artist_credit_name": "Slipknot",
+    "artist_mbids": [
+      "a466c2a2-6517-42fb-a160-1087c3bafd9f"
+    ]
+  },
+  "red hot chili peppers|give it away|blood sugar sex magik (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Give It Away",
+      "artist": "Red Hot Chili Peppers",
+      "releaseName": "Blood Sugar Sex Magik (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291810"
+    },
+    "recording_mbid": "37ab16cb-ec9c-4d72-97ed-03962edd991f",
+    "recording_name": "Give It Away",
+    "release_mbid": "8b69a5f2-d3de-4df0-ae61-54b2227862c8",
+    "release_name": "Blood Sugar Sex Magik",
+    "artist_credit_name": "Red Hot Chili Peppers",
+    "artist_mbids": [
+      "8bfac288-ccc5-448d-9573-c33ea2aa5c30"
+    ]
+  },
+  "mgk|bloody valentine|tickets to my downfall": {
+    "status": "ok",
+    "query": {
+      "title": "bloody valentine",
+      "artist": "mgk",
+      "releaseName": "Tickets To My Downfall"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291820"
+    },
+    "recording_mbid": "fdd3531a-e35c-4c7b-b4a6-0c38260e13b0",
+    "recording_name": "bloody valentine",
+    "release_mbid": "4be2f981-2c54-46f2-b206-f107d88f8acd",
+    "release_name": "Tickets to My Downfall (All Access)",
+    "artist_credit_name": "mgk",
+    "artist_mbids": [
+      "f6af669a-56ea-448a-a044-de76181ada33"
+    ]
+  },
+  "the who|my generation|my generation (50th anniversary / super deluxe)": {
+    "status": "ok",
+    "query": {
+      "title": "My Generation",
+      "artist": "The Who",
+      "releaseName": "My Generation (50th Anniversary / Super Deluxe)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291820"
+    },
+    "recording_mbid": "9ce06d95-8de5-4560-b280-9aa5387d100a",
+    "recording_name": "My Generation",
+    "release_mbid": "7f84ec32-a252-3be6-a36e-d34a0da92d64",
+    "release_name": "The Who Sings My Generation",
+    "artist_credit_name": "The Who",
+    "artist_mbids": [
+      "9fdaa16b-a6c4-4831-b87c-bc9ca8ce7eaa"
+    ]
+  },
+  "ratt|round and round|the essentials: ratt": {
+    "status": "ok",
+    "query": {
+      "title": "Round and Round",
+      "artist": "Ratt",
+      "releaseName": "The Essentials: Ratt"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291820"
+    },
+    "recording_mbid": "955a1e62-7025-4552-a68a-7b644ab61c1f",
+    "recording_name": "Round and Round",
+    "release_mbid": "68e0e9c9-28a4-4fb1-8131-8e059e0dbd49",
+    "release_name": "The Essentials: Ratt",
+    "artist_credit_name": "Ratt",
+    "artist_mbids": [
+      "e0827234-3be3-4973-be59-1aa9575b9c76"
+    ]
+  },
+  "killswitch engage|my curse|as daylight dies (special edition)": {
+    "status": "ok",
+    "query": {
+      "title": "My Curse",
+      "artist": "Killswitch Engage",
+      "releaseName": "As Daylight Dies (Special Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291820"
+    },
+    "recording_mbid": "79ec57c9-ac82-4554-b779-87b09ecff5b1",
+    "recording_name": "My Curse",
+    "release_mbid": "bdd86e9a-31be-4c05-abd7-0f7784881a75",
+    "release_name": "As Daylight Dies special edition",
+    "artist_credit_name": "Killswitch Engage",
+    "artist_mbids": [
+      "8295ee00-0096-461d-95c7-c2263d2a4c6d"
+    ]
+  },
+  "led zeppelin|stairway to heaven - remaster|led zeppelin iv (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Stairway to Heaven - Remaster",
+      "artist": "Led Zeppelin",
+      "releaseName": "Led Zeppelin IV (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291830"
+    },
+    "recording_mbid": "ccfdd180-22e1-49b9-bd81-b5fcf2c6474e",
+    "recording_name": "Stairway to Heaven",
+    "release_mbid": "2a73b5f2-f680-4c3b-902f-7e395dece103",
+    "release_name": "[Led Zeppelin IV]",
+    "artist_credit_name": "Led Zeppelin",
+    "artist_mbids": [
+      "678d88b2-87b0-403b-b63d-5da7465aecc3"
+    ]
+  },
+  "yes|owner of a lonely heart|90125 (deluxe version)": {
+    "status": "ok",
+    "query": {
+      "title": "Owner of a Lonely Heart",
+      "artist": "Yes",
+      "releaseName": "90125 (Deluxe Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291830"
+    },
+    "recording_mbid": "d8bb0832-9bb3-42ef-a861-ae9bf07a2089",
+    "recording_name": "Owner of a Lonely Heart",
+    "release_mbid": "71b9b19d-b007-4258-96d8-c2617d767fea",
+    "release_name": "90125",
+    "artist_credit_name": "Yes",
+    "artist_mbids": [
+      "c1d4f2ba-cf39-460c-9528-6b827d3417a1"
+    ]
+  },
+  "iron maiden|the trooper - 2015 remaster|piece of mind (2015 remaster)": {
+    "status": "ok",
+    "query": {
+      "title": "The Trooper - 2015 Remaster",
+      "artist": "Iron Maiden",
+      "releaseName": "Piece of Mind (2015 Remaster)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291830"
+    },
+    "recording_mbid": "8f13d546-0cc6-4d8b-8d3a-27805f3ca264",
+    "recording_name": "The Trooper",
+    "release_mbid": "d18c9a62-2d6f-47df-87dd-3b6abd64f86d",
+    "release_name": "Piece of Mind",
+    "artist_credit_name": "Iron Maiden",
+    "artist_mbids": [
+      "ca891d65-d9b0-4258-89f7-e6ba29d83767"
+    ]
+  },
+  "nirvana|come as you are|nevermind (remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Come As You Are",
+      "artist": "Nirvana",
+      "releaseName": "Nevermind (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291830"
+    },
+    "recording_mbid": "70ac6733-068f-4613-b06b-bea17cfbcc30",
+    "recording_name": "Come as You Are",
+    "release_mbid": "eccae410-7577-4daa-b602-92d305828331",
+    "release_name": "Nevermind",
+    "artist_credit_name": "Nirvana",
+    "artist_mbids": [
+      "5b11f4ce-a62d-471e-81fc-a69a8278c7da"
+    ]
+  },
+  "queensrÿche|silent lucidity - remastered 2003|empire - 20th anniversary edition": {
+    "status": "ok",
+    "query": {
+      "title": "Silent Lucidity - Remastered 2003",
+      "artist": "Queensrÿche",
+      "releaseName": "Empire - 20th Anniversary Edition"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291840"
+    },
+    "recording_mbid": "fd7b1884-f40b-4105-aa1b-9bad31063ca3",
+    "recording_name": "Silent Lucidity",
+    "release_mbid": "b32d6016-73c4-4a2c-a6fd-c698c33fc2ce",
+    "release_name": "Empire",
+    "artist_credit_name": "Queensrÿche",
+    "artist_mbids": [
+      "deeea939-7f89-4762-b09f-79269cd70d3b"
+    ]
+  },
+  "joan jett & the blackhearts|i love rock 'n roll|i love rock 'n' roll (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "I Love Rock 'N Roll",
+      "artist": "Joan Jett & the Blackhearts",
+      "releaseName": "I Love Rock 'N' Roll (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291840"
+    },
+    "recording_mbid": "c02354ac-3656-455a-a89e-a4a7523f24e5",
+    "recording_name": "I Love Rock ’n’ Roll",
+    "release_mbid": "13435792-8c55-447b-8a0e-1840caa8a27f",
+    "release_name": "I Love Rock-n-Roll",
+    "artist_credit_name": "Joan Jett & the Blackhearts",
+    "artist_mbids": [
+      "46e63d3b-d91b-4791-bb73-e9f638a45ea0"
+    ]
+  },
+  "ghost|square hammer|meliora (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Square Hammer",
+      "artist": "Ghost",
+      "releaseName": "Meliora (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291840"
+    },
+    "recording_mbid": "dc8ecac2-32d1-4390-93dc-11ede6117b36",
+    "recording_name": "Square Hammer",
+    "release_mbid": "d0dba6e7-0770-465b-8a2a-4a3b2c9fe803",
+    "release_name": "Meliora Redux",
+    "artist_credit_name": "Ghost",
+    "artist_mbids": [
+      "2bcf2e02-5bc3-4c76-bf76-41126cb11444"
+    ]
+  },
+  "the guess who|american woman|american woman": {
+    "status": "ok",
+    "query": {
+      "title": "American Woman",
+      "artist": "The Guess Who",
+      "releaseName": "American Woman"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291840"
+    },
+    "recording_mbid": "a08da3bb-9c56-4668-a272-b01ad80f3209",
+    "recording_name": "American Woman",
+    "release_mbid": "959d2357-8058-44fd-b0b9-0ae5716fd2f3",
+    "release_name": "American Woman",
+    "artist_credit_name": "The Guess Who",
+    "artist_mbids": [
+      "4c567499-3a26-40e3-9471-20feb6c73767"
+    ]
+  },
+  "foreigner|juke box hero|4 (expanded)": {
+    "status": "ok",
+    "query": {
+      "title": "Juke Box Hero",
+      "artist": "Foreigner",
+      "releaseName": "4 (Expanded)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291850"
+    },
+    "recording_mbid": "9bf8df19-9924-403c-a03d-d9ed9384adca",
+    "recording_name": "Juke Box Hero",
+    "release_mbid": "90440d3e-baf2-46b3-99e3-1d1944c1eee3",
+    "release_name": "4",
+    "artist_credit_name": "Foreigner",
+    "artist_mbids": [
+      "160629ab-ec18-4931-8c95-02cb92d06186"
+    ]
+  },
+  "volbeat|the devil's bleeding crown|seal the deal & let's boogie (deluxe)": {
+    "status": "ok",
+    "query": {
+      "title": "The Devil's Bleeding Crown",
+      "artist": "Volbeat",
+      "releaseName": "Seal The Deal & Let's Boogie (Deluxe)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291850"
+    },
+    "recording_mbid": "e1a1f75a-cc09-48b8-b7c7-6132c63ddf2f",
+    "recording_name": "The Devil’s Bleeding Crown",
+    "release_mbid": "64ca0e1f-6f67-4fe4-b054-97fa3a69f614",
+    "release_name": "Seal the Deal & Let's Boogie (Deluxe)",
+    "artist_credit_name": "Volbeat",
+    "artist_mbids": [
+      "4753fcb7-9270-493a-974d-8daca4e49125"
+    ]
+  },
+  "wheatus|teenage dirtbag|songs from dawson's creek, vol. ii": {
+    "status": "ok",
+    "query": {
+      "title": "Teenage Dirtbag",
+      "artist": "Wheatus",
+      "releaseName": "Songs From Dawson's Creek, Vol. II"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291850"
+    },
+    "recording_mbid": "23f9609d-dd63-46af-96be-de4934896ae1",
+    "recording_name": "Teenage Dirtbag",
+    "release_mbid": "5ea06531-3b1b-47c5-8f35-9415e3b53d75",
+    "release_name": "Songs From Dawson's Creek, Vol. II",
+    "artist_credit_name": "Wheatus",
+    "artist_mbids": [
+      "741a2892-1c5d-402f-a769-2096356c77d7"
+    ]
+  },
+  "whitesnake|here i go again|whitesnake's greatest hits": {
+    "status": "ok",
+    "query": {
+      "title": "Here I Go Again",
+      "artist": "Whitesnake",
+      "releaseName": "Whitesnake's Greatest Hits"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291850"
+    },
+    "recording_mbid": "1fe5d84e-7a6c-405a-80b9-5dff11ed7a25",
+    "recording_name": "Here I Go Again",
+    "release_mbid": "412854bb-3902-4524-b6ca-4296d74b0a91",
+    "release_name": "Whitesnake’s Greatest Hits",
+    "artist_credit_name": "Whitesnake",
+    "artist_mbids": [
+      "5dedf5cf-a598-4408-9556-3bf3f149f3ba"
+    ]
+  },
+  "bring me the horizon|sleepwalking|sempiternal (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Sleepwalking",
+      "artist": "Bring Me The Horizon",
+      "releaseName": "Sempiternal (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291860"
+    },
+    "recording_mbid": "3629ee1e-9982-4a3e-aa6d-a710861b7403",
+    "recording_name": "Sleepwalking",
+    "release_mbid": "1637ac31-0dde-4552-8701-269d5d6730e1",
+    "release_name": "Sempiternal",
+    "artist_credit_name": "Bring Me the Horizon",
+    "artist_mbids": [
+      "074e3847-f67f-49f9-81f1-8c8cea147e8e"
+    ]
+  },
+  "europe|the final countdown|the final countdown (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "The Final Countdown",
+      "artist": "Europe",
+      "releaseName": "The Final Countdown (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291860"
+    },
+    "recording_mbid": "8e8f45ba-4712-406c-a13c-98e8c03f2835",
+    "recording_name": "The Final Countdown",
+    "release_mbid": "93b870a3-7b5e-3f04-af0c-04108ab6c6e0",
+    "release_name": "The Final Countdown",
+    "artist_credit_name": "Europe",
+    "artist_mbids": [
+      "ccfe7a3c-1a45-4984-a8d0-644549cefe61"
+    ]
+  },
+  "bill haley & his comets|rock around the clock|biggest hits": {
+    "status": "ok",
+    "query": {
+      "title": "Rock Around The Clock",
+      "artist": "Bill Haley & His Comets",
+      "releaseName": "Biggest Hits"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291860"
+    },
+    "recording_mbid": "2c086406-4f7e-4f33-823b-a48b77e02992",
+    "recording_name": "Rock Around the Clock",
+    "release_mbid": "20d21e05-7262-4de9-bc4f-e8ee088ce103",
+    "release_name": "Rock Around the Clock / Framed",
+    "artist_credit_name": "Bill Haley & His Comets",
+    "artist_mbids": [
+      "4458d70d-c215-4f06-beea-ebd448dad6ac"
+    ]
+  },
+  "kansas|carry on wayward son|leftoverture (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Carry on Wayward Son",
+      "artist": "Kansas",
+      "releaseName": "Leftoverture (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291860"
+    },
+    "recording_mbid": "1aea1980-37a8-41b2-bb78-526c94bb428d",
+    "recording_name": "Carry On Wayward Son",
+    "release_mbid": "4e56d031-cf90-4cc4-b2b3-95d610722a13",
+    "release_name": "Leftoverture",
+    "artist_credit_name": "Kansas",
+    "artist_mbids": [
+      "69689acf-d9cd-4d20-a972-47db4ed51b1a"
+    ]
+  },
+  "soundgarden|black hole sun|superunknown (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Black Hole Sun",
+      "artist": "Soundgarden",
+      "releaseName": "Superunknown (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291870"
+    },
+    "recording_mbid": "14e9b000-b3d8-453f-abb9-26fbdecf3dbc",
+    "recording_name": "Black Hole Sun",
+    "release_mbid": "3259c7d6-a078-49b4-ad52-c8417aa6da1e",
+    "release_name": "Superunknown (deluxe edition)",
+    "artist_credit_name": "Soundgarden",
+    "artist_mbids": [
+      "153c9281-268f-4cf3-8938-f5a4593e5df4"
+    ]
+  },
+  "bon jovi|bad medicine|new jersey (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Bad Medicine",
+      "artist": "Bon Jovi",
+      "releaseName": "New Jersey (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291870"
+    },
+    "recording_mbid": "5053c294-90fe-47e9-9e21-1a4c4538c20f",
+    "recording_name": "Bad Medicine",
+    "release_mbid": "7f24e793-098a-4943-b041-b24360c6148f",
+    "release_name": "New Jersey (deluxe edition)",
+    "artist_credit_name": "Bon Jovi",
+    "artist_mbids": [
+      "5dcdb5eb-cb72-4e6e-9e63-b7bace604965"
+    ]
+  },
+  "kiss|rock and roll all nite|dressed to kill (remastered version)": {
+    "status": "ok",
+    "query": {
+      "title": "Rock And Roll All Nite",
+      "artist": "KISS",
+      "releaseName": "Dressed To Kill (Remastered Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291870"
+    },
+    "recording_mbid": "3752c9c0-3b20-4dcc-afd2-9cbc77f003e6",
+    "recording_name": "Rock and Roll All Nite",
+    "release_mbid": "2412e664-041e-4fd6-951d-5c3156fe1016",
+    "release_name": "Dressed to Kill",
+    "artist_credit_name": "KISS",
+    "artist_mbids": [
+      "e1f1e33e-2e4c-4d43-b91b-7064068d3283"
+    ]
+  },
+  "the killers|run for cover|wonderful wonderful": {
+    "status": "ok",
+    "query": {
+      "title": "Run For Cover",
+      "artist": "The Killers",
+      "releaseName": "Wonderful Wonderful"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291870"
+    },
+    "recording_mbid": "f7679a2c-77b4-439b-9b3d-d5e8c42dc64e",
+    "recording_name": "Run for Cover",
+    "release_mbid": "10541d4f-9ce8-47d2-be9f-f2ae3867ac75",
+    "release_name": "Wonderful Wonderful",
+    "artist_credit_name": "The Killers",
+    "artist_mbids": [
+      "95e1ead9-4d31-4808-a7ac-32c3614c116b"
+    ]
+  },
+  "metallica|master of puppets|master of puppets (remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Master Of Puppets",
+      "artist": "Metallica",
+      "releaseName": "Master Of Puppets (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291880"
+    },
+    "recording_mbid": "0151d8a4-50c8-4036-b824-4a4f4b140e8e",
+    "recording_name": "Master of Puppets",
+    "release_mbid": "fed37cfc-2a6d-4569-9ac0-501a7c7598eb",
+    "release_name": "Master of Puppets",
+    "artist_credit_name": "Metallica",
+    "artist_mbids": [
+      "65f4f0c5-ef9e-490c-aee3-909e7ae6b2ab"
+    ]
+  },
+  "nirvana|heart-shaped box|in utero (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Heart-Shaped Box",
+      "artist": "Nirvana",
+      "releaseName": "In Utero (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291880"
+    },
+    "recording_mbid": "f16627cc-e681-45e7-b82a-b64a60f48f99",
+    "recording_name": "Heart‐Shaped Box",
+    "release_mbid": "69e70c2a-fcf2-4243-9ad2-5bf2c08b7db0",
+    "release_name": "In Utero (deluxe edition)",
+    "artist_credit_name": "Nirvana",
+    "artist_mbids": [
+      "5b11f4ce-a62d-471e-81fc-a69a8278c7da"
+    ]
+  },
+  "paul anka|put your head on my shoulder|put your head on my shoulder: the very best of paul anka": {
+    "status": "ok",
+    "query": {
+      "title": "Put Your Head On My Shoulder",
+      "artist": "Paul Anka",
+      "releaseName": "Put Your Head On My Shoulder: The Very Best Of Paul Anka"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291880"
+    },
+    "recording_mbid": "c7e5724c-b908-4c44-abd5-e376f9bb752f",
+    "recording_name": "Put Your Head on My Shoulder",
+    "release_mbid": "743f9c3c-3813-45c2-8a04-57a2a5f51257",
+    "release_name": "Put Your Head On My Shoulder: The Very Best Of Paul Anka",
+    "artist_credit_name": "Paul Anka",
+    "artist_mbids": [
+      "420c6768-0885-415a-bb59-d6a275121125"
+    ]
+  },
+  "the clash|should i stay or should i go - remastered|combat rock (remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Should I Stay or Should I Go - Remastered",
+      "artist": "The Clash",
+      "releaseName": "Combat Rock (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291880"
+    },
+    "recording_mbid": "266272ca-3a00-4364-b974-1aef7f1cc76d",
+    "recording_name": "Should I Stay or Should I Go",
+    "release_mbid": "2ed3d908-7bca-47a7-b973-3fa8f6bdcfdc",
+    "release_name": "Combat Rock",
+    "artist_credit_name": "The Clash",
+    "artist_mbids": [
+      "8f92558c-2baa-4758-8c38-615519e9deda"
+    ]
+  },
+  "red hot chili peppers|scar tissue|californication (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Scar Tissue",
+      "artist": "Red Hot Chili Peppers",
+      "releaseName": "Californication (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291890"
+    },
+    "recording_mbid": "8c3e10b8-6faa-42cc-88db-7889d6c438db",
+    "recording_name": "Scar Tissue",
+    "release_mbid": "4ad6711f-3f5d-4f7b-a5eb-46636a37e47a",
+    "release_name": "Californication",
+    "artist_credit_name": "Red Hot Chili Peppers",
+    "artist_mbids": [
+      "8bfac288-ccc5-448d-9573-c33ea2aa5c30"
+    ]
+  },
+  "motörhead|ace of spades|ace of spades (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Ace of Spades",
+      "artist": "Motörhead",
+      "releaseName": "Ace of Spades (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291890"
+    },
+    "recording_mbid": "71209300-34e5-491d-81ad-76237d167604",
+    "recording_name": "Ace of Spades",
+    "release_mbid": "e4bca6cd-48eb-4d8d-a335-41363c78aba6",
+    "release_name": "Ace of Spades",
+    "artist_credit_name": "Motörhead",
+    "artist_mbids": [
+      "57961a97-3796-4bf7-9f02-a985a8979ae9"
+    ]
+  },
+  "ray charles|hit the road jack|georgia on my mind": {
+    "status": "ok",
+    "query": {
+      "title": "Hit the Road Jack",
+      "artist": "Ray Charles",
+      "releaseName": "Georgia On My Mind"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291890"
+    },
+    "recording_mbid": "11c75811-85ad-4f1a-8444-c93cd4e0d6ab",
+    "recording_name": "Hit the Road Jack",
+    "release_mbid": "43fe18b8-dd82-4941-8d35-a10449f021c0",
+    "release_name": "Georgia on My Mind",
+    "artist_credit_name": "Ray Charles",
+    "artist_mbids": [
+      "2ce02909-598b-44ef-a456-151ba0a3bd70"
+    ]
+  },
+  "creedence clearwater revival|run through the jungle|cosmo's factory (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Run Through The Jungle",
+      "artist": "Creedence Clearwater Revival",
+      "releaseName": "Cosmo's Factory (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291890"
+    },
+    "recording_mbid": "acfbe1ab-b897-433d-bbb6-ac43273f218c",
+    "recording_name": "Run Through the Jungle",
+    "release_mbid": "447539e3-c8c2-4eeb-97d2-60c2e658fa5c",
+    "release_name": "Cosmo’s Factory",
+    "artist_credit_name": "Creedence Clearwater Revival",
+    "artist_mbids": [
+      "109958eb-a335-4c5e-907e-597ff4c6af46"
+    ]
+  },
+  "eagles|hotel california|take it to the summit (houston, tx 16th nov '76)": {
+    "status": "ok",
+    "query": {
+      "title": "Hotel California",
+      "artist": "Eagles",
+      "releaseName": "Take It To The Summit (Houston, TX 16th Nov '76)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291900"
+    },
+    "recording_mbid": "faa09902-d4a6-44a2-8cca-4ad2daa4958b",
+    "recording_name": "Hotel California",
+    "release_mbid": "85de82a0-6701-4158-a323-3adb3ab09a44",
+    "release_name": "Take It to the Summit (Houston, TX 16th Nov ’76)",
+    "artist_credit_name": "Eagles",
+    "artist_mbids": [
+      "f46bd570-5768-462e-b84c-c7c993bbf47e"
+    ]
+  },
+  "megadeth|symphony of destruction|countdown to extinction (expanded edition - remastered)": {
+    "status": "ok",
+    "query": {
+      "title": "Symphony Of Destruction",
+      "artist": "Megadeth",
+      "releaseName": "Countdown To Extinction (Expanded Edition - Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291900"
+    },
+    "recording_mbid": "641b4a4c-6846-4420-acea-6770171a1eef",
+    "recording_name": "Symphony of Destruction",
+    "release_mbid": "db43c8e7-7f57-4167-8e5a-a98e90659d3d",
+    "release_name": "Countdown to Extinction",
+    "artist_credit_name": "Megadeth",
+    "artist_mbids": [
+      "a9044915-8be3-4c7e-b11f-9e2d2ea0a91e"
+    ]
+  },
+  "die toten hosen|bonnie & clyde|opium für's volk (deluxe-edition mit bonus-tracks)": {
+    "status": "ok",
+    "query": {
+      "title": "Bonnie & Clyde",
+      "artist": "Die Toten Hosen",
+      "releaseName": "Opium für's Volk (Deluxe-Edition mit Bonus-Tracks)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291900"
+    },
+    "recording_mbid": "93f69423-c685-4e5b-8187-2e3d2036ca10",
+    "recording_name": "Bonnie & Clyde",
+    "release_mbid": "6eb19d94-5451-4caa-9d0c-c83df5520d7d",
+    "release_name": "Opium fürs Volk",
+    "artist_credit_name": "Die Toten Hosen",
+    "artist_mbids": [
+      "c3bc80a6-1f4a-4e17-8cf0-6b1efe8302f1"
+    ]
+  },
+  "survivor|burning heart - from \"rocky iv\" soundtrack|rocky iv": {
+    "status": "ok",
+    "query": {
+      "title": "Burning Heart - From \"Rocky IV\" Soundtrack",
+      "artist": "Survivor",
+      "releaseName": "Rocky IV"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291900"
+    },
+    "recording_mbid": "0ac60c04-868b-4d08-96b7-4c8bff5c774e",
+    "recording_name": "Burning Heart (from ‘Rocky IV’ soundtrack)",
+    "release_mbid": "29f32bc9-890d-49d2-9d3f-072c793d1b2e",
+    "release_name": "The Best Soft Rock Album in the World… Ever!",
+    "artist_credit_name": "Survivor",
+    "artist_mbids": [
+      "55ef024a-6cc0-49ed-8ce2-2e12193c0f46"
+    ]
+  },
+  "jet|are you gonna be my girl|get born (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Are You Gonna Be My Girl",
+      "artist": "Jet",
+      "releaseName": "Get Born (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291910"
+    },
+    "recording_mbid": "7a9ba7ac-1dbf-41d9-a0e1-1a164148b2e1",
+    "recording_name": "Are You Gonna Be My Girl",
+    "release_mbid": "1f2c686a-28ef-4246-a61b-85d1657b7265",
+    "release_name": "Get Born (deluxe edition)",
+    "artist_credit_name": "Jet",
+    "artist_mbids": [
+      "4efa55ba-93cf-497f-baf3-2ca9da7e193e"
+    ]
+  },
+  "kiss|detroit rock city|double platinum (remastered version)": {
+    "status": "ok",
+    "query": {
+      "title": "Detroit Rock City",
+      "artist": "KISS",
+      "releaseName": "Double Platinum (Remastered Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291910"
+    },
+    "recording_mbid": "41d69612-ecc5-4e63-a7a9-bb6cb52ed7fc",
+    "recording_name": "Detroit Rock City",
+    "release_mbid": "3f060d5c-1b6d-43f0-8a23-3aab7087b6b5",
+    "release_name": "Destroyer",
+    "artist_credit_name": "KISS",
+    "artist_mbids": [
+      "e1f1e33e-2e4c-4d43-b91b-7064068d3283"
+    ]
+  },
+  "queen|don't stop me now - remastered 2011|jazz (2011 remaster)": {
+    "status": "ok",
+    "query": {
+      "title": "Don't Stop Me Now - Remastered 2011",
+      "artist": "Queen",
+      "releaseName": "Jazz (2011 Remaster)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291910"
+    },
+    "recording_mbid": "a8b45073-7154-4040-b309-0840984c743b",
+    "recording_name": "Don't Stop Me Now (Remastered 2011)",
+    "release_mbid": "d0325e60-65f2-4c56-9b16-f2f636d64fe6",
+    "release_name": "Anthems",
+    "artist_credit_name": "Queen",
+    "artist_mbids": [
+      "0383dadf-2a4e-4d10-a46a-e9e041da8eb3"
+    ]
+  },
+  "rob zombie|dragula|hellbilly deluxe": {
+    "status": "ok",
+    "query": {
+      "title": "Dragula",
+      "artist": "Rob Zombie",
+      "releaseName": "Hellbilly Deluxe"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291910"
+    },
+    "recording_mbid": "9c1d48c9-2f8b-4c50-adbe-6b1fc0381681",
+    "recording_name": "Dragula",
+    "release_mbid": "39e53604-e35b-4ebd-b0ea-38d4252ba34e",
+    "release_name": "Hellbilly Deluxe",
+    "artist_credit_name": "Rob Zombie",
+    "artist_mbids": [
+      "c995a379-60b9-404b-bd97-a7e2de0751d3"
+    ]
+  },
+  "meat loaf|i'd do anything for love (but i won't do that) - single edit|bat out of hell ii: back into hell (deluxe)": {
+    "status": "ok",
+    "query": {
+      "title": "I'd Do Anything For Love (But I Won't Do That) - Single Edit",
+      "artist": "Meat Loaf",
+      "releaseName": "Bat Out Of Hell II: Back Into Hell (Deluxe)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291920"
+    },
+    "recording_mbid": "4e337472-dc0e-41fe-b108-a0b6b0a64496",
+    "recording_name": "I’d Do Anything for Love (but I Won’t Do That) (single edit)",
+    "release_mbid": "ba508e96-457b-4511-94fa-5427c37f6a25",
+    "release_name": "TM Century: GoldDisc 260",
+    "artist_credit_name": "Meat Loaf",
+    "artist_mbids": [
+      "b134d1bf-c7c7-4427-93ac-9fdbc2b59ef1"
+    ]
+  },
+  "seether|fake it|finding beauty in negative spaces (bonus track version)": {
+    "status": "ok",
+    "query": {
+      "title": "Fake It",
+      "artist": "Seether",
+      "releaseName": "Finding Beauty In Negative Spaces (Bonus Track Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291920"
+    },
+    "recording_mbid": "0b5bf9ed-6748-45e8-b85e-f05a4af549d5",
+    "recording_name": "Fake It",
+    "release_mbid": "7d0bbba7-51e2-431c-9c4a-a9b65b286b4b",
+    "release_name": "Finding Beauty In Negative Spaces",
+    "artist_credit_name": "Seether",
+    "artist_mbids": [
+      "fbcd7b29-455f-49e6-9c4f-8249d20a055e"
+    ]
+  },
+  "the kinks|all day and all of the night|kinks (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "All Day and All of the Night",
+      "artist": "The Kinks",
+      "releaseName": "Kinks (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291920"
+    },
+    "recording_mbid": "228468dc-8a4c-44f5-b8f5-f743752451a0",
+    "recording_name": "All Day and All of the Night",
+    "release_mbid": "16345198-8067-404c-84d2-0f9e13422638",
+    "release_name": "Kinks (deluxe edition)",
+    "artist_credit_name": "The Kinks",
+    "artist_mbids": [
+      "17b53d9f-5c63-4a09-a593-dde4608e0db9"
+    ]
+  },
+  "maurice williams, zodiacs|stay|presenting maurice williams": {
+    "status": "ok",
+    "query": {
+      "title": "Stay",
+      "artist": "Maurice Williams, Zodiacs",
+      "releaseName": "Presenting Maurice Williams"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291920"
+    },
+    "recording_mbid": "3b5a3fdc-ca99-4343-b76a-e11e028131f0",
+    "recording_name": "Stay",
+    "release_mbid": "ed8148d6-75c3-400f-b6ed-a20cf5ceb221",
+    "release_name": "Stay",
+    "artist_credit_name": "Maurice Williams & the Zodiacs",
+    "artist_mbids": [
+      "63ba47cd-3a9e-42e8-bf31-df0db673bccc"
+    ]
+  },
+  "kings of leon|radioactive|come around sundown (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Radioactive",
+      "artist": "Kings of Leon",
+      "releaseName": "Come Around Sundown (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291930"
+    },
+    "recording_mbid": "e5d0bb87-6e74-4ca7-8519-c2d4adb23b70",
+    "recording_name": "Radioactive",
+    "release_mbid": "a4389960-cbab-3472-814f-013dc9c336d7",
+    "release_name": "Come Around Sundown",
+    "artist_credit_name": "Kings of Leon",
+    "artist_mbids": [
+      "6ffb8ea9-2370-44d8-b678-e9237bbd347b"
+    ]
+  },
+  "pink floyd|another brick in the wall, pt. 2 - 2011 remastered version|the wall (remastered)": {
+    "status": "no_match",
+    "query": {
+      "title": "Another Brick In The Wall, Pt. 2 - 2011 Remastered Version",
+      "artist": "Pink Floyd",
+      "releaseName": "The Wall (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291930"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "mötley crüe|girls, girls, girls|girls, girls, girls (deluxe version)": {
+    "status": "ok",
+    "query": {
+      "title": "Girls, Girls, Girls",
+      "artist": "Mötley Crüe",
+      "releaseName": "Girls, Girls, Girls (Deluxe Version)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291930"
+    },
+    "recording_mbid": "d314eb34-43a8-496d-9d92-5df0a9874345",
+    "recording_name": "Girls, Girls, Girls",
+    "release_mbid": "3b823139-ff8f-427b-b2ec-5f95b1bc0d4f",
+    "release_name": "Girls, Girls, Girls",
+    "artist_credit_name": "Mötley Crüe",
+    "artist_mbids": [
+      "26f07661-e115-471d-a930-206f5c89d17c"
+    ]
+  },
+  "creedence clearwater revival|fortunate son|willy and the poor boys (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Fortunate Son",
+      "artist": "Creedence Clearwater Revival",
+      "releaseName": "Willy And The Poor Boys (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291930"
+    },
+    "recording_mbid": "e5178630-952b-486e-bb67-559c62f1b3db",
+    "recording_name": "Fortunate Son",
+    "release_mbid": "5c242cb5-ac27-4eee-825e-8d7b9c781ecd",
+    "release_name": "Willy and the Poor Boys",
+    "artist_credit_name": "Creedence Clearwater Revival",
+    "artist_mbids": [
+      "109958eb-a335-4c5e-907e-597ff4c6af46"
+    ]
+  },
+  "the beatles|come together - remastered 2009|abbey road (remastered)": {
+    "status": "no_match",
+    "query": {
+      "title": "Come Together - Remastered 2009",
+      "artist": "The Beatles",
+      "releaseName": "Abbey Road (Remastered)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783291930"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "broilers|tanzt du noch einmal mit mir?|santa muerte": {
+    "status": "ok",
+    "query": {
+      "title": "Tanzt du noch einmal mit mir?",
+      "artist": "Broilers",
+      "releaseName": "Santa Muerte"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291940"
+    },
+    "recording_mbid": "d3d85fbf-a135-4db3-a6aa-14137d37d39b",
+    "recording_name": "Tanzt Du noch einmal mit mir?",
+    "release_mbid": "985fda1b-b4cb-4e25-a5b2-d3465efd4d7c",
+    "release_name": "Santa Muerte",
+    "artist_credit_name": "Broilers",
+    "artist_mbids": [
+      "9276ffac-6d40-406c-a85d-bb3142b8b800"
+    ]
+  },
+  "bryan adams|run to you|reckless (30th anniversary / deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Run To You",
+      "artist": "Bryan Adams",
+      "releaseName": "Reckless (30th Anniversary / Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291940"
+    },
+    "recording_mbid": "de362755-0695-44aa-bcd9-6847ea5e1251",
+    "recording_name": "Run to You",
+    "release_mbid": "4954d1c6-b98e-4ea2-b12f-b0a4c8f31ee3",
+    "release_name": "Reckless",
+    "artist_credit_name": "Bryan Adams",
+    "artist_mbids": [
+      "4dbf5678-7a31-406a-abbe-232f8ac2cd63"
+    ]
+  },
+  "three days grace|i hate everything about you|three days grace (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "I Hate Everything About You",
+      "artist": "Three Days Grace",
+      "releaseName": "Three Days Grace (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291940"
+    },
+    "recording_mbid": "5b8d4f09-68ce-4db1-8dd9-54f191734149",
+    "recording_name": "(I Hate) Everything About You",
+    "release_mbid": "8f8ec884-7cd2-4b51-af91-da27802ecc7e",
+    "release_name": "Three Days Grace",
+    "artist_credit_name": "Three Days Grace",
+    "artist_mbids": [
+      "fabb37f8-eb2a-4cc1-a72a-b56935bbb72d"
+    ]
+  },
+  "journey|separate ways|revelation": {
+    "status": "ok",
+    "query": {
+      "title": "Separate Ways",
+      "artist": "Journey",
+      "releaseName": "Revelation"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291940"
+    },
+    "recording_mbid": "4b016826-75ad-4452-bd1a-c4fddb31c5e9",
+    "recording_name": "Separate Ways",
+    "release_mbid": "85c1e3c7-0a4c-4f51-96c5-7cdc81db2a23",
+    "release_name": "Revelation",
+    "artist_credit_name": "Journey",
+    "artist_mbids": [
+      "abd506e1-6f2b-4d6f-b937-92c267f6f88b"
+    ]
+  },
+  "elvis presley|jailhouse rock|elvis' golden records": {
+    "status": "ok",
+    "query": {
+      "title": "Jailhouse Rock",
+      "artist": "Elvis Presley",
+      "releaseName": "Elvis' Golden Records"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783291940"
+    },
+    "recording_mbid": "d73742ce-fffa-40a0-84e6-8abd263c8115",
+    "recording_name": "Jailhouse Rock",
+    "release_mbid": "16dbe2f4-9982-334a-80c2-bb0384875a65",
+    "release_name": "Elvis’ Golden Records",
+    "artist_credit_name": "Elvis Presley",
+    "artist_mbids": [
+      "01809552-4f87-45b0-afff-2c6f0730a3be"
+    ]
+  },
+  "slayer|raining blood|reign in blood (expanded)": {
+    "status": "ok",
+    "query": {
+      "title": "Raining Blood",
+      "artist": "Slayer",
+      "releaseName": "Reign In Blood (Expanded)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291950"
+    },
+    "recording_mbid": "4ba5c3a8-8a49-492a-98cf-e2f3ec4d1db0",
+    "recording_name": "Raining Blood",
+    "release_mbid": "dda9498c-e20c-4986-9e5f-905059457cda",
+    "release_name": "Reign in Blood",
+    "artist_credit_name": "Slayer",
+    "artist_mbids": [
+      "bdacc37b-8633-4bf8-9dd5-4662ee651aec"
+    ]
+  },
+  "skillet|monster|awake (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Monster",
+      "artist": "Skillet",
+      "releaseName": "Awake (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291950"
+    },
+    "recording_mbid": "251efd61-1142-4832-bfcf-bb0480be6ef3",
+    "recording_name": "Monster",
+    "release_mbid": "2535ce14-fef3-43b6-bd90-e2981dc541db",
+    "release_name": "Awake (Deluxe Edition)",
+    "artist_credit_name": "Skillet",
+    "artist_mbids": [
+      "16a43d5e-c52d-4eaa-9c3b-00b2c1d8e816"
+    ]
+  },
+  "the who|baba o'riley|who's next (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Baba O'Riley",
+      "artist": "The Who",
+      "releaseName": "Who's Next (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291950"
+    },
+    "recording_mbid": "a6081bc1-2a76-4984-b21f-38bc3dcca3a5",
+    "recording_name": "Baba O’Riley",
+    "release_mbid": "fe62844c-702a-464c-84d7-044e74e8bacf",
+    "release_name": "Who’s Next (deluxe edition)",
+    "artist_credit_name": "The Who",
+    "artist_mbids": [
+      "9fdaa16b-a6c4-4831-b87c-bc9ca8ce7eaa"
+    ]
+  },
+  "scorpions|rock you like a hurricane|best": {
+    "status": "ok",
+    "query": {
+      "title": "Rock You Like A Hurricane",
+      "artist": "Scorpions",
+      "releaseName": "Best"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291950"
+    },
+    "recording_mbid": "d7ec3472-6aae-45be-bb6e-d80591b0dd9c",
+    "recording_name": "Rock You Like a Hurricane",
+    "release_mbid": "c3222407-b743-434a-af23-a64d550f7763",
+    "release_name": "Best",
+    "artist_credit_name": "Scorpions",
+    "artist_mbids": [
+      "c3cceeed-3332-4cf0-8c4c-bbde425147b6"
+    ]
+  },
+  "foreigner|cold as ice|foreigner (expanded)": {
+    "status": "ok",
+    "query": {
+      "title": "Cold as Ice",
+      "artist": "Foreigner",
+      "releaseName": "Foreigner (Expanded)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291960"
+    },
+    "recording_mbid": "dfa1288b-177f-4b08-a6b5-751adc6a5a05",
+    "recording_name": "Cold as Ice",
+    "release_mbid": "07437557-f0a1-40e5-ace2-0b7b706cd993",
+    "release_name": "Foreigner",
+    "artist_credit_name": "Foreigner",
+    "artist_mbids": [
+      "160629ab-ec18-4931-8c95-02cb92d06186"
+    ]
+  },
+  "pink floyd|money - 2023 remaster|the dark side of the moon (50th anniversary) [2023 remaster]": {
+    "status": "ok",
+    "query": {
+      "title": "Money - 2023 Remaster",
+      "artist": "Pink Floyd",
+      "releaseName": "The Dark Side Of The Moon (50th Anniversary) [2023 Remaster]"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291960"
+    },
+    "recording_mbid": "7fef22bd-76aa-4803-b56b-93a5d6e70662",
+    "recording_name": "Money",
+    "release_mbid": "7f6d3088-837d-495e-905f-be5c70ac2d82",
+    "release_name": "The Dark Side of the Moon",
+    "artist_credit_name": "Pink Floyd",
+    "artist_mbids": [
+      "83d91898-7763-47d7-b03b-b92132375c47"
+    ]
+  },
+  "billy idol|white wedding|vital idol": {
+    "status": "ok",
+    "query": {
+      "title": "White Wedding",
+      "artist": "Billy Idol",
+      "releaseName": "Vital Idol"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291960"
+    },
+    "recording_mbid": "fe62befc-751d-4b37-a20f-d10155e843b4",
+    "recording_name": "White Wedding",
+    "release_mbid": "f0b5ad7e-7183-4973-a388-d64adade4871",
+    "release_name": "Billy Idol",
+    "artist_credit_name": "Billy Idol",
+    "artist_mbids": [
+      "47c8f88b-987a-4b64-9175-2b1b57809727"
+    ]
+  },
+  "gene vincent, gene vincent & his blue caps|be bop a lula|saga all stars: be bop a lula / 1956": {
+    "status": "ok",
+    "query": {
+      "title": "Be Bop a Lula",
+      "artist": "Gene Vincent, Gene Vincent & His Blue Caps",
+      "releaseName": "Saga All Stars: Be Bop a Lula / 1956"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291970"
+    },
+    "recording_mbid": "bdaa0829-edba-4d68-9be5-6208ff88e5f2",
+    "recording_name": "Be-Bop-A-Lula",
+    "release_mbid": "9b1c5572-8765-42d3-b0ab-d7d0923d880e",
+    "release_name": "The Rock N' Roll Collection",
+    "artist_credit_name": "Gene Vincent & Gene Vincent & His Blue Caps",
+    "artist_mbids": [
+      "f491f5ad-0946-40a6-bab9-da319c3f3995",
+      "6facb3b2-5058-4540-a087-ffa5b3bdfd8a"
+    ]
+  },
+  "the police|roxanne|outlandos d'amour (remastered 2003)": {
+    "status": "ok",
+    "query": {
+      "title": "Roxanne",
+      "artist": "The Police",
+      "releaseName": "Outlandos D'Amour (Remastered 2003)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291970"
+    },
+    "recording_mbid": "68aaa830-20c5-4e4a-bc5c-3bfcecc43fde",
+    "recording_name": "Roxanne",
+    "release_mbid": "ff5ad636-1eb0-3c2c-8eb9-93481352a016",
+    "release_name": "Outlandos d’Amour",
+    "artist_credit_name": "The Police",
+    "artist_mbids": [
+      "9e0e2b01-41db-4008-bd8b-988977d6019a"
+    ]
+  },
+  "thin lizzy|the boys are back in town|jailbreak (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "The Boys Are Back In Town",
+      "artist": "Thin Lizzy",
+      "releaseName": "Jailbreak (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291970"
+    },
+    "recording_mbid": "7ffd3432-9f45-4c40-a4aa-806db8f2cfcb",
+    "recording_name": "The Boys Are Back in Town",
+    "release_mbid": "4930999c-8102-44fa-9d6a-85c359444eca",
+    "release_name": "Jailbreak",
+    "artist_credit_name": "Thin Lizzy",
+    "artist_mbids": [
+      "6a726ac6-019e-455c-8bbb-571a77bed52e"
+    ]
+  },
+  "disturbed|the vengeful one|immortalized (deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "The Vengeful One",
+      "artist": "Disturbed",
+      "releaseName": "Immortalized (Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291970"
+    },
+    "recording_mbid": "cd069864-0029-4f99-bde8-30640bbc9450",
+    "recording_name": "The Vengeful One",
+    "release_mbid": "7a9ddc5e-5384-41ce-b177-93c3436462a7",
+    "release_name": "Immortalized",
+    "artist_credit_name": "Disturbed",
+    "artist_mbids": [
+      "4bb4e4e4-5f66-4509-98af-62dbb90c45c5"
+    ]
+  },
+  "rush|tom sawyer|moving pictures (2011 remaster)": {
+    "status": "ok",
+    "query": {
+      "title": "Tom Sawyer",
+      "artist": "Rush",
+      "releaseName": "Moving Pictures (2011 Remaster)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783291970"
+    },
+    "recording_mbid": "cb837d0c-5115-479d-ac0e-ab1650fe9078",
+    "recording_name": "Tom Sawyer",
+    "release_mbid": "10eef0a3-43f6-4423-b9ef-d1f8b7bec5d9",
+    "release_name": "Moving Pictures",
+    "artist_credit_name": "Rush",
+    "artist_mbids": [
+      "534ee493-bfac-4575-a44a-0ae41e2c3fe4"
+    ]
+  },
+  "queen|bohemian rhapsody - remastered 2011|a night at the opera (2011 remaster)": {
+    "status": "ok",
+    "query": {
+      "title": "Bohemian Rhapsody - Remastered 2011",
+      "artist": "Queen",
+      "releaseName": "A Night At The Opera (2011 Remaster)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291980"
+    },
+    "recording_mbid": "e39e6974-1fc9-4a96-9dc3-44abf5b0c888",
+    "recording_name": "Bohemian Rhapsody (Remastered 2011)",
+    "release_mbid": "d0325e60-65f2-4c56-9b16-f2f636d64fe6",
+    "release_name": "Anthems",
+    "artist_credit_name": "Queen",
+    "artist_mbids": [
+      "0383dadf-2a4e-4d10-a46a-e9e041da8eb3"
+    ]
+  },
+  "billy idol|dancing with myself|vital idol": {
+    "status": "ok",
+    "query": {
+      "title": "Dancing With Myself",
+      "artist": "Billy Idol",
+      "releaseName": "Vital Idol"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291980"
+    },
+    "recording_mbid": "d459c917-fb0e-47fe-9293-d13f654d1a3c",
+    "recording_name": "Dancing With Myself",
+    "release_mbid": "c9ec57c5-6893-4b8e-a910-d3f345a8acee",
+    "release_name": "Billy Idol",
+    "artist_credit_name": "Billy Idol",
+    "artist_mbids": [
+      "47c8f88b-987a-4b64-9175-2b1b57809727"
+    ]
+  },
+  "slipknot|duality|vol. 3: the subliminal verses (special edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Duality",
+      "artist": "Slipknot",
+      "releaseName": "Vol. 3: The Subliminal Verses (Special Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291980"
+    },
+    "recording_mbid": "50052fc5-7a97-479a-8563-299844846ad8",
+    "recording_name": "Duality",
+    "release_mbid": "9c20d207-b383-47ab-8c60-a9a2a92b8f34",
+    "release_name": "Vol. 3: (The Subliminal Verses)",
+    "artist_credit_name": "Slipknot",
+    "artist_mbids": [
+      "a466c2a2-6517-42fb-a160-1087c3bafd9f"
+    ]
+  },
+  "ozzy osbourne|bark at the moon|bark at the moon (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "Bark at the Moon",
+      "artist": "Ozzy Osbourne",
+      "releaseName": "Bark At The Moon (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291980"
+    },
+    "recording_mbid": "29d1a35f-51fd-4b55-abe9-2d04fd926fca",
+    "recording_name": "Bark at the Moon",
+    "release_mbid": "7e6a0059-6fec-4cfc-ab88-55f85bd4320e",
+    "release_name": "Bark at the Moon",
+    "artist_credit_name": "Ozzy Osbourne",
+    "artist_mbids": [
+      "8aa5b65a-5b3c-4029-92bf-47a544356934"
+    ]
+  },
+  "led zeppelin|immigrant song - remaster|led zeppelin iii (remaster)": {
+    "status": "ok",
+    "query": {
+      "title": "Immigrant Song - Remaster",
+      "artist": "Led Zeppelin",
+      "releaseName": "Led Zeppelin III (Remaster)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783291990"
+    },
+    "recording_mbid": "2cfad207-3f55-4aec-8120-86cf66e34d59",
+    "recording_name": "Immigrant Song",
+    "release_mbid": "93ac1812-d38d-4125-88e8-8440e3e89072",
+    "release_name": "Led Zeppelin III",
+    "artist_credit_name": "Led Zeppelin",
+    "artist_mbids": [
+      "678d88b2-87b0-403b-b63d-5da7465aecc3"
+    ]
+  },
+  "the clash|london calling|london calling (expanded edition)": {
+    "status": "ok",
+    "query": {
+      "title": "London Calling",
+      "artist": "The Clash",
+      "releaseName": "London Calling (Expanded Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783291990"
+    },
+    "recording_mbid": "85232471-e953-4e27-80dd-4222a47f62c6",
+    "recording_name": "London Calling",
+    "release_mbid": "66aaa2e1-669d-423e-be52-bfa92c660e24",
+    "release_name": "London Calling (expanded edition)",
+    "artist_credit_name": "The Clash",
+    "artist_mbids": [
+      "8f92558c-2baa-4758-8c38-615519e9deda"
+    ]
+  },
+  "sweet|fox on the run|rare studio tracks": {
+    "status": "ok",
+    "query": {
+      "title": "Fox On The Run",
+      "artist": "Sweet",
+      "releaseName": "Rare Studio Tracks"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783291990"
+    },
+    "recording_mbid": "a104418f-f6a1-4f72-acad-e654d7f3c222",
+    "recording_name": "Fox on the Run",
+    "release_mbid": "e54cc758-7004-47ca-9710-f25162aa75b3",
+    "release_name": "Desolation Boulevard",
+    "artist_credit_name": "Sweet",
+    "artist_mbids": [
+      "dc73bb40-b697-4df9-a2ec-0555bebdba75"
+    ]
+  },
+  "ramones|i wanna be sedated|road to ruin (40th anniversary deluxe edition)": {
+    "status": "ok",
+    "query": {
+      "title": "I Wanna Be Sedated",
+      "artist": "Ramones",
+      "releaseName": "Road to Ruin (40th Anniversary Deluxe Edition)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783291990"
+    },
+    "recording_mbid": "1a8017f5-7400-48a4-b7ce-24aa89b91c05",
+    "recording_name": "I Wanna Be Sedated",
+    "release_mbid": "5ca8b00d-a065-3551-b73f-996d7ddd3c6e",
+    "release_name": "Road to Ruin",
+    "artist_credit_name": "Ramones",
+    "artist_mbids": [
+      "d6ed7887-a401-47a8-893c-34b967444d26"
+    ]
   }
 }

@@ -1,0 +1,222 @@
+Precheck-Report
+===============
+Ergebnis:
+  Songs gesamt: 308
+  Upload-ready automatisch: 235
+    - MusicBrainz direkt: 198
+    - MusicBrainz + Soft-Discogs geprueft: 28
+    - MusicBrainz + LB->MB bestaetigt: 9
+  Manuelle Reviews offen: 73
+    - review_needed: 72
+    - review_needed_after_discogs: 1
+  Upload-blockiert: 73
+
+Statusverteilung:
+  auto_accepted_mb: 198
+  auto_accepted_mb_soft_checked: 28
+  auto_accepted_mb_lb_confirmed: 9
+  review_needed: 72
+  review_needed_after_discogs: 1
+  soft_discogs_pending: 0
+  sonstige: 0
+
+MusicBrainz-Qualitaet:
+  plausibel mit Jahr: 301
+  fehlend/unsicher: 7
+  ISRC-Treffer: 294
+  Text-Fallback-Treffer: 7
+  mb_no_match: 0
+  mb_match_uncertain: 7
+
+Discogs-Hard-Checks:
+  geplant: 9
+  externe Calls: 9
+  Cache-Hits: 0
+  uebersprungen: 299
+  begrenzt: 0
+
+Soft-Discogs-Checks:
+  pending vorher: 29
+  geprueft: 29
+  freigegeben: 28
+  review nach Discogs: 1
+  weiterhin pending: 0
+  externe Calls: 29
+  Cache-Hits: 0
+  Fehler: 0
+  RateLimit: 0
+  Timeouts: 0
+
+ListenBrainz->MusicBrainz Review-Empfehlungen:
+  Modus: needed
+  offene Zielzeilen: 82
+  geprueft: 82
+  skipped/no token: 0
+  errors: 0
+
+  Recommendation-Verteilung:
+  - likely_accept_existing_mb_with_context_warning: 45
+  - manual_version_risk: 10
+  - likely_accept_existing_mb: 9
+  - manual_conflicting_years: 9
+  - unusable: 5
+  - useful_alternative_mb_year: 4
+
+  Year-Signal-Verteilung:
+  - confirms_current_mb_and_spotify: 58
+  - alternative_earlier_than_current_mb: 8
+  - confirms_current_mb: 6
+  - alternative_later_than_current_mb: 5
+  - no_year: 5
+
+  useful_alternative_mb_year:
+  - bloody valentine - mgk | MB 2023 | Spotify 2020 | Discogs - | LB-MB 2020 | alternative_earlier_than_current_mb | -
+  - Rock Around The Clock - Bill Haley & His Comets | MB 1994 | Spotify 1968 | Discogs 1970 | LB-MB 1970 | alternative_earlier_than_current_mb | best_of_context+noisy_release_context
+  - Symphony Of Destruction - Megadeth | MB 2004 | Spotify 1992 | Discogs 1993 | LB-MB 1992 | alternative_earlier_than_current_mb | deluxe_context+noisy_release_context
+  - Stay - Maurice Williams, Zodiacs | MB 2014 | Spotify 1961 | Discogs - | LB-MB 1961 | alternative_earlier_than_current_mb | -
+
+  likely_accept_existing_mb:
+  - keine
+
+  likely_accept_existing_mb_with_context_warning:
+  - Sweet Home Alabama - Lynyrd Skynyrd | MB 1974 | Spotify 1974 | Discogs - | LB-MB 1974 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Psychosocial - Slipknot | MB 2008 | Spotify 2008 | Discogs - | LB-MB 2008 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Give It Away - Red Hot Chili Peppers | MB 1991 | Spotify 1991 | Discogs - | LB-MB 1991 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - My Generation - The Who | MB 1965 | Spotify 1965 | Discogs - | LB-MB 1965 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Round and Round - Ratt | MB 1984 | Spotify 1984 | Discogs - | LB-MB 1984 | confirms_current_mb_and_spotify | best_of_context+compilation_context+noisy_release_context
+  - My Curse - Killswitch Engage | MB 2006 | Spotify 2007 | Discogs - | LB-MB 2006 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Owner of a Lonely Heart - Yes | MB 1983 | Spotify 1983 | Discogs - | LB-MB 1983 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - I Love Rock 'N Roll - Joan Jett & the Blackhearts | MB 1981 | Spotify 1981 | Discogs - | LB-MB 1981 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Square Hammer - Ghost | MB 2016 | Spotify 2016 | Discogs - | LB-MB 2015 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Juke Box Hero - Foreigner | MB 1981 | Spotify 1981 | Discogs - | LB-MB 1981 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - The Devil's Bleeding Crown - Volbeat | MB 2016 | Spotify 2016 | Discogs - | LB-MB 2016 | confirms_current_mb_and_spotify | deluxe_context+live_context+noisy_release_context
+  - Teenage Dirtbag - Wheatus | MB 2000 | Spotify 2000 | Discogs - | LB-MB 2000 | confirms_current_mb_and_spotify | various_artists_context+soundtrack_context+noisy_release_context
+  - Sleepwalking - Bring Me The Horizon | MB 2013 | Spotify 2013 | Discogs - | LB-MB 2013 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - The Final Countdown - Europe | MB 1986 | Spotify 1986 | Discogs - | LB-MB 1986 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Carry on Wayward Son - Kansas | MB 1976 | Spotify 1976 | Discogs - | LB-MB 1976 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Black Hole Sun - Soundgarden | MB 1994 | Spotify 1994 | Discogs - | LB-MB 1994 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Bad Medicine - Bon Jovi | MB 1988 | Spotify 1988 | Discogs - | LB-MB 1988 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Heart-Shaped Box - Nirvana | MB 1993 | Spotify 1993 | Discogs - | LB-MB 1993 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Scar Tissue - Red Hot Chili Peppers | MB 1999 | Spotify 1999 | Discogs - | LB-MB 1999 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Ace of Spades - Motörhead | MB 1980 | Spotify 1980 | Discogs - | LB-MB 1980 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Hit the Road Jack - Ray Charles | MB 1961 | Spotify 2012 | Discogs - | LB-MB 1961 | confirms_current_mb | compilation_context+noisy_release_context
+  - Run Through The Jungle - Creedence Clearwater Revival | MB 1970 | Spotify 1970 | Discogs - | LB-MB 1970 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Bonnie & Clyde - Die Toten Hosen | MB 1996 | Spotify 1996 | Discogs - | LB-MB 1996 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Are You Gonna Be My Girl - Jet | MB 2003 | Spotify 2003 | Discogs - | LB-MB 2003 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Dragula - Rob Zombie | MB 1998 | Spotify 1998 | Discogs - | LB-MB 1998 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Fake It - Seether | MB 2007 | Spotify 2007 | Discogs - | LB-MB 2007 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - All Day and All of the Night - The Kinks | MB 1964 | Spotify 1964 | Discogs - | LB-MB 1964 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Radioactive - Kings of Leon | MB 2010 | Spotify 2010 | Discogs - | LB-MB 2010 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Girls, Girls, Girls - Mötley Crüe | MB 1987 | Spotify 1987 | Discogs - | LB-MB 1987 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Fortunate Son - Creedence Clearwater Revival | MB 1969 | Spotify 1969 | Discogs - | LB-MB 1969 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Run To You - Bryan Adams | MB 1984 | Spotify 1984 | Discogs - | LB-MB 1984 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - I Hate Everything About You - Three Days Grace | MB 2003 | Spotify 2003 | Discogs - | LB-MB 2003 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Jailhouse Rock - Elvis Presley | MB 1957 | Spotify 1958 | Discogs - | LB-MB 1957 | confirms_current_mb_and_spotify | compilation_context+noisy_release_context
+  - Raining Blood - Slayer | MB 1986 | Spotify 1986 | Discogs - | LB-MB 1986 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Monster - Skillet | MB 2009 | Spotify 2009 | Discogs - | LB-MB 2009 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Baba O'Riley - The Who | MB 1971 | Spotify 1971 | Discogs - | LB-MB 1971 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Rock You Like A Hurricane - Scorpions | MB 1984 | Spotify 1999 | Discogs 1984 | LB-MB 1984 | confirms_current_mb | compilation_context+noisy_release_context
+  - Cold as Ice - Foreigner | MB 1977 | Spotify 1977 | Discogs - | LB-MB 1977 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - White Wedding - Billy Idol | MB 1982 | Spotify 1985 | Discogs - | LB-MB 1982 | confirms_current_mb | live_context+deluxe_context+noisy_release_context
+  - The Boys Are Back In Town - Thin Lizzy | MB 1976 | Spotify 1976 | Discogs - | LB-MB 1976 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - The Vengeful One - Disturbed | MB 2015 | Spotify 2015 | Discogs - | LB-MB 2015 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Duality - Slipknot | MB 2004 | Spotify 2004 | Discogs - | LB-MB 2004 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - Bark at the Moon - Ozzy Osbourne | MB 1983 | Spotify 1983 | Discogs - | LB-MB 1983 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - London Calling - The Clash | MB 1979 | Spotify 1979 | Discogs - | LB-MB 1979 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+  - I Wanna Be Sedated - Ramones | MB 1978 | Spotify 1978 | Discogs - | LB-MB 1978 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context
+
+  manual_conflicting_years:
+  - Purple Rain - Prince | MB 1984 | Spotify 1984 | Discogs - | LB-MB 1987 | alternative_later_than_current_mb | live_context+deluxe_context+noisy_release_context
+  - Here I Go Again - Whitesnake | MB 1987 | Spotify 1994 | Discogs 1982 | LB-MB 1987 | confirms_current_mb | best_of_context+compilation_context+noisy_release_context
+  - Put Your Head On My Shoulder - Paul Anka | MB 2000 | Spotify 2000 | Discogs - | LB-MB 1963 | alternative_earlier_than_current_mb | best_of_context+noisy_release_context
+  - Hotel California - Eagles | MB 1976 | Spotify 1976 | Discogs - | LB-MB 2017 | alternative_later_than_current_mb | live_context+noisy_release_context
+  - Detroit Rock City - KISS | MB 1978 | Spotify 1978 | Discogs - | LB-MB 1976 | alternative_earlier_than_current_mb | best_of_context+noisy_release_context
+  - Separate Ways - Journey | MB 1983 | Spotify 2008 | Discogs - | LB-MB 2008 | alternative_later_than_current_mb | -
+  - Be Bop a Lula - Gene Vincent, Gene Vincent & His Blue Caps | MB 1997 | Spotify 2007 | Discogs 1965 | LB-MB 1996 | confirms_current_mb | compilation_context+noisy_release_context
+  - Dancing With Myself - Billy Idol | MB 1991 | Spotify 1985 | Discogs 1985 | LB-MB 1982 | alternative_earlier_than_current_mb | -
+  - Fox On The Run - Sweet | MB 2010 | Spotify 2010 | Discogs - | LB-MB 1974 | alternative_earlier_than_current_mb | -
+
+  manual_noisy_context:
+  - keine
+
+  manual_version_risk:
+  - Machinehead - Remastered 2014 - Bush | MB 1994 | Spotify 1994 | Discogs - | LB-MB 1994 | confirms_current_mb_and_spotify | remastered
+  - Fear of the Dark - 2015 Remaster - Iron Maiden | MB 1992 | Spotify 1992 | Discogs - | LB-MB 1992 | confirms_current_mb_and_spotify | remastered
+  - Stairway to Heaven - Remaster - Led Zeppelin | MB 1971 | Spotify 1971 | Discogs - | LB-MB 1971 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context | remastered
+  - The Trooper - 2015 Remaster - Iron Maiden | MB 1983 | Spotify 1983 | Discogs - | LB-MB 1983 | confirms_current_mb_and_spotify | remastered
+  - Silent Lucidity - Remastered 2003 - Queensrÿche | MB 1990 | Spotify 1990 | Discogs - | LB-MB 1990 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context | remastered
+  - Should I Stay or Should I Go - Remastered - The Clash | MB 1982 | Spotify 1982 | Discogs - | LB-MB 1982 | confirms_current_mb_and_spotify | remastered
+  - Don't Stop Me Now - Remastered 2011 - Queen | MB 1978 | Spotify 1978 | Discogs - | LB-MB 2025 | alternative_later_than_current_mb | compilation_context+noisy_release_context | remastered
+  - Money - 2023 Remaster - Pink Floyd | MB 1973 | Spotify 1973 | Discogs - | LB-MB 1973 | confirms_current_mb_and_spotify | deluxe_context+noisy_release_context | remastered
+  - Bohemian Rhapsody - Remastered 2011 - Queen | MB 1975 | Spotify 1975 | Discogs - | LB-MB 2025 | alternative_later_than_current_mb | compilation_context+noisy_release_context | remastered
+  - Immigrant Song - Remaster - Led Zeppelin | MB 1970 | Spotify 1970 | Discogs - | LB-MB 1970 | confirms_current_mb_and_spotify | remastered
+
+  unusable:
+  - Just Like Heaven - Remastered 2006 - The Cure | MB 1987 | Spotify 1987 | Discogs - | LB-MB - | no_year | -
+  - Burning Heart - From "Rocky IV" Soundtrack - Survivor | MB 1985 | Spotify 1985 | Discogs - | LB-MB - | no_year | soundtrack_context+various_artists_context+compilation_context+noisy_release_context
+  - I'd Do Anything For Love (But I Won't Do That) - Single Edit - Meat Loaf | MB 1993 | Spotify 1993 | Discogs - | LB-MB - | no_year | deluxe_context+various_artists_context+compilation_context+noisy_release_context
+  - Another Brick In The Wall, Pt. 2 - 2011 Remastered Version - Pink Floyd | MB 1979 | Spotify 1979 | Discogs - | LB-MB - | no_year | -
+  - Come Together - Remastered 2009 - The Beatles | MB 1969 | Spotify 1969 | Discogs - | LB-MB - | no_year | -
+
+LB Auto-Accepts:
+  Modus: safe
+  Kandidaten likely_accept_existing_mb: 9
+  automatisch akzeptiert: 9
+  wegen Flags/Konflikten uebersprungen: 0
+  neuer Status auto_accepted_mb_lb_confirmed: 9
+  Skip-Gruende:
+  - keine
+
+Offene Review-Gruende:
+  - mb_year_suspicious_late: 59
+  - mb_text_match_only: 6
+  - mb_uncertain: 5
+  - discogs_earlier_than_mb: 2
+  - review_needed_after_discogs: 1
+
+Risk Flags in offenen Reviews:
+  - catalog_context: 67
+  - mb_year_suspicious_late: 64
+  - remaster_or_deluxe_context: 55
+  - compilation_context: 17
+  - mb_text_match_only: 10
+  - mb_uncertain: 5
+  - discogs_earlier_than_mb: 4
+
+Top offene Reviews:
+  1. Purple Rain - Prince | review_needed | Grund mb_text_match_only | Risk mb_text_match_only | MB 1984 | Discogs -
+  2. Machinehead - Remastered 2014 - Bush | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1994 | Discogs -
+  3. Sweet Home Alabama - Lynyrd Skynyrd | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1974 | Discogs -
+  4. Fear of the Dark - 2015 Remaster - Iron Maiden | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1992 | Discogs -
+  5. Just Like Heaven - Remastered 2006 - The Cure | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1987 | Discogs -
+  6. Psychosocial - Slipknot | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2008 | Discogs -
+  7. Give It Away - Red Hot Chili Peppers | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1991 | Discogs -
+  8. bloody valentine - mgk | review_needed | Grund mb_text_match_only | Risk mb_text_match_only | MB 2023 | Discogs -
+  9. My Generation - The Who | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1965 | Discogs -
+  10. Round and Round - Ratt | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+compilation_context+mb_year_suspicious_late | MB 1984 | Discogs -
+  11. My Curse - Killswitch Engage | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2006 | Discogs -
+  12. Stairway to Heaven - Remaster - Led Zeppelin | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1971 | Discogs -
+  13. Owner of a Lonely Heart - Yes | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1983 | Discogs -
+  14. The Trooper - 2015 Remaster - Iron Maiden | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1983 | Discogs -
+  15. Silent Lucidity - Remastered 2003 - Queensrÿche | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+compilation_context+mb_year_suspicious_late | MB 1990 | Discogs -
+  16. I Love Rock 'N Roll - Joan Jett & the Blackhearts | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1981 | Discogs -
+  17. Square Hammer - Ghost | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2016 | Discogs -
+  18. Juke Box Hero - Foreigner | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 1981 | Discogs -
+  19. The Devil's Bleeding Crown - Volbeat | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+remaster_or_deluxe_context+mb_year_suspicious_late | MB 2016 | Discogs -
+  20. Teenage Dirtbag - Wheatus | review_needed | Grund mb_year_suspicious_late | Risk catalog_context+compilation_context+mb_year_suspicious_late | MB 2000 | Discogs -
+
+Spotify-vs-MusicBrainz-Abweichungen:
+  Abweichungen > 1 Jahr: 46
+  Durchschnittliche Abweichung: 19.1 Jahre
+  1. Stay - Maurice Williams, Zodiacs: MB 2014, Spotify 1961, diff -53
+  2. Hit the Road Jack - Ray Charles: MB 1961, Spotify 2012, diff +51
+  3. Surfin' U.S.A. - The Beach Boys: MB 1963, Spotify 2012, diff +49
+  4. American Woman - The Guess Who: MB 1965, Spotify 2012, diff +47
+  5. Iron Man - Black Sabbath: MB 1970, Spotify 2016, diff +46
+  6. Children of the Grave - Black Sabbath: MB 1971, Spotify 2016, diff +45
+  7. Oh, Pretty Woman - Roy Orbison: MB 1964, Spotify 2006, diff +42
+  8. I'm a Believer - The Monkees: MB 1966, Spotify 2008, diff +42
+  9. Crazy Train - Ozzy Osbourne: MB 1980, Spotify 2020, diff +40
+  10. House of the Rising Sun - The Animals: MB 1964, Spotify 2003, diff +39
+
+Deezer: off

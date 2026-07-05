@@ -2163,5 +2163,52 @@
     "finalStatus": "discogs_error",
     "diff": null,
     "timestamp": "2026-07-04T21:38:09.345Z"
+  },
+  "txt:rock around the clock|bill haley his comets": {
+    "year": 1970,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:28.473Z"
+  },
+  "txt:run for cover|the killers": {
+    "year": 2017,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:28.478Z"
+  },
+  "txt:symphony of destruction|megadeth": {
+    "year": 1993,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:28.489Z"
+  },
+  "txt:stay|maurice williams zodiacs": {
+    "year": null,
+    "reason": "artist_mismatch",
+    "rejectedYear": 1983,
+    "rejectedTitle": "Maurice Williams And The Zodiacs* - Stay / May I",
+    "timestamp": "2026-07-05T22:48:28.502Z"
+  },
+  "txt:another brick in the wall pt 2 2011 remastered version|pink floyd": {
+    "year": null,
+    "reason": "no_result",
+    "timestamp": "2026-07-05T22:48:28.744Z"
+  },
+  "txt:dancing with myself|billy idol": {
+    "year": 1985,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:29.024Z"
+  },
+  "txt:be bop a lula|gene vincent gene vincent his blue caps": {
+    "year": 1965,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:29.037Z"
+  },
+  "txt:tanzt du noch einmal mit mir|broilers": {
+    "year": 2011,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:29.037Z"
+  },
+  "txt:rock you like a hurricane|scorpions": {
+    "year": 1984,
+    "reason": null,
+    "timestamp": "2026-07-05T22:48:29.043Z"
   }
 }
