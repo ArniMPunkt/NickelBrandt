@@ -12,11 +12,8 @@
 'use strict';
 
 const path = require('path');
-const readline = require('readline/promises');
-const { stdin: input, stdout: output } = require('process');
 const { loadEnv, writeCsvObjects } = require('./lib/util');
-const { verifySongs, mbYearFromManualUrl } = require('./lib/verify-songs');
-const { appendNote, isCatalogSuspected, toIntYear } = require('./lib/precheck/helpers');
+const { verifySongs } = require('./lib/verify-songs');
 const { buildReviewRow } = require('./lib/precheck/build-review-row');
 const { hydrateInputDeezerFromOutput, loadSmartInputCsv } = require('./lib/precheck/load-smart-input-csv');
 const { computeSummary, printSummary } = require('./lib/precheck/report');
@@ -24,9 +21,8 @@ const { mergeResumeState } = require('./lib/precheck/resume-state');
 const {
   COLUMNS,
   COLUMNS_WITH_LISTENBRAINZ,
-  STRONG_EXISTING_SOURCES,
 } = require('./lib/precheck/review-schema');
-const { compareRows, hasFinalYear, isOpenReview } = require('./lib/precheck/review-queue');
+const { compareRows, isOpenReview } = require('./lib/precheck/review-queue');
 const { runSoftDiscogsChecks } = require('./lib/precheck/soft-discogs-checks');
 const {
   enrichOpenReviewsWithListenBrainz,
@@ -34,6 +30,7 @@ const {
 const {
   applyListenBrainzAutoAccepts,
 } = require('./lib/precheck/apply-listenbrainz-auto-accepts');
+const { runInteractiveReview } = require('./lib/precheck/interactive-review');
 
 function parseArgs(argv) {
   const args = {
@@ -108,218 +105,8 @@ function clearTimer(timer) {
   return null;
 }
 
-function canUseSpotifyYear(row) {
-  const spotifyYear = toIntYear(row.estimated_year);
-  if (spotifyYear == null) return false;
-  if (isCatalogSuspected(row)) return false;
-  const mbUnclear = row.mb_year_source === 'mb_no_match' || row.mb_year_source === 'mb_match_uncertain';
-  if (!mbUnclear) return false;
-  const deezerYear = toIntYear(row.deezer_year);
-  if (deezerYear != null && deezerYear < spotifyYear) return false;
-  const discogsYear = toIntYear(row.discogs_year);
-  if (discogsYear != null && Math.abs(discogsYear - spotifyYear) > 1) return false;
-  return true;
-}
-
-function isStrongExisting(row) {
-  return STRONG_EXISTING_SOURCES.has(row.existing_year_source);
-}
-
-function hasStrongExistingYear(row) {
-  return toIntYear(row.existing_year) != null && isStrongExisting(row);
-}
-
 function saveRows(outputCsv, rows, columns = COLUMNS) {
   writeCsvObjects(outputCsv, columns, rows.slice().sort(compareRows));
-}
-
-function sourceConfidence(row) {
-  if (row.mb_year_source === 'mb_ok') return 'plausibel';
-  if (row.mb_year_source === 'mb_match_uncertain') return 'unsicher';
-  if (row.mb_year_source === 'mb_no_match') return 'kein Treffer';
-  return row.mb_year_source || 'unklar';
-}
-
-function discogsRejectReason(row) {
-  if (row.discogs_rejected_reason) return row.discogs_rejected_reason;
-  const m = String(row.notes || '').match(/discogs:([^;]+)/);
-  return m ? m[1].trim() : '';
-}
-
-function printReview(row, index, total) {
-  const discogsReject = discogsRejectReason(row);
-  const discogsLine = row.discogs_year
-    ? `${row.discogs_year}${discogsReject ? ` | verworfen: ${discogsReject}` : ''}`
-    : row.discogs_rejected_year
-      ? `${row.discogs_rejected_year} | verworfen: ${discogsReject || 'unklar'}`
-      : discogsReject
-        ? `- | verworfen: ${discogsReject}`
-        : '-';
-
-  console.log('\n------------------------------------------------------------');
-  console.log(`Review ${index}/${total}\n`);
-  console.log('Song:');
-  console.log(`${row.title} - ${row.artist}`);
-  console.log(`ISRC: ${row.isrc || '-'}`);
-  console.log('\nBestehende Datei:');
-  console.log(`existing_year: ${row.existing_year || '-'}`);
-  console.log(`existing_year_source: ${row.existing_year_source || '-'}`);
-  console.log(`existing_status: ${row.existing_status || '-'}`);
-  console.log(`existing_notes: ${row.existing_notes || '-'}`);
-  console.log('\nSpotify:');
-  console.log(`estimated_year: ${row.estimated_year || row.csv_year || '-'}`);
-  console.log(`album: ${row.spotify_album_name || '-'} | type: ${row.spotify_album_type || '-'} | release: ${row.spotify_album_release_date || '-'}`);
-  console.log(`duration_ms: ${row.spotify_duration_ms || '-'} | album_artist: ${row.spotify_album_artist || '-'}`);
-  console.log('Hinweis: Spotify-Jahr ist nur Album-/Kataloginfo, nicht fuehrend.');
-  if (row.spotify_found !== 'true') console.log('Spotify Match: NICHT gefunden (Upload ueberspringt diese Zeile)');
-  console.log('\nQuellen:');
-  console.log(`MusicBrainz: ${row.mb_year || '-'} | ${sourceConfidence(row)} | ${row.mb_match_method || '-'}${row.mb_score ? ` score ${row.mb_score}` : ''}`);
-  console.log(`Deezer:      ${row.deezer_year || '-'}${row.deezer_invalid_year ? ` | ungueltig/verdacht: ${row.deezer_invalid_year}` : ''}${row.deezer_status ? ` | ${row.deezer_status}` : ''}`);
-  console.log(`Discogs:     ${discogsLine}`);
-  console.log(`Discogs rejected year: ${row.discogs_rejected_year || '-'}`);
-  console.log(`Discogs rejected reason: ${row.discogs_rejected_reason || '-'}`);
-  console.log('\nStatus:');
-  console.log(row.status || '-');
-  console.log('\nNotes:');
-  console.log(row.notes || '-');
-  console.log('\nWas moechtest du tun?');
-  if (hasStrongExistingYear(row)) console.log(`[b] bestehendes Jahr ${row.existing_year} behalten`);
-  if (row.mb_year) console.log(`[m] MusicBrainz-Jahr ${row.mb_year} uebernehmen`);
-  if (row.discogs_year && !discogsReject) console.log(`[g] Discogs-Jahr ${row.discogs_year} uebernehmen`);
-  if (canUseSpotifyYear(row)) console.log(`[p] Spotify-Jahr ${row.estimated_year} uebernehmen`);
-  console.log('[u] MusicBrainz-URL/MBID eingeben');
-  console.log('[y] anderes Jahr manuell eingeben');
-  console.log('[x] Song aus Pool ausschliessen');
-  console.log('[s] skip / spaeter pruefen');
-  console.log('[q] speichern und beenden');
-}
-
-async function askYear(rl) {
-  for (;;) {
-    const answer = (await rl.question('Jahr eingeben (YYYY): ')).trim();
-    const year = toIntYear(answer);
-    if (year != null) return year;
-    console.log('Bitte ein vierstelliges Jahr eingeben, z. B. 1984.');
-  }
-}
-
-async function askMusicBrainzUrl(rl) {
-  const answer = (await rl.question('MusicBrainz-URL oder MBID eingeben: ')).trim();
-  return mbYearFromManualUrl(answer);
-}
-
-async function askOptional(rl, prompt) {
-  return (await rl.question(prompt)).trim();
-}
-
-function applyManualChoice(row, action, year, extra = {}) {
-  if (action === 'b') {
-    row.final_year = String(year);
-    row.chosen_candidate = String(year);
-    row.status = 'manual_kept_existing';
-    row.notes = appendNote(row.notes, `manual: kept existing year ${year}`);
-  } else if (action === 'm') {
-    row.final_year = String(year);
-    row.chosen_candidate = String(year);
-    row.status = 'manual_confirmed_mb';
-    row.notes = appendNote(row.notes, `manual: confirmed MusicBrainz year ${year}`);
-  } else if (action === 'g') {
-    row.final_year = String(year);
-    row.chosen_candidate = String(year);
-    row.status = 'manual_confirmed_discogs';
-    row.notes = appendNote(row.notes, `manual: confirmed Discogs year ${year}`);
-  } else if (action === 'p') {
-    row.final_year = String(year);
-    row.chosen_candidate = String(year);
-    row.status = 'manual_confirmed_spotify';
-    row.notes = appendNote(row.notes, 'manual: confirmed Spotify album year');
-  } else if (action === 'y') {
-    row.final_year = String(year);
-    row.chosen_candidate = String(year);
-    row.status = 'manual_entered_year';
-    row.notes = appendNote(row.notes, `manual: entered ${year}`);
-  } else if (action === 'u') {
-    row.final_year = String(year);
-    row.chosen_candidate = String(year);
-    row.status = 'manual_musicbrainz_url';
-    row.manual_source_url = extra.sourceUrl || '';
-    row.notes = appendNote(row.notes, `manual MusicBrainz URL used${extra.type ? ` (${extra.type})` : ''}`);
-  } else if (action === 'x') {
-    row.final_year = '';
-    row.chosen_candidate = '';
-    row.status = 'excluded_from_pool';
-    row.exclusion_reason = extra.reason || '';
-    row.notes = appendNote(row.notes, extra.reason ? `manual: excluded from pool (${extra.reason})` : 'manual: excluded from pool');
-  } else if (action === 's') {
-    row.final_year = '';
-    row.status = 'manual_skipped';
-    row.notes = appendNote(row.notes, 'manual: skipped for later review');
-  } else if (action === 'q') {
-    row.status = 'manual_quit_pending';
-    row.notes = appendNote(row.notes, 'manual: quit pending');
-  }
-}
-
-async function runInteractiveReview(rows, outputCsv, { reviewAll, columns = COLUMNS }) {
-  const reviewRows = reviewAll ? rows : rows.filter(isOpenReview);
-  if (reviewRows.length === 0) {
-    console.log('\nKeine offenen Reviews. Alle unauffaelligen final_year-Werte sind gesetzt.');
-    return;
-  }
-
-  console.log(`\nInteraktiver Review: ${reviewRows.length} Zeile(n). Nach jeder Entscheidung wird gespeichert.`);
-  const rl = readline.createInterface({ input, output });
-  try {
-    for (let i = 0; i < reviewRows.length; i++) {
-      const row = reviewRows[i];
-
-      for (;;) {
-        printReview(row, i + 1, reviewRows.length);
-        const answer = (await rl.question('Auswahl: ')).trim().toLowerCase();
-        const action = answer[0];
-
-        if (action === 'b' && hasStrongExistingYear(row)) {
-          applyManualChoice(row, 'b', row.existing_year);
-        } else if (action === 'm' && row.mb_year) {
-          applyManualChoice(row, 'm', row.mb_year);
-        } else if (action === 'g' && row.discogs_year && !discogsRejectReason(row)) {
-          applyManualChoice(row, 'g', row.discogs_year);
-        } else if (action === 'p' && canUseSpotifyYear(row)) {
-          applyManualChoice(row, 'p', row.estimated_year);
-        } else if (action === 'u') {
-          try {
-            const mb = await askMusicBrainzUrl(rl);
-            console.log(`MusicBrainz ${mb.type} ${mb.mbid}: Jahr ${mb.year}${mb.title ? ` (${mb.title})` : ''}`);
-            applyManualChoice(row, 'u', mb.year, mb);
-          } catch (e) {
-            console.log(`MusicBrainz-URL nicht uebernommen: ${e && e.message ? e.message : e}`);
-            continue;
-          }
-        } else if (action === 'y') {
-          applyManualChoice(row, 'y', await askYear(rl));
-        } else if (action === 'x') {
-          const reason = await askOptional(rl, 'Ausschlussgrund optional: ');
-          applyManualChoice(row, 'x', null, { reason });
-        } else if (action === 's') {
-          applyManualChoice(row, 's');
-        } else if (action === 'q') {
-          applyManualChoice(row, 'q');
-          saveRows(outputCsv, rows, columns);
-          console.log(`\nGespeichert: ${outputCsv}`);
-          return;
-        } else {
-          console.log('Ungueltige Auswahl oder Quelle ohne Jahr. Bitte erneut waehlen.');
-          continue;
-        }
-
-        saveRows(outputCsv, rows, columns);
-        console.log(`Gespeichert: ${outputCsv}`);
-        break;
-      }
-    }
-  } finally {
-    rl.close();
-  }
 }
 
 async function main() {
@@ -468,7 +255,9 @@ async function main() {
 
   if (args.interactive) {
     console.log('\nInteraktive Reviews');
-    await runInteractiveReview(rows, args.outputCsv, { reviewAll: args.reviewAll, columns: outputColumns });
+    await runInteractiveReview(rows, {
+      save: () => saveRows(args.outputCsv, rows, outputColumns),
+    });
   } else {
     console.log('Interaktiver Review uebersprungen (--no-interactive).');
   }

@@ -13,6 +13,7 @@ import {
   Alert,
   AppState,
   Image,
+  InteractionManager,
   ScrollView,
   StyleSheet,
   Text,
@@ -364,8 +365,17 @@ export default function BingoGameScreen() {
       return;
     }
     if (roundPhase !== 'collecting' || !card || gs?.spinStartedAt == null) return;
+    // Run the play AFTER the current interactions/render settle. The song starts
+    // at the same instant the answer phase appears, and playUriGuarded's Spotify
+    // App Remote calls run on the iOS main queue (RCTExecuteOnMainQueue) - the
+    // same thread that paints the UI. Deferring keeps that native work off the
+    // transition frame, so the host's answer timer paints in sync with everyone
+    // else's (which derive purely from the shared roundDeadline) instead of
+    // waiting behind the connectivity check. Audio delay is imperceptible.
     const play = () =>
-      Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
+      InteractionManager.runAfterInteractions(() => {
+        Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
+      });
     const wait = gs.spinStartedAt + BINGO_SPIN_MS + BINGO_COUNTDOWN_MS - Date.now();
     if (wait <= 0) {
       play();
@@ -661,7 +671,7 @@ export default function BingoGameScreen() {
           <Text style={styles.spinHint}>
             {canSpin
               ? spinnerId === myId
-                ? 'Du bist dran — dreh die Kugel!'
+                ? 'Du bist dran — dreh die Scheibe!'
                 : `${spinnerName} reagiert nicht — jeder darf jetzt drehen!`
               : `${spinnerName} ist mit Drehen dran…`}
           </Text>
