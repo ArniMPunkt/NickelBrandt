@@ -15615,5 +15615,74 @@
       "year": 1986
     },
     "year_source": "release_group_first_release_date"
+  },
+  "recording:c81b32e7-0f09-4371-8fe3-4cf944d1ad7a": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "611",
+      "reset": "1783258734"
+    },
+    "id": "c81b32e7-0f09-4371-8fe3-4cf944d1ad7a",
+    "title": "Around the World (La La La La La) (radio version)",
+    "artist_credit_name": "A Touch Of Class&Peter Könemann",
+    "first_release_date": "2016-08-19",
+    "disambiguation": "",
+    "length": 215733,
+    "releases": [
+      {
+        "id": "bf5ea730-3a5d-44ad-8f28-ffa9be644524",
+        "title": "Retroperjantai - We Love the 90's, Vol. 2",
+        "date": "2016-08-19",
+        "year": 2016,
+        "release_status": "Official",
+        "country": "EE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "688789f2-5a5f-472c-84af-ac83804c7e7f",
+          "title": "Retroperjantai - We Love the 90's, Vol. 2",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2016-08-19",
+          "year": 2016
+        }
+      }
+    ],
+    "year": 2016,
+    "year_source": "recording_first_release_date"
+  },
+  "release:bf5ea730-3a5d-44ad-8f28-ffa9be644524": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "1077",
+      "reset": "1783258736"
+    },
+    "id": "bf5ea730-3a5d-44ad-8f28-ffa9be644524",
+    "title": "Retroperjantai - We Love the 90's, Vol. 2",
+    "date": "2016-08-19",
+    "year": 2016,
+    "release_status": "Official",
+    "country": "EE",
+    "disambiguation": "",
+    "artist_credit_name": "Various Artists",
+    "release_group": {
+      "id": "688789f2-5a5f-472c-84af-ac83804c7e7f",
+      "title": "Retroperjantai - We Love the 90's, Vol. 2",
+      "primary_type": "Album",
+      "secondary_types": [
+        "Compilation"
+      ],
+      "first_release_date": "2016-08-19",
+      "year": 2016
+    },
+    "year_source": "release_group_first_release_date"
   }
 }

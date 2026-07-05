@@ -1354,5 +1354,29 @@
     "artist_mbids": [
       "fe1b0047-06ea-46cb-a5f9-5d928ce376c2"
     ]
+  },
+  "a touch of class, pete konemann|around the world (la la la la la)|planet pop": {
+    "status": "ok",
+    "query": {
+      "title": "Around the World (La La La La La)",
+      "artist": "A Touch Of Class, Pete Konemann",
+      "releaseName": "Planet Pop"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783258730"
+    },
+    "recording_mbid": "c81b32e7-0f09-4371-8fe3-4cf944d1ad7a",
+    "recording_name": "Around the World (La La La La La) (radio version)",
+    "release_mbid": "bf5ea730-3a5d-44ad-8f28-ffa9be644524",
+    "release_name": "Retroperjantai - We Love the 90's, Vol. 2",
+    "artist_credit_name": "A Touch Of Class & Peter Könemann",
+    "artist_mbids": [
+      "408b2a33-d229-46a5-a361-0667bc616e34",
+      "1808c69a-bd9e-473b-9d79-54bf1846a37b"
+    ]
   }
 }
