@@ -39,6 +39,10 @@ yarn-error.*
 scripts/.env
 # cached Spotify USER tokens (Authorization-Code/PKCE flow) — never commit
 scripts/.spotify-user-token.json
+# song-pool pipeline caches (ListenBrainz/MusicBrainz land here at repo root due
+# to a path quirk in lib/sources/*; deezer/discogs live in scripts/.cache/) —
+# regenerated every run, never commit
+.cache/
 
 # EAS local credentials (credentials.json holds the .p12 password in clear
 # text; credentials/ holds the exported cert + provisioning profile) — never commit
