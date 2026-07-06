@@ -1,43 +1,40 @@
 /**
- * NickelBrandt — Upload (stage 2 of 2) for a themed song pool.
+ * NickelBrandt - Upload (stage 2 of 2) for a themed song pool.
  *
- * Takes the REVIEWED CSV from precheck-song-pool.js (with `final_year` filled in)
- * and writes it to Supabase (song_pools + pool_songs). It does NOT call Spotify
- * or MusicBrainz — all verification already happened in stage 1. `final_year` is
- * the only source of truth for the year written.
+ * Takes the reviewed CSV from precheck-song-pool.js / review-song-pool.js and
+ * writes upload-ready rows to Supabase (song_pools + pool_songs). It does not
+ * call Spotify or MusicBrainz. final_year is the only year written.
  *
- * ---------------------------------------------------------------------------
- * USAGE
+ * Usage:
  *   node scripts/upload-song-pool.js <reviewCsvPath> "<Pool Name>" "<Description>"
  *
- *   e.g.
- *   node scripts/upload-song-pool.js ./scripts/pop70-90.review.csv "Pop 70er-90er" "Pop-Hits 1970–1999"
+ * Current standard flow:
+ *   node scripts/precheck-song-pool.js scripts/raw_hitster_summer_v2.csv scripts/review.csv --no-interactive --deezer=off --discogs=needed --listenbrainz=needed --lb-auto-accept=safe
+ *   node scripts/review-song-pool.js scripts/review.csv scripts/review_final.csv
+ *   node scripts/upload-song-pool.js scripts/review_final.csv "Summer 2026"
  *
- * SECRETS: scripts/.env -> SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (service-role
- * key bypasses RLS; never logged). Needs the already-installed @supabase/supabase-js.
- * ---------------------------------------------------------------------------
+ * Secrets: scripts/.env -> SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
  */
 'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { loadEnv, need, parseCsvObjects } = require('./lib/util');
-
-function toIntYear(v) {
-  return /^\d{1,4}$/.test(String(v).trim()) ? parseInt(v, 10) : null;
-}
+const { finalYearDiffersFromMb, mapUploadRow } = require('./lib/upload/map-upload-row');
+const { formatBlockedUploadRows, validateUploadRows } = require('./lib/upload/validate-upload-rows');
 
 async function insertPoolSongs(supabase, rows) {
   if (rows.length === 0) return 0;
   const { data, error } = await supabase.from('pool_songs').insert(rows).select('id');
   if (!error) return data.length;
-  console.warn(`  Bulk insert failed (${error.message}); retrying row-by-row…`);
+  console.warn(`  Bulk insert failed (${error.message}); retrying row-by-row...`);
   let n = 0;
   for (const r of rows) {
     const { error: e } = await supabase.from('pool_songs').insert(r);
     if (e) {
       if (e.code === '23505') continue; // unique (pool_id, spotify_track_id) -> skip
-      console.warn(`  skip "${r.title}" — ${r.artist}: ${e.message}`);
+      console.warn(`  skip "${r.title}" - ${r.artist}: ${e.message}`);
       continue;
     }
     n += 1;
@@ -66,45 +63,29 @@ async function main() {
   }
   const totalRows = objects.length;
 
-  // --- Partition rows ---
-  const skippedNoSpotify = [];
-  const skippedExcluded = [];
-  const candidates = []; // spotify_found === true
-  for (const o of objects) {
-    if (String(o.status || '').trim() === 'excluded_from_pool') {
-      skippedExcluded.push(o);
-      continue;
-    }
-    if (String(o.spotify_found).toLowerCase() === 'true') candidates.push(o);
-    else skippedNoSpotify.push(o);
-  }
-
-  // --- Validate: every Spotify-found row MUST have a valid final_year ---
-  const missingFinal = candidates.filter((o) => toIntYear(o.final_year) == null);
-  if (missingFinal.length > 0) {
-    console.error(
-      `\nABBRUCH: ${missingFinal.length} Zeile(n) mit spotify_found=true haben kein gültiges final_year.`
-    );
-    console.error('Der Review-Schritt ist nicht vollständig. Betroffene Titel:');
-    for (const o of missingFinal) console.error(`   ✗ ${o.title} — ${o.artist}  (final_year="${o.final_year}")`);
-    console.error('\nBitte final_year für diese Zeilen befüllen und erneut ausführen. Es wurde NICHTS geschrieben.');
+  const validation = validateUploadRows(objects);
+  if (validation.blockedRows.length > 0) {
+    console.error(`\n${formatBlockedUploadRows(validation.blockedRows)}`);
     process.exit(1);
   }
 
-  // --- Dedup by spotify_track_id (skip in-pool duplicates) ---
+  const skippedExcluded = validation.skippedExcluded.map((item) => item.row);
+  const skippedNoSpotify = validation.skippedNoSpotify.map((item) => item.row);
+
+  // Dedup by spotify_track_id (skip in-pool duplicates).
   const seen = new Set();
   const dedup = [];
   let dupSkipped = 0;
-  for (const o of candidates) {
-    if (seen.has(o.spotify_track_id)) {
+  for (const item of validation.uploadCandidates) {
+    const trackId = item.row.spotify_track_id;
+    if (seen.has(trackId)) {
       dupSkipped += 1;
       continue;
     }
-    seen.add(o.spotify_track_id);
-    dedup.push(o);
+    seen.add(trackId);
+    dedup.push(item);
   }
 
-  // --- Supabase (service-role) ---
   const supabase = createClient(need('SUPABASE_URL'), need('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -115,18 +96,18 @@ async function main() {
     .select('id')
     .eq('name', poolName);
   if (existErr) {
-    console.error(`Konnte bestehende Pools nicht prüfen: ${existErr.message}`);
+    console.error(`Konnte bestehende Pools nicht pruefen: ${existErr.message}`);
     process.exit(1);
   }
   if (existing && existing.length > 0) {
     console.error(
       `\nABBRUCH: Es existiert bereits ein Pool mit dem Namen "${poolName}" (id=${existing[0].id}).`
     );
-    console.error('Kein automatisches Überschreiben/Duplizieren. Lösche den alten Pool oder wähle einen anderen Namen.');
+    console.error('Kein automatisches Ueberschreiben/Duplizieren. Loesche den alten Pool oder waehle einen anderen Namen.');
     process.exit(1);
   }
 
-  console.log('\nCreating pool…');
+  console.log('\nCreating pool...');
   const { data: pool, error: poolErr } = await supabase
     .from('song_pools')
     .insert({ name: poolName, description })
@@ -137,38 +118,23 @@ async function main() {
     process.exit(1);
   }
 
-  // --- Build rows (release_year = final_year, the single source of truth) ---
-  let correctedFromMb = 0;
-  const rows = dedup.map((o) => {
-    const finalYear = toIntYear(o.final_year);
-    const mbYear = toIntYear(o.mb_year);
-    if (mbYear != null && finalYear !== mbYear) correctedFromMb += 1;
-    return {
-      pool_id: pool.id,
-      title: o.spotify_match_name || o.title,
-      artist: o.spotify_match_artist || o.artist,
-      spotify_track_id: o.spotify_track_id,
-      release_year: finalYear,
-      isrc: o.isrc || null,
-    };
-  });
-
+  const correctedFromMb = dedup.filter((item) => finalYearDiffersFromMb(item.row)).length;
+  const rows = dedup.map((item) => mapUploadRow(item.row, pool.id));
   const written = await insertPoolSongs(supabase, rows);
 
-  // --- Summary ---
-  const line = '─'.repeat(60);
+  const line = '-'.repeat(60);
   console.log(`\n${line}\nUPLOAD ZUSAMMENFASSUNG\n${line}`);
   console.log(`Zeilen in Review-CSV insgesamt:        ${totalRows}`);
   console.log(`Uebersprungen (excluded_from_pool):    ${skippedExcluded.length}`);
   if (skippedExcluded.length) {
     for (const o of skippedExcluded) console.log(`   - ${o.title} - ${o.artist}`);
   }
-  console.log(`Übersprungen (kein Spotify-Treffer):   ${skippedNoSpotify.length}`);
+  console.log(`Uebersprungen (kein Spotify-Treffer):  ${skippedNoSpotify.length}`);
   if (skippedNoSpotify.length) {
-    for (const o of skippedNoSpotify) console.log(`   ✗ ${o.title} — ${o.artist}`);
+    for (const o of skippedNoSpotify) console.log(`   - ${o.title} - ${o.artist}`);
   }
-  if (dupSkipped) console.log(`Doppelte Track-IDs (übersprungen):     ${dupSkipped}`);
-  console.log(`Tatsächlich geschrieben:               ${written}`);
+  if (dupSkipped) console.log(`Doppelte Track-IDs (uebersprungen):    ${dupSkipped}`);
+  console.log(`Tatsaechlich geschrieben:              ${written}`);
   console.log(`final_year != mb_year (im Review korrigiert): ${correctedFromMb}`);
   console.log(`Pool: "${poolName}"  (id=${pool.id})`);
   console.log(line);
