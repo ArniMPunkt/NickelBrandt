@@ -1,0 +1,14 @@
+# Pipeline-Daten & Output — lokal behalten, nie committen
+*.csv
+*.report.txt
+.cache/
+
+# Archiv (tote Altlast: alte CSVs + Legacy-Importer)
+Archiv/
+
+# Lokale Secrets (auch schon in der Root-.gitignore, hier zur Klarheit)
+.env
+.spotify-user-token.json
+
+# Config-Template ausdrücklich behalten
+!.env.example
