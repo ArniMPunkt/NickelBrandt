@@ -7,9 +7,12 @@ const os = require('node:os');
 const path = require('node:path');
 
 const {
+  createPacedRequestLimiter,
   mbCandidatesBatch,
   newMusicBrainzSearchStats,
 } = require('../scripts/lib/verify-songs');
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function tempCacheFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mb-search-cache-'));
@@ -100,5 +103,31 @@ test('MusicBrainz text fallback cache avoids repeated text queries', async () =>
     assert.equal(secondStats.textQueries, 0);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('paced request limiter spaces starts while allowing bounded overlap', async () => {
+  const limiter = createPacedRequestLimiter({ intervalMs: 25, maxInFlight: 2 });
+  const starts = [];
+  let active = 0;
+  let maxActive = 0;
+
+  await Promise.all(
+    Array.from({ length: 4 }, () => limiter.run(async () => {
+      starts.push(Date.now());
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await sleep(45);
+      active -= 1;
+    }))
+  );
+
+  assert.equal(maxActive, 2);
+  assert.equal(starts.length, 4);
+  for (let i = 1; i < starts.length; i += 1) {
+    assert.ok(
+      starts[i] - starts[i - 1] >= 20,
+      `expected paced starts, got ${starts[i] - starts[i - 1]}ms`
+    );
   }
 });

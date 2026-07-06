@@ -174,6 +174,7 @@ function musicBrainzRequestLines(stats = {}) {
   return [
     'MusicBrainz-Request-Statistik:',
     `  Rate-Limit-Abstand: ${mb.rateLimitMs || 0}ms`,
+    `  Max. parallel offene Requests: ${mb.maxInFlightRequests || 0}`,
     `  Cache-Datei: ${mb.cacheFile || '-'}`,
     `  ISRC-Batch-Requests extern: ${mb.isrcBatchRequests || 0}`,
     `  ISRCs extern gesucht: ${mb.isrcBatchLookupCount || 0}`,

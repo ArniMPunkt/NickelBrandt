@@ -129,17 +129,64 @@ function createRateLimiter(windowMs, maxPerWindow) {
   };
 }
 
-function createSerialSpacingLimiter(defaultIntervalMs) {
-  let nextAllowedAt = 0;
+function createPacedRequestLimiter({ intervalMs, maxInFlight }) {
+  const queue = [];
+  let active = 0;
+  let nextStartAt = 0;
+  let timer = null;
+
+  function pump() {
+    if (timer || active >= maxInFlight || queue.length === 0) return;
+    const waitMs = Math.max(0, nextStartAt - Date.now());
+    timer = setTimeout(() => {
+      timer = null;
+      if (active >= maxInFlight || queue.length === 0) {
+        pump();
+        return;
+      }
+
+      const job = queue.shift();
+      active += 1;
+      const spacingMs = Math.max(0, job.intervalMs);
+      nextStartAt = Math.max(Date.now(), nextStartAt) + spacingMs;
+
+      Promise.resolve()
+        .then(job.fn)
+        .then(job.resolve, job.reject)
+        .finally(() => {
+          active -= 1;
+          pump();
+        });
+
+      pump();
+    }, waitMs);
+  }
+
   return {
-    async acquire(intervalMs = defaultIntervalMs) {
-      const spacingMs = Math.max(0, intervalMs);
-      const now = Date.now();
-      const waitMs = Math.max(0, nextAllowedAt - now);
-      nextAllowedAt = Math.max(now, nextAllowedAt) + spacingMs;
-      if (waitMs > 0) await sleep(waitMs);
+    run(fn, options = {}) {
+      const jobIntervalMs = options.rateLimitMs == null ? intervalMs : options.rateLimitMs;
+      return new Promise((resolve, reject) => {
+        queue.push({ fn, intervalMs: jobIntervalMs, resolve, reject });
+        pump();
+      });
     },
   };
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const out = new Array(items.length);
+  let next = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    for (;;) {
+      const index = next;
+      next += 1;
+      if (index >= items.length) return;
+      out[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return out;
 }
 
 /**
@@ -1254,30 +1301,32 @@ async function mbCandidatesBatch(tracks, options = {}) {
 
   const batches = [];
   for (let k = 0; k < withIsrc.length; k += MB_ISRC_BATCH) batches.push(withIsrc.slice(k, k + MB_ISRC_BATCH));
-  const isrcMisses = [];
-  for (const idxs of batches) {
+  const isrcMissGroups = await mapWithConcurrency(batches, MB_MAX_IN_FLIGHT_REQUESTS, async (idxs) => {
+    const misses = [];
     const recMap = await mbIsrcRecordingBatch(idxs.map((i) => tracks[i].isrc), mbOptions);
     for (const i of idxs) {
       const rec = recMap.get(mbIsrcCacheKey(tracks[i].isrc));
       if (!rec) {
-        isrcMisses.push(i);
+        misses.push(i);
         continue;
       }
       const picked = pickPlausible(tracks[i], tracks[i].artist, [rec], 'isrc');
       if (picked.status === 'mb_ok') {
         out[i] = picked;
-        if (shouldRunDeepMbOriginalSearch(tracks[i], picked, options)) isrcMisses.push(i);
+        if (shouldRunDeepMbOriginalSearch(tracks[i], picked, options)) misses.push(i);
       }
       else {
         out[i] = picked;
-        isrcMisses.push(i);
+        misses.push(i);
       }
     }
-  }
+    return misses;
+  });
+  const isrcMisses = isrcMissGroups.flat();
 
   const fallback = [...withoutIsrc, ...isrcMisses];
   if (cacheState.stats) cacheState.stats.textFallbackRows += fallback.length;
-  for (const i of fallback) {
+  await mapWithConcurrency(fallback, MB_MAX_IN_FLIGHT_REQUESTS, async (i) => {
     const textResult = await mbCandidate(tracks[i].title, tracks[i].artist, null, tracks[i], mbOptions);
     const prev = out[i];
     if (
@@ -1298,7 +1347,7 @@ async function mbCandidatesBatch(tracks, options = {}) {
     } else {
       out[i] = textResult.status === 'mb_no_match' && prev ? prev : textResult;
     }
-  }
+  });
   writeMusicBrainzSearchCacheState(cacheState);
   return out;
 }
@@ -1494,20 +1543,28 @@ const MB_BASE = 'https://musicbrainz.org/ws/2';
 // TODO(contact): swap the GitHub URL for a monitored contact email before wider use.
 const MB_USER_AGENT = 'NickelBrandt-PoolImport/1.0 ( https://github.com/ArniMPunkt/NickelBrandt )';
 const MB_REQUEST_INTERVAL_MS = 1200;
+// Allows network latency overlap while the paced launcher still starts at most
+// one MusicBrainz request per MB_REQUEST_INTERVAL_MS.
+const MB_MAX_IN_FLIGHT_REQUESTS = 3;
 const MB_ISRC_BATCH = 12;
 const MB_MAX_RETRIES = 2;
 const MB_BACKOFF_MS = 2500;
 const MB_SEARCH_CACHE_FILE = path.join(__dirname, '..', '.cache', 'musicbrainz-search-cache.json');
 
-const mbLimiter = createSerialSpacingLimiter(MB_REQUEST_INTERVAL_MS);
+const mbLimiter = createPacedRequestLimiter({
+  intervalMs: MB_REQUEST_INTERVAL_MS,
+  maxInFlight: MB_MAX_IN_FLIGHT_REQUESTS,
+});
 
 async function mbFetch(url, options = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= MB_MAX_RETRIES; attempt++) {
-    await mbLimiter.acquire(options.rateLimitMs == null ? MB_REQUEST_INTERVAL_MS : options.rateLimitMs);
     let res;
     try {
-      res = await fetchWithTimeout(url, { headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' } });
+      res = await mbLimiter.run(
+        () => fetchWithTimeout(url, { headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' } }),
+        { rateLimitMs: options.rateLimitMs == null ? MB_REQUEST_INTERVAL_MS : options.rateLimitMs }
+      );
     } catch (e) {
       lastErr = e;
       if (attempt < MB_MAX_RETRIES) {
@@ -1568,6 +1625,7 @@ function newMusicBrainzSearchStats(cacheFile = MB_SEARCH_CACHE_FILE) {
   return {
     cacheFile,
     rateLimitMs: MB_REQUEST_INTERVAL_MS,
+    maxInFlightRequests: MB_MAX_IN_FLIGHT_REQUESTS,
     isrcRows: 0,
     isrcUnique: 0,
     isrcBatchRequests: 0,
@@ -1591,6 +1649,7 @@ function createMusicBrainzSearchCacheState(options = {}) {
   const stats = options.stats || newMusicBrainzSearchStats(cacheFile);
   stats.cacheFile = cacheFile;
   stats.rateLimitMs = MB_REQUEST_INTERVAL_MS;
+  stats.maxInFlightRequests = MB_MAX_IN_FLIGHT_REQUESTS;
   return {
     enabled,
     cacheFile,
@@ -1671,20 +1730,22 @@ async function mbVerifyYears(tracks) {
   for (let k = 0; k < withIsrc.length; k += MB_ISRC_BATCH) {
     batches.push(withIsrc.slice(k, k + MB_ISRC_BATCH));
   }
-  const isrcMisses = [];
-  for (const idxs of batches) {
+  const isrcMissGroups = await mapWithConcurrency(batches, MB_MAX_IN_FLIGHT_REQUESTS, async (idxs) => {
+    const misses = [];
     const map = await mbIsrcBatch(idxs.map((i) => tracks[i].isrc));
     for (const i of idxs) {
       const y = map.get(mbIsrcCacheKey(tracks[i].isrc));
       if (y != null) years[i] = y;
-      else isrcMisses.push(i);
+      else misses.push(i);
     }
-  }
+    return misses;
+  });
+  const isrcMisses = isrcMissGroups.flat();
 
   const fallback = [...withoutIsrc, ...isrcMisses];
-  for (const i of fallback) {
+  await mapWithConcurrency(fallback, MB_MAX_IN_FLIGHT_REQUESTS, async (i) => {
     years[i] = await mbResolveByTitleArtist(tracks[i].title, tracks[i].artist);
-  }
+  });
   return years;
 }
 
@@ -2008,7 +2069,9 @@ module.exports = {
   fetchWithRetry,
   mbYearFromManualUrl,
   MB_REQUEST_INTERVAL_MS,
+  MB_MAX_IN_FLIGHT_REQUESTS,
   MB_SEARCH_CACHE_FILE,
+  createPacedRequestLimiter,
   newMusicBrainzSearchStats,
   readMusicBrainzSearchCache,
   writeMusicBrainzSearchCache,
