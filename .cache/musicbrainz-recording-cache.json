@@ -81378,5 +81378,1195 @@
     ],
     "year": 2003,
     "year_source": "recording_first_release_date"
+  },
+  "recording:e83be8e4-232a-4dc1-b4ee-31291d0040d6": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "340",
+      "reset": "1783300102"
+    },
+    "id": "e83be8e4-232a-4dc1-b4ee-31291d0040d6",
+    "title": "Arschficksong",
+    "artist_credit_name": "Sido",
+    "first_release_date": "2002-05-20",
+    "disambiguation": "",
+    "length": 208640,
+    "releases": [
+      {
+        "id": "718c4094-cdbd-49a2-aa57-65df31ffffd1",
+        "title": "Aggro Ansage Nr. 1",
+        "date": "2002-05-20",
+        "year": 2002,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "cd5dde18-3361-3c7b-bd2f-e3e68399ca01",
+          "title": "Aggro Ansage Nr. 1",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2002-05-20",
+          "year": 2002
+        }
+      },
+      {
+        "id": "5cb6ee34-6349-47e9-8cdf-70f9be481a03",
+        "title": "Aggro Ansage Nr. 1",
+        "date": "2002-05-20",
+        "year": 2002,
+        "release_status": "Official",
+        "country": "XW",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "cd5dde18-3361-3c7b-bd2f-e3e68399ca01",
+          "title": "Aggro Ansage Nr. 1",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2002-05-20",
+          "year": 2002
+        }
+      },
+      {
+        "id": "8affc7e1-1761-4a18-8bff-16710be2a63b",
+        "title": "Arschficksong",
+        "date": "2004-08-09",
+        "year": 2004,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Sido",
+        "release_group": {
+          "id": "92234f76-b3de-318e-845d-91cd5392cd06",
+          "title": "Arschficksong",
+          "primary_type": "Single",
+          "secondary_types": [],
+          "first_release_date": "2004-08-09",
+          "year": 2004
+        }
+      },
+      {
+        "id": "55afebdc-4ca1-4cea-afdf-fa306c2420be",
+        "title": "Aggro Berlin Label Nr.1: \"2001-2009\"",
+        "date": "2009-09-04",
+        "year": 2009,
+        "release_status": "Official",
+        "country": "AT",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "86a2334d-8b5d-4d93-ab7c-5c999d27d23a",
+          "title": "Aggro Berlin Label Nr.1: \"2001-2009\"",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2009-09-04",
+          "year": 2009
+        }
+      },
+      {
+        "id": "91143783-64f8-4390-851d-d96179929dbd",
+        "title": "Arschficksong",
+        "date": "",
+        "year": null,
+        "release_status": "Official",
+        "country": "",
+        "disambiguation": "",
+        "artist_credit_name": "Sido",
+        "release_group": {
+          "id": "92234f76-b3de-318e-845d-91cd5392cd06",
+          "title": "Arschficksong",
+          "primary_type": "Single",
+          "secondary_types": [],
+          "first_release_date": "2004-08-09",
+          "year": 2004
+        }
+      }
+    ],
+    "year": 2002,
+    "year_source": "recording_first_release_date"
+  },
+  "release:8affc7e1-1761-4a18-8bff-16710be2a63b": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "727",
+      "reset": "1783300104"
+    },
+    "id": "8affc7e1-1761-4a18-8bff-16710be2a63b",
+    "title": "Arschficksong",
+    "date": "2004-08-09",
+    "year": 2004,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Sido",
+    "release_group": {
+      "id": "92234f76-b3de-318e-845d-91cd5392cd06",
+      "title": "Arschficksong",
+      "primary_type": "Single",
+      "secondary_types": [],
+      "first_release_date": "2004-08-09",
+      "year": 2004
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:a5e27480-ee87-42a1-9997-2945562eb8ee": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "1140",
+      "reset": "1783300106"
+    },
+    "id": "a5e27480-ee87-42a1-9997-2945562eb8ee",
+    "title": "Straßenjunge",
+    "artist_credit_name": "Sido",
+    "first_release_date": "2010-05-21",
+    "disambiguation": "live",
+    "length": 192986,
+    "releases": [
+      {
+        "id": "cf21890c-099d-45b8-a175-df6994a43888",
+        "title": "MTV Unplugged: Live aus'm MV",
+        "date": "2010-05-21",
+        "year": 2010,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Sido",
+        "release_group": {
+          "id": "c9ecace7-f449-47e2-9047-2a6e88b04355",
+          "title": "MTV Unplugged: Live aus'm MV",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Live"
+          ],
+          "first_release_date": "2010-05-21",
+          "year": 2010
+        }
+      },
+      {
+        "id": "ed2ed87b-a055-3845-8b58-1f0a2f1cce7b",
+        "title": "MTV Unplugged: Live aus'm MV",
+        "date": "2010-05-21",
+        "year": 2010,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "Deluxe Version",
+        "artist_credit_name": "Sido",
+        "release_group": {
+          "id": "c9ecace7-f449-47e2-9047-2a6e88b04355",
+          "title": "MTV Unplugged: Live aus'm MV",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Live"
+          ],
+          "first_release_date": "2010-05-21",
+          "year": 2010
+        }
+      }
+    ],
+    "year": 2010,
+    "year_source": "recording_first_release_date"
+  },
+  "release:cf21890c-099d-45b8-a175-df6994a43888": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "1176",
+      "reset": "1783300106"
+    },
+    "id": "cf21890c-099d-45b8-a175-df6994a43888",
+    "title": "MTV Unplugged: Live aus'm MV",
+    "date": "2010-05-21",
+    "year": 2010,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Sido",
+    "release_group": {
+      "id": "c9ecace7-f449-47e2-9047-2a6e88b04355",
+      "title": "MTV Unplugged: Live aus'm MV",
+      "primary_type": "Album",
+      "secondary_types": [
+        "Live"
+      ],
+      "first_release_date": "2010-05-21",
+      "year": 2010
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:89cbf204-8c04-4c2a-bf4a-14116e1d41f0": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "671",
+      "reset": "1783300108"
+    },
+    "id": "89cbf204-8c04-4c2a-bf4a-14116e1d41f0",
+    "title": "Illo Anthem",
+    "artist_credit_name": "Illo&Samy Deluxe",
+    "first_release_date": "2005-11-25",
+    "disambiguation": "",
+    "length": 190000,
+    "releases": [
+      {
+        "id": "3b10d544-386b-472c-b87c-6392285473ab",
+        "title": "Deluxe Records Let's Go",
+        "date": "2005-11-25",
+        "year": 2005,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "437503da-ac57-3f0b-bb27-14f7fd73d1fe",
+          "title": "Deluxe Records Let's Go",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2005-11-25",
+          "year": 2005
+        }
+      }
+    ],
+    "year": 2005,
+    "year_source": "recording_first_release_date"
+  },
+  "recording:e261ad14-3e83-4a0b-8798-585530c90066": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "952",
+      "reset": "1783300110"
+    },
+    "id": "e261ad14-3e83-4a0b-8798-585530c90066",
+    "title": "Vorsprechtermin",
+    "artist_credit_name": "Sleepwalkerfeat.Hamburg City All Stars",
+    "first_release_date": "2001-05-14",
+    "disambiguation": "",
+    "length": 272346,
+    "releases": [
+      {
+        "id": "e3b9cdf8-a0af-4cdc-bf9c-d7978459df75",
+        "title": "Bravo Hits 33",
+        "date": "2001-05-14",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "AT",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "25a0e6b9-df56-3f46-81f5-0a453011c277",
+          "title": "Bravo Hits 33",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-05-14",
+          "year": 2001
+        }
+      },
+      {
+        "id": "c14e8289-3c23-4888-9f41-0791b1571481",
+        "title": "Bravo Hits 33",
+        "date": "2001-05-14",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "CH",
+        "disambiguation": "Swiss edition",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "25a0e6b9-df56-3f46-81f5-0a453011c277",
+          "title": "Bravo Hits 33",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-05-14",
+          "year": 2001
+        }
+      },
+      {
+        "id": "e08cd2de-1b99-317d-84d3-7b3eac037d88",
+        "title": "Bravo Hits 33",
+        "date": "2001-05-14",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "25a0e6b9-df56-3f46-81f5-0a453011c277",
+          "title": "Bravo Hits 33",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-05-14",
+          "year": 2001
+        }
+      },
+      {
+        "id": "2931ce31-144c-461a-815b-e51d628e4110",
+        "title": "Sleepwalker bittet zum Vorsprechtermin",
+        "date": "2001-07-02",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Sleepwalker",
+        "release_group": {
+          "id": "5c923350-bbcd-3719-afe3-c3a32833dafa",
+          "title": "Sleepwalker bittet zum Vorsprechtermin",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-07-02",
+          "year": 2001
+        }
+      },
+      {
+        "id": "19b0150f-e504-4317-baeb-95af423939bd",
+        "title": "Sleepwalker bittet zum Vorsprechtermin",
+        "date": "2001-07-02",
+        "year": 2001,
+        "release_status": "",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Sleepwalker",
+        "release_group": {
+          "id": "5c923350-bbcd-3719-afe3-c3a32833dafa",
+          "title": "Sleepwalker bittet zum Vorsprechtermin",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-07-02",
+          "year": 2001
+        }
+      },
+      {
+        "id": "03142d0b-a39c-4b1d-ac51-652929e1ae3f",
+        "title": "Megahits 2001: Die Zweite",
+        "date": "2001-07-13",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "fc5fc1c3-1642-4280-b8f3-d5a9ae977b04",
+          "title": "Megahits 2001: Die Zweite",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-07-13",
+          "year": 2001
+        }
+      },
+      {
+        "id": "6a7a6aaf-0d45-4374-bceb-0df885670587",
+        "title": "Bravo Black Hits, Vol. 5",
+        "date": "2001-09-17",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "6c17a23f-4dd1-350b-96b1-dae5acbddeff",
+          "title": "Bravo Black Hits, Vol. 5",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001-09-17",
+          "year": 2001
+        }
+      },
+      {
+        "id": "4f71cdb5-e663-4972-871f-14873da9d6bf",
+        "title": "Vorsprechtermin",
+        "date": "2001-11-06",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Sleepwalker",
+        "release_group": {
+          "id": "5a3d47ff-ed0b-3161-a1ec-ea3a48050235",
+          "title": "Vorsprechtermin",
+          "primary_type": "Single",
+          "secondary_types": [],
+          "first_release_date": "2001-11-06",
+          "year": 2001
+        }
+      },
+      {
+        "id": "3f65080a-f916-467f-a7b3-6d4104a37bb5",
+        "title": "Bang! 3",
+        "date": "2001",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "7a8d8ade-c93a-4f18-8792-8a5d78550da2",
+          "title": "Bang! 3",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001",
+          "year": 2001
+        }
+      },
+      {
+        "id": "0c903ade-2b73-40c7-bc28-375061ee55ad",
+        "title": "Best of Hip Hop 2001",
+        "date": "2001",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "f5bfff3a-4afa-3f6e-bdba-f16255855375",
+          "title": "Best of Hip Hop 2001",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001",
+          "year": 2001
+        }
+      },
+      {
+        "id": "e8a18b51-3d02-480d-9e45-93c7bbbd23f8",
+        "title": "Hitbreaker 2001: Die Vierte",
+        "date": "2001",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "f4d061c5-4755-46d6-8862-e1dcaf71b399",
+          "title": "Hitbreaker 2001: Die Vierte",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001",
+          "year": 2001
+        }
+      },
+      {
+        "id": "88b42f1c-d65a-4cee-89f7-86f0f98980c6",
+        "title": "Stars 2001: Die Popkomm.Gala",
+        "date": "2001",
+        "year": 2001,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "7368b6c2-85cd-4919-af47-8ad816fd35e8",
+          "title": "Stars 2001: Die Popkomm.Gala",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2001",
+          "year": 2001
+        }
+      },
+      {
+        "id": "aee66b62-02ad-45b7-a75f-95c6e532a371",
+        "title": "Hip Hop Geschichtsunterricht",
+        "date": "2002",
+        "year": 2002,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Various Artists",
+        "release_group": {
+          "id": "2b7ac37e-6c28-3422-a337-8f20ee19a156",
+          "title": "Hip Hop Geschichtsunterricht",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Compilation"
+          ],
+          "first_release_date": "2002",
+          "year": 2002
+        }
+      }
+    ],
+    "year": 2001,
+    "year_source": "recording_first_release_date"
+  },
+  "release:4f71cdb5-e663-4972-871f-14873da9d6bf": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "304",
+      "reset": "1783300110"
+    },
+    "id": "4f71cdb5-e663-4972-871f-14873da9d6bf",
+    "title": "Vorsprechtermin",
+    "date": "2001-11-06",
+    "year": 2001,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Sleepwalker",
+    "release_group": {
+      "id": "5a3d47ff-ed0b-3161-a1ec-ea3a48050235",
+      "title": "Vorsprechtermin",
+      "primary_type": "Single",
+      "secondary_types": [],
+      "first_release_date": "2001-11-06",
+      "year": 2001
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:c75a3b90-39f8-4dd9-9267-f8d77286ced3": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "663",
+      "reset": "1783300112"
+    },
+    "id": "c75a3b90-39f8-4dd9-9267-f8d77286ced3",
+    "title": "Ladies & Gentlemen",
+    "artist_credit_name": "Dynamite Deluxe",
+    "first_release_date": "2000-03-27",
+    "disambiguation": "",
+    "length": 226880,
+    "releases": [
+      {
+        "id": "ae6d5b48-27ab-42d7-a9b8-9d395bd7a2b9",
+        "title": "Deluxe Soundsystem",
+        "date": "2000-03-27",
+        "year": 2000,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Dynamite Deluxe",
+        "release_group": {
+          "id": "5c9d5475-237b-34b1-9b91-215a9b939609",
+          "title": "Deluxe Soundsystem",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2000-03-27",
+          "year": 2000
+        }
+      },
+      {
+        "id": "eefe9be6-1e10-4ff3-979b-6e4dfb101c37",
+        "title": "Deluxe Soundsystem",
+        "date": "2000",
+        "year": 2000,
+        "release_status": "Official",
+        "country": "",
+        "disambiguation": "",
+        "artist_credit_name": "Dynamite Deluxe",
+        "release_group": {
+          "id": "5c9d5475-237b-34b1-9b91-215a9b939609",
+          "title": "Deluxe Soundsystem",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2000-03-27",
+          "year": 2000
+        }
+      }
+    ],
+    "year": 2000,
+    "year_source": "recording_first_release_date"
+  },
+  "release:ae6d5b48-27ab-42d7-a9b8-9d395bd7a2b9": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "1108",
+      "reset": "1783300114"
+    },
+    "id": "ae6d5b48-27ab-42d7-a9b8-9d395bd7a2b9",
+    "title": "Deluxe Soundsystem",
+    "date": "2000-03-27",
+    "year": 2000,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Dynamite Deluxe",
+    "release_group": {
+      "id": "5c9d5475-237b-34b1-9b91-215a9b939609",
+      "title": "Deluxe Soundsystem",
+      "primary_type": "Album",
+      "secondary_types": [],
+      "first_release_date": "2000-03-27",
+      "year": 2000
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:9bdc6179-3f56-45f9-8802-e439437cb22b": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "439",
+      "reset": "1783300114"
+    },
+    "id": "9bdc6179-3f56-45f9-8802-e439437cb22b",
+    "title": "Blinded",
+    "artist_credit_name": "Samy Deluxe",
+    "first_release_date": "2005-10-07",
+    "disambiguation": "",
+    "length": 185000,
+    "releases": [
+      {
+        "id": "69b1616e-b961-4cdc-a843-d086dd813b15",
+        "title": "Exclusive Mixtape, Volume 4: So Deluxe So Glorious",
+        "date": "2005-10-07",
+        "year": 2005,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Samy Deluxe",
+        "release_group": {
+          "id": "eb82f297-5822-3711-bc77-83709459497b",
+          "title": "So Deluxe So Glorious",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Mixtape/Street"
+          ],
+          "first_release_date": "2005-10-07",
+          "year": 2005
+        }
+      },
+      {
+        "id": "bbd4b3d4-425e-4fc2-880d-caf115e45c57",
+        "title": "So Deluxe So Glorious",
+        "date": "2005",
+        "year": 2005,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Samy Deluxe",
+        "release_group": {
+          "id": "eb82f297-5822-3711-bc77-83709459497b",
+          "title": "So Deluxe So Glorious",
+          "primary_type": "Album",
+          "secondary_types": [
+            "Mixtape/Street"
+          ],
+          "first_release_date": "2005-10-07",
+          "year": 2005
+        }
+      }
+    ],
+    "year": 2005,
+    "year_source": "recording_first_release_date"
+  },
+  "release:bbd4b3d4-425e-4fc2-880d-caf115e45c57": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "931",
+      "reset": "1783300116"
+    },
+    "id": "bbd4b3d4-425e-4fc2-880d-caf115e45c57",
+    "title": "So Deluxe So Glorious",
+    "date": "2005",
+    "year": 2005,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Samy Deluxe",
+    "release_group": {
+      "id": "eb82f297-5822-3711-bc77-83709459497b",
+      "title": "So Deluxe So Glorious",
+      "primary_type": "Album",
+      "secondary_types": [
+        "Mixtape/Street"
+      ],
+      "first_release_date": "2005-10-07",
+      "year": 2005
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:d76ba464-bfb8-4392-82c8-dac2d0eea350": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "312",
+      "reset": "1783300116"
+    },
+    "id": "d76ba464-bfb8-4392-82c8-dac2d0eea350",
+    "title": "Wie jetzt",
+    "artist_credit_name": "Dynamite Deluxe",
+    "first_release_date": "2000-03-27",
+    "disambiguation": "",
+    "length": 180920,
+    "releases": [
+      {
+        "id": "ae6d5b48-27ab-42d7-a9b8-9d395bd7a2b9",
+        "title": "Deluxe Soundsystem",
+        "date": "2000-03-27",
+        "year": 2000,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Dynamite Deluxe",
+        "release_group": {
+          "id": "5c9d5475-237b-34b1-9b91-215a9b939609",
+          "title": "Deluxe Soundsystem",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2000-03-27",
+          "year": 2000
+        }
+      },
+      {
+        "id": "eefe9be6-1e10-4ff3-979b-6e4dfb101c37",
+        "title": "Deluxe Soundsystem",
+        "date": "2000",
+        "year": 2000,
+        "release_status": "Official",
+        "country": "",
+        "disambiguation": "",
+        "artist_credit_name": "Dynamite Deluxe",
+        "release_group": {
+          "id": "5c9d5475-237b-34b1-9b91-215a9b939609",
+          "title": "Deluxe Soundsystem",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2000-03-27",
+          "year": 2000
+        }
+      }
+    ],
+    "year": 2000,
+    "year_source": "recording_first_release_date"
+  },
+  "recording:6f28a003-7599-460b-a907-c4eb9f1ad3d6": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "704",
+      "reset": "1783300118"
+    },
+    "id": "6f28a003-7599-460b-a907-c4eb9f1ad3d6",
+    "title": "Pures Gift",
+    "artist_credit_name": "Dynamite Deluxe",
+    "first_release_date": "1999",
+    "disambiguation": "",
+    "length": 226506,
+    "releases": [
+      {
+        "id": "5bae90e9-a0c0-4c1f-bfc0-017acb629b8c",
+        "title": "The Classic Vinyl Files",
+        "date": "1999",
+        "year": 1999,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Dynamite Deluxe",
+        "release_group": {
+          "id": "31c0ca70-b574-382c-9f1e-294767c97b35",
+          "title": "The Classic Vinyl Files",
+          "primary_type": "EP",
+          "secondary_types": [],
+          "first_release_date": "1999",
+          "year": 1999
+        }
+      }
+    ],
+    "year": 1999,
+    "year_source": "recording_first_release_date"
+  },
+  "release:5bae90e9-a0c0-4c1f-bfc0-017acb629b8c": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "1108",
+      "reset": "1783300120"
+    },
+    "id": "5bae90e9-a0c0-4c1f-bfc0-017acb629b8c",
+    "title": "The Classic Vinyl Files",
+    "date": "1999",
+    "year": 1999,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Dynamite Deluxe",
+    "release_group": {
+      "id": "31c0ca70-b574-382c-9f1e-294767c97b35",
+      "title": "The Classic Vinyl Files",
+      "primary_type": "EP",
+      "secondary_types": [],
+      "first_release_date": "1999",
+      "year": 1999
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:cfdbe58e-845b-4c41-b16a-b8518a90f90c": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "480",
+      "reset": "1783300120"
+    },
+    "id": "cfdbe58e-845b-4c41-b16a-b8518a90f90c",
+    "title": "Wahre Liebe",
+    "artist_credit_name": "Curse",
+    "first_release_date": "2006-08-04",
+    "disambiguation": "part of “Einblick zurück!” DJ-mix",
+    "length": 87067,
+    "releases": [
+      {
+        "id": "12c84874-03cd-442d-bcdb-ab31fe558994",
+        "title": "Einblick zurück!",
+        "date": "2006-08-04",
+        "year": 2006,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Curse",
+        "release_group": {
+          "id": "5eb45244-4c27-3b62-bd9c-0f2e8b92da05",
+          "title": "Einblick zurück!",
+          "primary_type": "Album",
+          "secondary_types": [
+            "DJ-mix"
+          ],
+          "first_release_date": "2006-08-04",
+          "year": 2006
+        }
+      },
+      {
+        "id": "4d333681-daf1-4ca0-826a-a027d8d83cbc",
+        "title": "Einblick Zurück! Mixtape Classics Cuts - 1996 - 2006",
+        "date": "2006-08-04",
+        "year": 2006,
+        "release_status": "Official",
+        "country": "XW",
+        "disambiguation": "",
+        "artist_credit_name": "Curse",
+        "release_group": {
+          "id": "5eb45244-4c27-3b62-bd9c-0f2e8b92da05",
+          "title": "Einblick zurück!",
+          "primary_type": "Album",
+          "secondary_types": [
+            "DJ-mix"
+          ],
+          "first_release_date": "2006-08-04",
+          "year": 2006
+        }
+      },
+      {
+        "id": "c213af68-3428-402e-9dc1-d03fddd2163c",
+        "title": "Famous Five: Curse",
+        "date": "2008-12-11",
+        "year": 2008,
+        "release_status": "Official",
+        "country": "",
+        "disambiguation": "",
+        "artist_credit_name": "Curse",
+        "release_group": {
+          "id": "62bacce8-365b-4840-9653-7bc4ee8f5756",
+          "title": "Famous Five: Curse",
+          "primary_type": "EP",
+          "secondary_types": [],
+          "first_release_date": "2008-12-11",
+          "year": 2008
+        }
+      }
+    ],
+    "year": 2006,
+    "year_source": "recording_first_release_date"
+  },
+  "release:4d333681-daf1-4ca0-826a-a027d8d83cbc": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "927",
+      "reset": "1783300122"
+    },
+    "id": "4d333681-daf1-4ca0-826a-a027d8d83cbc",
+    "title": "Einblick Zurück! Mixtape Classics Cuts - 1996 - 2006",
+    "date": "2006-08-04",
+    "year": 2006,
+    "release_status": "Official",
+    "country": "XW",
+    "disambiguation": "",
+    "artist_credit_name": "Curse",
+    "release_group": {
+      "id": "5eb45244-4c27-3b62-bd9c-0f2e8b92da05",
+      "title": "Einblick zurück!",
+      "primary_type": "Album",
+      "secondary_types": [
+        "DJ-mix"
+      ],
+      "first_release_date": "2006-08-04",
+      "year": 2006
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:6c31864e-bd6f-4b24-b1da-53699db6e8b0": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "1147",
+      "reset": "1783300123"
+    },
+    "id": "6c31864e-bd6f-4b24-b1da-53699db6e8b0",
+    "title": "Witten City",
+    "artist_credit_name": "Creutzfeld & Jakobfeat.Mess,Kornel,T. Chill,F.I.N.K.",
+    "first_release_date": "2003-10-27",
+    "disambiguation": "",
+    "length": 326093,
+    "releases": [
+      {
+        "id": "50bb1846-322d-47e9-8557-c55267cf7abd",
+        "title": "Zwei Mann gegen den Rest",
+        "date": "2003-10-27",
+        "year": 2003,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Creutzfeld & Jakob",
+        "release_group": {
+          "id": "dab7fac2-4b38-37de-b037-934198612f35",
+          "title": "Zwei Mann gegen den Rest",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2003-10-27",
+          "year": 2003
+        }
+      }
+    ],
+    "year": 2003,
+    "year_source": "recording_first_release_date"
+  },
+  "recording:d4abdbeb-f5b6-4e75-a7c8-fefae5ffb8d7": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "700",
+      "reset": "1783300124"
+    },
+    "id": "d4abdbeb-f5b6-4e75-a7c8-fefae5ffb8d7",
+    "title": "Do What You Feel",
+    "artist_credit_name": "Creutzfeld & Jakob",
+    "first_release_date": "2003-10-27",
+    "disambiguation": "",
+    "length": 78773,
+    "releases": [
+      {
+        "id": "50bb1846-322d-47e9-8557-c55267cf7abd",
+        "title": "Zwei Mann gegen den Rest",
+        "date": "2003-10-27",
+        "year": 2003,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Creutzfeld & Jakob",
+        "release_group": {
+          "id": "dab7fac2-4b38-37de-b037-934198612f35",
+          "title": "Zwei Mann gegen den Rest",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "2003-10-27",
+          "year": 2003
+        }
+      }
+    ],
+    "year": 2003,
+    "year_source": "recording_first_release_date"
+  },
+  "recording:da427103-9dbf-46d8-a7bb-39c710039ab2": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "902",
+      "reset": "1783300126"
+    },
+    "id": "da427103-9dbf-46d8-a7bb-39c710039ab2",
+    "title": "Intro",
+    "artist_credit_name": "Stieber Twins",
+    "first_release_date": "1997-02-14",
+    "disambiguation": "",
+    "length": 89853,
+    "releases": [
+      {
+        "id": "5dc61354-3f42-43ae-9572-7a659f9dac58",
+        "title": "Fenster zum Hof",
+        "date": "1997-02-14",
+        "year": 1997,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Stieber Twins",
+        "release_group": {
+          "id": "a3078e86-3e09-3ad7-9437-37f9c4f6dd20",
+          "title": "Fenster zum Hof",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "1997-02-14",
+          "year": 1997
+        }
+      },
+      {
+        "id": "ef69b75b-f9ed-32a0-b29b-399414df10a5",
+        "title": "Fenster zum Hof",
+        "date": "1997-02-14",
+        "year": 1997,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Stieber Twins",
+        "release_group": {
+          "id": "a3078e86-3e09-3ad7-9437-37f9c4f6dd20",
+          "title": "Fenster zum Hof",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "1997-02-14",
+          "year": 1997
+        }
+      }
+    ],
+    "year": 1997,
+    "year_source": "recording_first_release_date"
+  },
+  "release:ef69b75b-f9ed-32a0-b29b-399414df10a5": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "274",
+      "reset": "1783300126"
+    },
+    "id": "ef69b75b-f9ed-32a0-b29b-399414df10a5",
+    "title": "Fenster zum Hof",
+    "date": "1997-02-14",
+    "year": 1997,
+    "release_status": "Official",
+    "country": "DE",
+    "disambiguation": "",
+    "artist_credit_name": "Stieber Twins",
+    "release_group": {
+      "id": "a3078e86-3e09-3ad7-9437-37f9c4f6dd20",
+      "title": "Fenster zum Hof",
+      "primary_type": "Album",
+      "secondary_types": [],
+      "first_release_date": "1997-02-14",
+      "year": 1997
+    },
+    "year_source": "release_group_first_release_date"
+  },
+  "recording:e5a8b927-82c3-48b3-9add-1c51a9879a5b": {
+    "status": "ok",
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "1200",
+      "remaining": "707",
+      "reset": "1783300128"
+    },
+    "id": "e5a8b927-82c3-48b3-9add-1c51a9879a5b",
+    "title": "Fenster zum Hof",
+    "artist_credit_name": "Stieber Twins",
+    "first_release_date": "1997-02-14",
+    "disambiguation": "",
+    "length": 363213,
+    "releases": [
+      {
+        "id": "5dc61354-3f42-43ae-9572-7a659f9dac58",
+        "title": "Fenster zum Hof",
+        "date": "1997-02-14",
+        "year": 1997,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Stieber Twins",
+        "release_group": {
+          "id": "a3078e86-3e09-3ad7-9437-37f9c4f6dd20",
+          "title": "Fenster zum Hof",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "1997-02-14",
+          "year": 1997
+        }
+      },
+      {
+        "id": "ef69b75b-f9ed-32a0-b29b-399414df10a5",
+        "title": "Fenster zum Hof",
+        "date": "1997-02-14",
+        "year": 1997,
+        "release_status": "Official",
+        "country": "DE",
+        "disambiguation": "",
+        "artist_credit_name": "Stieber Twins",
+        "release_group": {
+          "id": "a3078e86-3e09-3ad7-9437-37f9c4f6dd20",
+          "title": "Fenster zum Hof",
+          "primary_type": "Album",
+          "secondary_types": [],
+          "first_release_date": "1997-02-14",
+          "year": 1997
+        }
+      }
+    ],
+    "year": 1997,
+    "year_source": "recording_first_release_date"
   }
 }

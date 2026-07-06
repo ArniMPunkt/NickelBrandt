@@ -6038,5 +6038,373 @@
     "artist_mbids": [
       "82ea804c-cbce-46c7-91d5-50ba8b8b32e9"
     ]
+  },
+  "toni-l, figub brazlevic|ein bisschen jazz - figub brazlevic remix|wenn der vorhang fällt (original motion picture soundtrack)": {
+    "status": "no_match",
+    "query": {
+      "title": "Ein Bisschen Jazz - Figub Brazlevic Remix",
+      "artist": "Toni-L, Figub Brazlevic",
+      "releaseName": "Wenn der Vorhang fällt (Original Motion Picture Soundtrack)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783300100"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "sido|arschficksong|arschficksong": {
+    "status": "ok",
+    "query": {
+      "title": "Arschficksong",
+      "artist": "Sido",
+      "releaseName": "Arschficksong"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783300110"
+    },
+    "recording_mbid": "e83be8e4-232a-4dc1-b4ee-31291d0040d6",
+    "recording_name": "Arschficksong",
+    "release_mbid": "8affc7e1-1761-4a18-8bff-16710be2a63b",
+    "release_name": "Arschficksong",
+    "artist_credit_name": "Sido",
+    "artist_mbids": [
+      "3caf69c1-fdd8-44bc-b0a5-8af3ad8a47cd"
+    ]
+  },
+  "sido|strassenjunge|strassenjunge": {
+    "status": "ok",
+    "query": {
+      "title": "Strassenjunge",
+      "artist": "Sido",
+      "releaseName": "Strassenjunge"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783300110"
+    },
+    "recording_mbid": "a5e27480-ee87-42a1-9997-2945562eb8ee",
+    "recording_name": "Straßenjunge",
+    "release_mbid": "cf21890c-099d-45b8-a175-df6994a43888",
+    "release_name": "MTV Unplugged: Live aus'm MV",
+    "artist_credit_name": "Sido",
+    "artist_mbids": [
+      "3caf69c1-fdd8-44bc-b0a5-8af3ad8a47cd"
+    ]
+  },
+  "team eimsbush, dynamite deluxe, tony rotton aka blak twang|so rotten|team eimsbush": {
+    "status": "no_match",
+    "query": {
+      "title": "So Rotten",
+      "artist": "Team Eimsbush, Dynamite Deluxe, Tony Rotton aka Blak Twang",
+      "releaseName": "Team Eimsbush"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783300110"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "illo, samy deluxe|illo anthem|deluxe records - let's go": {
+    "status": "ok",
+    "query": {
+      "title": "Illo Anthem",
+      "artist": "Illo, Samy Deluxe",
+      "releaseName": "Deluxe Records - Let's Go"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783300110"
+    },
+    "recording_mbid": "89cbf204-8c04-4c2a-bf4a-14116e1d41f0",
+    "recording_name": "Illo Anthem",
+    "release_mbid": "3b10d544-386b-472c-b87c-6392285473ab",
+    "release_name": "Deluxe Records Let's Go",
+    "artist_credit_name": "Illo & Samy Deluxe",
+    "artist_mbids": [
+      "63a43510-0ab4-4abf-9909-df6d69e813eb",
+      "14aa9e32-c377-4dc6-9162-2e6c67a8eaf4"
+    ]
+  },
+  "dj tomekk, grandmaster flash, afrob, flavor flav, mc rene|1, 2, 3... rhymes galore|return of hip hop (pioneers project)": {
+    "status": "no_match",
+    "query": {
+      "title": "1, 2, 3... Rhymes Galore",
+      "artist": "DJ Tomekk, Grandmaster Flash, Afrob, Flavor Flav, MC Rene",
+      "releaseName": "Return of Hip Hop (Pioneers Project)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783300110"
+    },
+    "recording_mbid": "",
+    "recording_name": "",
+    "release_mbid": "",
+    "release_name": "",
+    "artist_credit_name": "",
+    "artist_mbids": []
+  },
+  "sleepwalker, hamburg city all stars|vorsprechtermin|vorsprechtermin": {
+    "status": "ok",
+    "query": {
+      "title": "Vorsprechtermin",
+      "artist": "Sleepwalker, Hamburg City All Stars",
+      "releaseName": "Vorsprechtermin"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "24",
+      "reset": "1783300110"
+    },
+    "recording_mbid": "e261ad14-3e83-4a0b-8798-585530c90066",
+    "recording_name": "Vorsprechtermin",
+    "release_mbid": "4f71cdb5-e663-4972-871f-14873da9d6bf",
+    "release_name": "Vorsprechtermin",
+    "artist_credit_name": "Sleepwalker feat. Hamburg City All Stars",
+    "artist_mbids": [
+      "432ceff3-07b7-455b-9d78-e2a9ab615c2a",
+      "fdf0a064-ebd9-4ef0-816c-87e00a805634"
+    ]
+  },
+  "dynamite deluxe|ladies & gentlemen|deluxe soundsystem": {
+    "status": "ok",
+    "query": {
+      "title": "Ladies & Gentlemen",
+      "artist": "Dynamite Deluxe",
+      "releaseName": "Deluxe Soundsystem"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783300120"
+    },
+    "recording_mbid": "c75a3b90-39f8-4dd9-9267-f8d77286ced3",
+    "recording_name": "Ladies & Gentlemen",
+    "release_mbid": "ae6d5b48-27ab-42d7-a9b8-9d395bd7a2b9",
+    "release_name": "Deluxe Soundsystem",
+    "artist_credit_name": "Dynamite Deluxe",
+    "artist_mbids": [
+      "a4da9933-1e43-483b-98d9-8b1a32a698ad"
+    ]
+  },
+  "samy deluxe|blinded|so deluxe so glorious": {
+    "status": "ok",
+    "query": {
+      "title": "Blinded",
+      "artist": "Samy Deluxe",
+      "releaseName": "So Deluxe so Glorious"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783300120"
+    },
+    "recording_mbid": "9bdc6179-3f56-45f9-8802-e439437cb22b",
+    "recording_name": "Blinded",
+    "release_mbid": "bbd4b3d4-425e-4fc2-880d-caf115e45c57",
+    "release_name": "So Deluxe So Glorious",
+    "artist_credit_name": "Samy Deluxe",
+    "artist_mbids": [
+      "14aa9e32-c377-4dc6-9162-2e6c67a8eaf4"
+    ]
+  },
+  "dynamite deluxe|wie jetzt|deluxe soundsystem": {
+    "status": "ok",
+    "query": {
+      "title": "Wie jetzt",
+      "artist": "Dynamite Deluxe",
+      "releaseName": "Deluxe Soundsystem"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783300120"
+    },
+    "recording_mbid": "d76ba464-bfb8-4392-82c8-dac2d0eea350",
+    "recording_name": "Wie jetzt",
+    "release_mbid": "ae6d5b48-27ab-42d7-a9b8-9d395bd7a2b9",
+    "release_name": "Deluxe Soundsystem",
+    "artist_credit_name": "Dynamite Deluxe",
+    "artist_mbids": [
+      "a4da9933-1e43-483b-98d9-8b1a32a698ad"
+    ]
+  },
+  "dynamite deluxe|pures gift|the classic vinyl files": {
+    "status": "ok",
+    "query": {
+      "title": "Pures Gift",
+      "artist": "Dynamite Deluxe",
+      "releaseName": "The Classic Vinyl Files"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783300120"
+    },
+    "recording_mbid": "6f28a003-7599-460b-a907-c4eb9f1ad3d6",
+    "recording_name": "Pures Gift",
+    "release_mbid": "5bae90e9-a0c0-4c1f-bfc0-017acb629b8c",
+    "release_name": "The Classic Vinyl Files",
+    "artist_credit_name": "Dynamite Deluxe",
+    "artist_mbids": [
+      "a4da9933-1e43-483b-98d9-8b1a32a698ad"
+    ]
+  },
+  "curse|wahre liebe|einblick zurück! (mixtape classics cuts - 1996 - 2006)": {
+    "status": "ok",
+    "query": {
+      "title": "Wahre Liebe",
+      "artist": "Curse",
+      "releaseName": "Einblick Zurück! (Mixtape Classics Cuts - 1996 - 2006)"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "25",
+      "reset": "1783300120"
+    },
+    "recording_mbid": "cfdbe58e-845b-4c41-b16a-b8518a90f90c",
+    "recording_name": "Wahre Liebe",
+    "release_mbid": "4d333681-daf1-4ca0-826a-a027d8d83cbc",
+    "release_name": "Einblick Zurück! Mixtape Classics Cuts - 1996 - 2006",
+    "artist_credit_name": "Curse",
+    "artist_mbids": [
+      "fbaf138f-4be1-4737-9820-37b0cb98528a"
+    ]
+  },
+  "creutzfeld & jakob, mess, kornel, t. chill, f.i.n.k.|witten city|2 mann gegen den rest!": {
+    "status": "ok",
+    "query": {
+      "title": "Witten City",
+      "artist": "Creutzfeld & Jakob, Mess, Kornel, T. Chill, F.I.N.K.",
+      "releaseName": "2 Mann Gegen Den Rest!"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "29",
+      "reset": "1783300130"
+    },
+    "recording_mbid": "6c31864e-bd6f-4b24-b1da-53699db6e8b0",
+    "recording_name": "Witten City",
+    "release_mbid": "50bb1846-322d-47e9-8557-c55267cf7abd",
+    "release_name": "Zwei Mann gegen den Rest",
+    "artist_credit_name": "Creutzfeld & Jakob feat. Mess, Kornel, T. Chill, F.I.N.K.",
+    "artist_mbids": [
+      "0cb420ed-a2f9-4346-be63-e6a2e0a66fa6",
+      "1eeaaa6b-42de-4272-ae1e-df469318cd46",
+      "dcf0ee17-8543-49c8-813d-7f2d0b5387f7",
+      "41bf507e-6c46-40c3-8893-81f6414ebe2e",
+      "659d4e4d-7027-4110-8ad5-5ca55a3f0621"
+    ]
+  },
+  "creutzfeld & jakob|do what you feel - skit|2 mann gegen den rest!": {
+    "status": "ok",
+    "query": {
+      "title": "Do What You Feel - Skit",
+      "artist": "Creutzfeld & Jakob",
+      "releaseName": "2 Mann Gegen Den Rest!"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "28",
+      "reset": "1783300130"
+    },
+    "recording_mbid": "d4abdbeb-f5b6-4e75-a7c8-fefae5ffb8d7",
+    "recording_name": "Do What You Feel",
+    "release_mbid": "50bb1846-322d-47e9-8557-c55267cf7abd",
+    "release_name": "Zwei Mann gegen den Rest",
+    "artist_credit_name": "Creutzfeld & Jakob",
+    "artist_mbids": [
+      "0cb420ed-a2f9-4346-be63-e6a2e0a66fa6"
+    ]
+  },
+  "stieber twins, dj mario \"kool\" man|intro|fenster zum hof": {
+    "status": "ok",
+    "query": {
+      "title": "Intro",
+      "artist": "Stieber Twins, DJ Mario \"Kool\" Man",
+      "releaseName": "Fenster zum Hof"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "27",
+      "reset": "1783300130"
+    },
+    "recording_mbid": "da427103-9dbf-46d8-a7bb-39c710039ab2",
+    "recording_name": "Intro",
+    "release_mbid": "ef69b75b-f9ed-32a0-b29b-399414df10a5",
+    "release_name": "Fenster zum Hof",
+    "artist_credit_name": "Stieber Twins",
+    "artist_mbids": [
+      "546c5cae-1423-4eae-8a8d-27f7adfc7e9b"
+    ]
+  },
+  "stieber twins|fenster zum hof|fenster zum hof": {
+    "status": "ok",
+    "query": {
+      "title": "Fenster zum Hof",
+      "artist": "Stieber Twins",
+      "releaseName": "Fenster zum Hof"
+    },
+    "cache_hit": false,
+    "rate_limit": {
+      "retry_after": "",
+      "limit": "30",
+      "remaining": "26",
+      "reset": "1783300130"
+    },
+    "recording_mbid": "e5a8b927-82c3-48b3-9add-1c51a9879a5b",
+    "recording_name": "Fenster zum Hof",
+    "release_mbid": "ef69b75b-f9ed-32a0-b29b-399414df10a5",
+    "release_name": "Fenster zum Hof",
+    "artist_credit_name": "Stieber Twins",
+    "artist_mbids": [
+      "546c5cae-1423-4eae-8a8d-27f7adfc7e9b"
+    ]
   }
 }
