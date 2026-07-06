@@ -1,6 +1,11 @@
 'use strict';
 
-const { getDiscogsCandidate } = require('../verify-songs');
+const {
+  discogsCacheKey,
+  getDiscogsCandidate,
+  readDiscogsCache,
+  writeDiscogsCache,
+} = require('../verify-songs');
 const { appendNote, toIntYear, yearText } = require('./helpers');
 
 const SOFT_PENDING_STATUS = 'soft_discogs_pending';
@@ -73,11 +78,53 @@ function keepPending(row, reason) {
   row.notes = appendNote(row.notes, `soft Discogs check pending: ${reason}`);
 }
 
+function shouldUseSharedDiscogsCache(options) {
+  return options.useDiscogsCache === true || (!options.lookupCandidate && options.useDiscogsCache !== false);
+}
+
+function stripCacheMetadata(candidate) {
+  const out = { ...(candidate || {}) };
+  delete out.cacheHit;
+  delete out.fromCache;
+  return out;
+}
+
+async function lookupWithSharedCache(row, lookupCandidate, cacheState) {
+  const key = discogsCacheKey(row);
+  if (cacheState.cache[key]) {
+    return {
+      ...cacheState.cache[key],
+      cacheHit: true,
+      fromCache: true,
+    };
+  }
+
+  const candidate = await lookupCandidate(row.title, row.artist, row);
+  cacheState.cache[key] = {
+    ...stripCacheMetadata(candidate),
+    timestamp: new Date().toISOString(),
+  };
+  cacheState.dirty = true;
+  return {
+    ...candidate,
+    cacheHit: false,
+    fromCache: false,
+  };
+}
+
 async function runSoftDiscogsChecks(rows, options = {}) {
   const mode = options.mode || 'needed';
   const lookupCandidate = options.lookupCandidate || getDiscogsCandidate;
   const stats = createSoftDiscogsStats(rows, mode);
   if (mode === 'off') return stats;
+
+  const useSharedCache = shouldUseSharedDiscogsCache(options);
+  const cacheState = useSharedCache
+    ? {
+        cache: options.discogsCache || readDiscogsCache(),
+        dirty: false,
+      }
+    : null;
 
   const targets = rows.filter((row) => row.status === SOFT_PENDING_STATUS);
   for (const row of targets) {
@@ -90,9 +137,11 @@ async function runSoftDiscogsChecks(rows, options = {}) {
 
     let candidate;
     try {
-      stats.calls += 1;
-      candidate = await lookupCandidate(row.title, row.artist, row);
+      candidate = useSharedCache
+        ? await lookupWithSharedCache(row, lookupCandidate, cacheState)
+        : await lookupCandidate(row.title, row.artist, row);
       if (candidate && (candidate.cacheHit || candidate.fromCache)) stats.cacheHits += 1;
+      else stats.calls += 1;
     } catch (error) {
       stats.errors += 1;
       if (isTimeoutError(error)) stats.timeouts += 1;
@@ -128,6 +177,11 @@ async function runSoftDiscogsChecks(rows, options = {}) {
       applyNoEarlierConflict(row, chosenYear, candidate);
       stats.autoAcceptedSoftChecked += 1;
     }
+  }
+
+  if (useSharedCache && cacheState.dirty) {
+    const writer = options.writeDiscogsCache || writeDiscogsCache;
+    writer(cacheState.cache);
   }
 
   stats.stillPending = rows.filter((row) => row.status === SOFT_PENDING_STATUS).length;

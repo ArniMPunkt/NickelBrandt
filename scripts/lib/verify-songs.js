@@ -129,6 +129,19 @@ function createRateLimiter(windowMs, maxPerWindow) {
   };
 }
 
+function createSerialSpacingLimiter(defaultIntervalMs) {
+  let nextAllowedAt = 0;
+  return {
+    async acquire(intervalMs = defaultIntervalMs) {
+      const spacingMs = Math.max(0, intervalMs);
+      const now = Date.now();
+      const waitMs = Math.max(0, nextAllowedAt - now);
+      nextAllowedAt = Math.max(now, nextAllowedAt) + spacingMs;
+      if (waitMs > 0) await sleep(waitMs);
+    },
+  };
+}
+
 /**
  * Source-agnostic fetch: fetchWithTimeout + an optional rate-limiter slot + a
  * simple backoff retry on 429/503/network errors. Returns the Response (caller
@@ -1052,10 +1065,21 @@ function pickPlausible(titleOrTrack, artist, recs, method = 'text') {
   return { status: 'mb_ok', ...chosen, reason: null };
 }
 
-async function mbTextRecordings(track) {
+async function mbTextRecordings(track, options = {}) {
+  const cacheState = options.cacheState || null;
+  const stats = options.stats || (cacheState && cacheState.stats) || null;
+  const cacheKey = mbTextCacheKey(track);
+  if (cacheState && cacheState.enabled && cacheKey && Object.prototype.hasOwnProperty.call(cacheState.cache.text, cacheKey)) {
+    if (stats) stats.textCacheHits += 1;
+    const cached = cacheState.cache.text[cacheKey];
+    return Array.isArray(cached && cached.recordings) ? cached.recordings : [];
+  }
+
+  if (stats) stats.textCacheMisses += 1;
   const seenQueries = new Set();
   const seenRecs = new Set();
   const recs = [];
+  let hadError = false;
   const titles = titleSearchVariants(track.title);
   const artists = artistSearchVariants(track.artist);
   const queries = [];
@@ -1074,32 +1098,45 @@ async function mbTextRecordings(track) {
   for (const q of queries) {
     if (seenQueries.has(q)) continue;
     seenQueries.add(q);
+    if (stats) stats.textQueries += 1;
     const d = await mbFetch(
-      `${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=25&inc=releases`
-    ).catch(() => null);
+      `${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=25&inc=releases`,
+      options
+    ).catch(() => {
+      hadError = true;
+      if (stats) stats.textErrors += 1;
+      return null;
+    });
     for (const rec of (d && d.recordings) || []) {
       if (!rec || !rec.id || seenRecs.has(rec.id)) continue;
       seenRecs.add(rec.id);
       recs.push(rec);
     }
   }
+  if (cacheState && cacheState.enabled && !hadError) {
+    cacheState.cache.text[cacheKey] = {
+      status: recs.length ? 'ok' : 'no_match',
+      recordings: recs,
+      timestamp: nowIso(),
+    };
+    cacheState.dirty = true;
+  }
   return recs;
 }
 
 /** Single-song candidate (ISRC or text). Used for one-off lookups (e.g. tests). */
-async function mbCandidate(title, artist, isrc, context = {}) {
+async function mbCandidate(title, artist, isrc, context = {}, options = {}) {
   const track = { title, artist, ...context };
   let recs = [];
   let isrcResult = null;
   if (isrc) {
-    const d = await mbFetch(
-      `${MB_BASE}/recording?query=isrc:${encodeURIComponent(isrc)}&fmt=json&limit=10&inc=releases`
-    ).catch(() => null);
-    recs = (d && d.recordings) || [];
+    const recMap = await mbIsrcRecordingBatch([isrc], options);
+    const rec = recMap.get(mbIsrcCacheKey(isrc));
+    recs = rec ? [rec] : [];
     isrcResult = pickPlausible(track, artist, recs, 'isrc');
     if (isrcResult.status === 'mb_ok') return isrcResult;
   }
-  const textRecs = await mbTextRecordings(track);
+  const textRecs = await mbTextRecordings(track, options);
   const textResult = pickPlausible(track, artist, textRecs, 'text');
   if (textResult.status !== 'mb_no_match') return textResult;
   return isrcResult && isrcResult.status !== 'mb_no_match' ? isrcResult : textResult;
@@ -1133,28 +1170,68 @@ async function mbYearFromManualUrl(input) {
 }
 
 /** ISRCs -> Map(ISRC -> recording), earliest first-release-date wins per ISRC. */
-async function mbIsrcRecordingBatch(isrcs) {
+async function mbIsrcRecordingBatch(isrcs, options = {}) {
   const out = new Map();
   if (!isrcs.length) return out;
-  const wanted = new Set(isrcs.map((s) => s.toUpperCase()));
-  const q = isrcs.map((c) => `isrc:${c}`).join(' OR ');
+  const cacheState = options.cacheState || null;
+  const stats = options.stats || (cacheState && cacheState.stats) || null;
+  const wantedKeys = Array.from(new Set(isrcs.map(mbIsrcCacheKey).filter(Boolean)));
+  const wanted = new Set(wantedKeys);
+  if (stats) {
+    stats.isrcUnique += wantedKeys.length;
+    stats.isrcRows += isrcs.length;
+  }
+  const missingKeys = [];
+
+  for (const key of wantedKeys) {
+    if (cacheState && cacheState.enabled && Object.prototype.hasOwnProperty.call(cacheState.cache.isrc, key)) {
+      if (stats) stats.isrcCacheHits += 1;
+      const cached = cacheState.cache.isrc[key];
+      if (cached && cached.recording) out.set(key, cached.recording);
+      continue;
+    }
+    missingKeys.push(key);
+    if (stats) stats.isrcCacheMisses += 1;
+  }
+
+  if (!missingKeys.length) return out;
+  const q = missingKeys.map((c) => `isrc:${c}`).join(' OR ');
   let data;
   try {
-    data = await mbFetch(`${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=100&inc=releases`);
+    if (stats) {
+      stats.isrcBatchRequests += 1;
+      stats.isrcBatchLookupCount += missingKeys.length;
+    }
+    data = await mbFetch(`${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=100&inc=releases`, options);
   } catch {
+    if (stats) stats.isrcErrors += missingKeys.length;
     return out;
   }
+  const found = new Map();
   for (const rec of (data && data.recordings) || []) {
     for (const isrc of rec.isrcs || []) {
       const key = String(isrc).toUpperCase();
       if (!wanted.has(key)) continue;
-      const prev = out.get(key);
-      if (!prev) out.set(key, rec);
+      const prev = found.get(key);
+      if (!prev) found.set(key, rec);
       else {
         const py = mbYearFromDate(prev['first-release-date']);
         const cy = mbYearFromDate(rec['first-release-date']);
-        if (cy != null && (py == null || cy < py)) out.set(key, rec);
+        if (cy != null && (py == null || cy < py)) found.set(key, rec);
       }
+    }
+  }
+  for (const key of missingKeys) {
+    const rec = found.get(key) || null;
+    if (rec) out.set(key, rec);
+    else if (stats) stats.isrcRecordingMisses += 1;
+    if (cacheState && cacheState.enabled) {
+      cacheState.cache.isrc[key] = {
+        status: rec ? 'ok' : 'no_match',
+        recording: rec,
+        timestamp: nowIso(),
+      };
+      cacheState.dirty = true;
     }
   }
   return out;
@@ -1162,12 +1239,14 @@ async function mbIsrcRecordingBatch(isrcs) {
 
 /**
  * Batch MB candidate pass — restores the fast path. ISRC rows go through batched
- * OR-queries (MB_ISRC_BATCH per request, MB_CONCURRENCY in parallel); the
+ * OR-queries (MB_ISRC_BATCH per request, serially rate-limited); the
  * plausibility fields (artist-credit, title, disambiguation, first-release-date)
  * all come back IN the batch response (verified), so no per-song follow-up. Only
  * no-ISRC / ISRC-miss rows fall back to a per-song text search.
  */
 async function mbCandidatesBatch(tracks, options = {}) {
+  const cacheState = options.cacheState || createMusicBrainzSearchCacheState(options);
+  const mbOptions = { ...options, cacheState, stats: cacheState.stats };
   const out = new Array(tracks.length).fill(null);
   const withIsrc = [];
   const withoutIsrc = [];
@@ -1176,59 +1255,51 @@ async function mbCandidatesBatch(tracks, options = {}) {
   const batches = [];
   for (let k = 0; k < withIsrc.length; k += MB_ISRC_BATCH) batches.push(withIsrc.slice(k, k + MB_ISRC_BATCH));
   const isrcMisses = [];
-  for (let g = 0; g < batches.length; g += MB_CONCURRENCY) {
-    const group = batches.slice(g, g + MB_CONCURRENCY);
-    await Promise.all(
-      group.map(async (idxs) => {
-        const recMap = await mbIsrcRecordingBatch(idxs.map((i) => tracks[i].isrc));
-        for (const i of idxs) {
-          const rec = recMap.get(String(tracks[i].isrc).toUpperCase());
-          if (!rec) {
-            isrcMisses.push(i);
-            continue;
-          }
-          const picked = pickPlausible(tracks[i], tracks[i].artist, [rec], 'isrc');
-          if (picked.status === 'mb_ok') {
-            out[i] = picked;
-            if (shouldRunDeepMbOriginalSearch(tracks[i], picked, options)) isrcMisses.push(i);
-          }
-          else {
-            out[i] = picked;
-            isrcMisses.push(i);
-          }
-        }
-      })
-    );
+  for (const idxs of batches) {
+    const recMap = await mbIsrcRecordingBatch(idxs.map((i) => tracks[i].isrc), mbOptions);
+    for (const i of idxs) {
+      const rec = recMap.get(mbIsrcCacheKey(tracks[i].isrc));
+      if (!rec) {
+        isrcMisses.push(i);
+        continue;
+      }
+      const picked = pickPlausible(tracks[i], tracks[i].artist, [rec], 'isrc');
+      if (picked.status === 'mb_ok') {
+        out[i] = picked;
+        if (shouldRunDeepMbOriginalSearch(tracks[i], picked, options)) isrcMisses.push(i);
+      }
+      else {
+        out[i] = picked;
+        isrcMisses.push(i);
+      }
+    }
   }
 
   const fallback = [...withoutIsrc, ...isrcMisses];
-  for (let s = 0; s < fallback.length; s += MB_CONCURRENCY) {
-    const group = fallback.slice(s, s + MB_CONCURRENCY);
-    await Promise.all(
-      group.map(async (i) => {
-        const textResult = await mbCandidate(tracks[i].title, tracks[i].artist, null, tracks[i]);
-        const prev = out[i];
-        if (
-          prev &&
-          prev.status === 'mb_ok' &&
-          isCatalogContext(tracks[i]) &&
-          textResult.status === 'mb_ok' &&
-          prev.year != null &&
-          textResult.year != null &&
-          prev.year - textResult.year > 5
-        ) {
-          out[i] = {
-            ...textResult,
-            status: 'mb_match_uncertain',
-            matchMethod: 'text_original_search',
-            reason: `catalog_original_year_candidate_isrc_${prev.year}`,
-          };
-        } else {
-          out[i] = textResult.status === 'mb_no_match' && prev ? prev : textResult;
-        }
-      })
-    );
+  if (cacheState.stats) cacheState.stats.textFallbackRows += fallback.length;
+  for (const i of fallback) {
+    const textResult = await mbCandidate(tracks[i].title, tracks[i].artist, null, tracks[i], mbOptions);
+    const prev = out[i];
+    if (
+      prev &&
+      prev.status === 'mb_ok' &&
+      isCatalogContext(tracks[i]) &&
+      textResult.status === 'mb_ok' &&
+      prev.year != null &&
+      textResult.year != null &&
+      prev.year - textResult.year > 5
+    ) {
+      out[i] = {
+        ...textResult,
+        status: 'mb_match_uncertain',
+        matchMethod: 'text_original_search',
+        reason: `catalog_original_year_candidate_isrc_${prev.year}`,
+      };
+    } else {
+      out[i] = textResult.status === 'mb_no_match' && prev ? prev : textResult;
+    }
   }
+  writeMusicBrainzSearchCacheState(cacheState);
   return out;
 }
 
@@ -1422,19 +1493,18 @@ async function resolveOne(title, artist, creditsfmIsrc, { onRetry, deezerMode = 
 const MB_BASE = 'https://musicbrainz.org/ws/2';
 // TODO(contact): swap the GitHub URL for a monitored contact email before wider use.
 const MB_USER_AGENT = 'NickelBrandt-PoolImport/1.0 ( https://github.com/ArniMPunkt/NickelBrandt )';
-const MB_WINDOW_MS = 18000;
-const MB_MAX_PER_WINDOW = 13; // ~13% under the official 15/18s
-const MB_CONCURRENCY = 5;
+const MB_REQUEST_INTERVAL_MS = 1200;
 const MB_ISRC_BATCH = 12;
 const MB_MAX_RETRIES = 2;
 const MB_BACKOFF_MS = 2500;
+const MB_SEARCH_CACHE_FILE = path.join(__dirname, '..', '.cache', 'musicbrainz-search-cache.json');
 
-const mbLimiter = createRateLimiter(MB_WINDOW_MS, MB_MAX_PER_WINDOW);
+const mbLimiter = createSerialSpacingLimiter(MB_REQUEST_INTERVAL_MS);
 
-async function mbFetch(url) {
+async function mbFetch(url, options = {}) {
   let lastErr;
   for (let attempt = 0; attempt <= MB_MAX_RETRIES; attempt++) {
-    await mbLimiter.acquire();
+    await mbLimiter.acquire(options.rateLimitMs == null ? MB_REQUEST_INTERVAL_MS : options.rateLimitMs);
     let res;
     try {
       res = await fetchWithTimeout(url, { headers: { 'User-Agent': MB_USER_AGENT, Accept: 'application/json' } });
@@ -1460,6 +1530,96 @@ async function mbFetch(url) {
   throw lastErr ?? new Error('MusicBrainz request failed');
 }
 
+function emptyMusicBrainzSearchCache() {
+  return { version: 1, isrc: {}, text: {} };
+}
+
+function normalizeMusicBrainzSearchCache(parsed) {
+  const cache = emptyMusicBrainzSearchCache();
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return cache;
+  if (parsed.isrc && typeof parsed.isrc === 'object' && !Array.isArray(parsed.isrc)) {
+    cache.isrc = parsed.isrc;
+  }
+  if (parsed.text && typeof parsed.text === 'object' && !Array.isArray(parsed.text)) {
+    cache.text = parsed.text;
+  }
+  return cache;
+}
+
+function readMusicBrainzSearchCache(cacheFile = MB_SEARCH_CACHE_FILE) {
+  try {
+    return normalizeMusicBrainzSearchCache(JSON.parse(fs.readFileSync(cacheFile, 'utf8')));
+  } catch {
+    return emptyMusicBrainzSearchCache();
+  }
+}
+
+function writeMusicBrainzSearchCache(cache, cacheFile = MB_SEARCH_CACHE_FILE) {
+  try {
+    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+    fs.writeFileSync(cacheFile, JSON.stringify(normalizeMusicBrainzSearchCache(cache), null, 2) + '\n', 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function newMusicBrainzSearchStats(cacheFile = MB_SEARCH_CACHE_FILE) {
+  return {
+    cacheFile,
+    rateLimitMs: MB_REQUEST_INTERVAL_MS,
+    isrcRows: 0,
+    isrcUnique: 0,
+    isrcBatchRequests: 0,
+    isrcBatchLookupCount: 0,
+    isrcCacheHits: 0,
+    isrcCacheMisses: 0,
+    isrcRecordingMisses: 0,
+    isrcErrors: 0,
+    textFallbackRows: 0,
+    textCacheHits: 0,
+    textCacheMisses: 0,
+    textQueries: 0,
+    textErrors: 0,
+    cacheWrites: 0,
+  };
+}
+
+function createMusicBrainzSearchCacheState(options = {}) {
+  const cacheFile = options.musicBrainzCacheFile || options.cacheFile || MB_SEARCH_CACHE_FILE;
+  const enabled = options.musicBrainzCache !== false;
+  const stats = options.stats || newMusicBrainzSearchStats(cacheFile);
+  stats.cacheFile = cacheFile;
+  stats.rateLimitMs = MB_REQUEST_INTERVAL_MS;
+  return {
+    enabled,
+    cacheFile,
+    cache: enabled ? readMusicBrainzSearchCache(cacheFile) : emptyMusicBrainzSearchCache(),
+    dirty: false,
+    stats,
+  };
+}
+
+function writeMusicBrainzSearchCacheState(state) {
+  if (!state || !state.enabled || !state.dirty) return false;
+  const wrote = writeMusicBrainzSearchCache(state.cache, state.cacheFile);
+  if (wrote && state.stats) state.stats.cacheWrites += 1;
+  state.dirty = false;
+  return wrote;
+}
+
+function mbIsrcCacheKey(isrc) {
+  return String(isrc || '').trim().toUpperCase();
+}
+
+function mbTextCacheKey(track) {
+  return `txt:${normalize(track && track.title)}|${normalize(track && track.artist)}`;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function mbYearFromDate(date) {
   if (!date) return null;
   const y = parseInt(String(date).slice(0, 4), 10);
@@ -1480,23 +1640,12 @@ const mbEscapeLucene = (s) => s.replace(/["\\]/g, ' ').trim();
 async function mbIsrcBatch(isrcs) {
   const out = new Map();
   if (isrcs.length === 0) return out;
-  const wanted = new Set(isrcs.map((s) => s.toUpperCase()));
-  const q = isrcs.map((c) => `isrc:${c}`).join(' OR ');
-  let data;
-  try {
-    data = await mbFetch(`${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=100`);
-  } catch {
-    return out;
-  }
-  for (const rec of (data && data.recordings) ?? []) {
+  const recMap = await mbIsrcRecordingBatch(isrcs);
+  for (const [key, rec] of recMap.entries()) {
     const y = mbYearFromDate(rec && rec['first-release-date']);
     if (y == null) continue;
-    for (const isrc of (rec && rec.isrcs) ?? []) {
-      const key = String(isrc).toUpperCase();
-      if (!wanted.has(key)) continue;
-      const prev = out.get(key);
-      if (prev == null || y < prev) out.set(key, y);
-    }
+    const prev = out.get(key);
+    if (prev == null || y < prev) out.set(key, y);
   }
   return out;
 }
@@ -1523,28 +1672,18 @@ async function mbVerifyYears(tracks) {
     batches.push(withIsrc.slice(k, k + MB_ISRC_BATCH));
   }
   const isrcMisses = [];
-  for (let g = 0; g < batches.length; g += MB_CONCURRENCY) {
-    const group = batches.slice(g, g + MB_CONCURRENCY);
-    await Promise.all(
-      group.map(async (idxs) => {
-        const map = await mbIsrcBatch(idxs.map((i) => tracks[i].isrc));
-        for (const i of idxs) {
-          const y = map.get(String(tracks[i].isrc).toUpperCase());
-          if (y != null) years[i] = y;
-          else isrcMisses.push(i);
-        }
-      })
-    );
+  for (const idxs of batches) {
+    const map = await mbIsrcBatch(idxs.map((i) => tracks[i].isrc));
+    for (const i of idxs) {
+      const y = map.get(mbIsrcCacheKey(tracks[i].isrc));
+      if (y != null) years[i] = y;
+      else isrcMisses.push(i);
+    }
   }
 
   const fallback = [...withoutIsrc, ...isrcMisses];
-  for (let s = 0; s < fallback.length; s += MB_CONCURRENCY) {
-    const group = fallback.slice(s, s + MB_CONCURRENCY);
-    await Promise.all(
-      group.map(async (i) => {
-        years[i] = await mbResolveByTitleArtist(tracks[i].title, tracks[i].artist);
-      })
-    );
+  for (const i of fallback) {
+    years[i] = await mbResolveByTitleArtist(tracks[i].title, tracks[i].artist);
   }
   return years;
 }
@@ -1707,12 +1846,16 @@ async function verifySongs(inputs, opts = {}) {
   let deezerMs = 0;
   let mbCands;
   let dzInfo;
+  const mbSearchStats = newMusicBrainzSearchStats();
   onPhase('years-start', { total: tracks.length, deezerMode });
   if (deezerMode === 'full') {
     const both = await Promise.all([
       (async () => {
         const s = Date.now();
-        const r = await mbCandidatesBatch(tracks, { deepOriginalSearch: !!opts.deepOriginalSearch });
+        const r = await mbCandidatesBatch(tracks, {
+          deepOriginalSearch: !!opts.deepOriginalSearch,
+          stats: mbSearchStats,
+        });
         mbMs = Date.now() - s;
         return r;
       })(),
@@ -1727,7 +1870,10 @@ async function verifySongs(inputs, opts = {}) {
     dzInfo = both[1];
   } else {
     const mbStart = Date.now();
-    mbCands = await mbCandidatesBatch(tracks, { deepOriginalSearch: !!opts.deepOriginalSearch });
+    mbCands = await mbCandidatesBatch(tracks, {
+      deepOriginalSearch: !!opts.deepOriginalSearch,
+      stats: mbSearchStats,
+    });
     mbMs = Date.now() - mbStart;
     const dzStart = Date.now();
     dzInfo = await deezerVerifyYears(tracks, {
@@ -1742,6 +1888,7 @@ async function verifySongs(inputs, opts = {}) {
   const dzInvalidYears = dzInfo.invalidYears || [];
   const dzStatuses = dzInfo.statuses || [];
   const dzTrackIds = dzInfo.trackIds || [];
+  stats.musicBrainzSearch = mbSearchStats;
   onPhase('years-done', { total: tracks.length, mbMs, deezerMs, deezerMode, deezerStats });
 
   // Discogs is a targeted plausibility check in default mode. Broad catalog
@@ -1851,15 +1998,27 @@ module.exports = {
   searchWithFallbacks,
   getIsrcFromDeezer,
   creditsBatchResolve,
+  mbCandidatesBatch,
+  mbFetch,
+  mbIsrcRecordingBatch,
+  mbTextRecordings,
   mbVerifyYears,
   verifySongs,
   computeRetryWaitS,
   fetchWithRetry,
   mbYearFromManualUrl,
+  MB_REQUEST_INTERVAL_MS,
+  MB_SEARCH_CACHE_FILE,
+  newMusicBrainzSearchStats,
+  readMusicBrainzSearchCache,
+  writeMusicBrainzSearchCache,
   // Year-consensus helpers:
   mbCandidate,
   getDiscogsCandidate,
   getDiscogsYear,
+  readDiscogsCache,
+  writeDiscogsCache,
+  discogsCacheKey,
   hasVariantMarker,
   yearConsensus,
 };

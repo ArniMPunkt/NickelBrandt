@@ -168,6 +168,24 @@ function musicBrainzLines(rows, summary) {
   ];
 }
 
+function musicBrainzRequestLines(stats = {}) {
+  const mb = stats.musicBrainzSearch || null;
+  if (!mb) return [];
+  return [
+    'MusicBrainz-Request-Statistik:',
+    `  Rate-Limit-Abstand: ${mb.rateLimitMs || 0}ms`,
+    `  Cache-Datei: ${mb.cacheFile || '-'}`,
+    `  ISRC-Batch-Requests extern: ${mb.isrcBatchRequests || 0}`,
+    `  ISRCs extern gesucht: ${mb.isrcBatchLookupCount || 0}`,
+    `  ISRC-Cache-Hits: ${mb.isrcCacheHits || 0}`,
+    `  ISRC-Misses: ${mb.isrcRecordingMisses || 0}`,
+    `  Text-Fallback-Zeilen: ${mb.textFallbackRows || 0}`,
+    `  Text-Queries extern: ${mb.textQueries || 0}`,
+    `  Text-Cache-Hits: ${mb.textCacheHits || 0}`,
+    `  Cache-Schreibvorgaenge: ${mb.cacheWrites || 0}`,
+  ];
+}
+
 function hardDiscogsLines(stats = {}) {
   const dc = stats.discogs || {};
   return [
@@ -343,6 +361,8 @@ function buildAnalysisReport(rows, summary, stats = {}, totalMs = 0) {
     '',
     ...musicBrainzLines(rows, summary),
     '',
+    ...musicBrainzRequestLines(stats),
+    '',
     ...hardDiscogsLines(stats),
     '',
     ...softDiscogsLines(rows, stats),
@@ -405,6 +425,14 @@ function printSummary({ rows, results, stats, inputs, outputCsv, tScript }) {
   console.log('');
   printResolverSummary(results);
   console.log(`MusicBrainz-Pruefung: ${s1(t.mbMs)}s`);
+  if (stats.musicBrainzSearch) {
+    const mb = stats.musicBrainzSearch;
+    console.log(
+      `MusicBrainz-Requests: ISRC-Batches ${mb.isrcBatchRequests || 0}, ` +
+        `ISRC-Cache ${mb.isrcCacheHits || 0}, Text-Fallback-Zeilen ${mb.textFallbackRows || 0}, ` +
+        `Text-Queries ${mb.textQueries || 0}, Text-Cache ${mb.textCacheHits || 0}`
+    );
+  }
   if (((stats.deezer || {}).mode || 'needed') === 'off') {
     console.log('Deezer: off');
   } else if (stats.deezer) {
@@ -457,6 +485,7 @@ module.exports = {
   computeSummary,
   listenBrainzAutoAcceptLines,
   listenBrainzReviewLines,
+  musicBrainzRequestLines,
   printSummary,
   statusDistribution,
   writeAnalysisReport,

@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { runSoftDiscogsChecks } = require('../scripts/lib/precheck/soft-discogs-checks');
+const { discogsCacheKey } = require('../scripts/lib/verify-songs');
 
 function softRow(overrides = {}) {
   return {
@@ -126,4 +127,58 @@ test('review needed rows are not checked or changed', async () => {
   assert.equal(rows[0].status, 'review_needed');
   assert.equal(rows[0].final_year, '');
   assert.equal(stats.planned, 0);
+});
+
+test('soft pending uses shared Discogs cache and avoids external lookup on cache hit', async () => {
+  let calls = 0;
+  let writes = 0;
+  const rows = [softRow()];
+  const cache = {
+    [discogsCacheKey(rows[0])]: { year: 1984, reason: null, timestamp: '2026-01-01T00:00:00.000Z' },
+  };
+
+  const stats = await runSoftDiscogsChecks(rows, {
+    useDiscogsCache: true,
+    discogsCache: cache,
+    writeDiscogsCache: () => {
+      writes += 1;
+    },
+    lookupCandidate: async () => {
+      calls += 1;
+      return { year: 1979, reason: null };
+    },
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(writes, 0);
+  assert.equal(rows[0].status, 'auto_accepted_mb_soft_checked');
+  assert.equal(rows[0].final_year, '1984');
+  assert.equal(stats.cacheHits, 1);
+  assert.equal(stats.calls, 0);
+});
+
+test('soft pending writes shared Discogs cache after cache miss', async () => {
+  let calls = 0;
+  let writtenCache = null;
+  const rows = [softRow()];
+  const cache = {};
+
+  const stats = await runSoftDiscogsChecks(rows, {
+    useDiscogsCache: true,
+    discogsCache: cache,
+    writeDiscogsCache: (nextCache) => {
+      writtenCache = nextCache;
+    },
+    lookupCandidate: async () => {
+      calls += 1;
+      return { year: 1984, reason: null };
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(rows[0].status, 'auto_accepted_mb_soft_checked');
+  assert.equal(rows[0].final_year, '1984');
+  assert.equal(stats.calls, 1);
+  assert.equal(stats.cacheHits, 0);
+  assert.equal(writtenCache[discogsCacheKey(rows[0])].year, 1984);
 });
