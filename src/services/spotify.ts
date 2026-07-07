@@ -1005,107 +1005,299 @@ export async function getPlaylistTracks(
   return cards;
 }
 
-/**
- * Fill in missing cover art for cards that have a `spotify:track:<id>` URI but no
- * coverUrl - i.e. pool songs (the pool stores no cover). Fetches one
- * GET /v1/tracks/{id} per track (the batch endpoint was removed for Dev-Mode apps
- * in the Feb-2026 migration) with bounded concurrency, and maps album.images[0].
- *
- * Non-fatal by design: if there is no token (e.g. a non-host device) or requests
- * fail, the affected cards keep coverUrl undefined and the UI shows its fallback.
- * Runs on the deck-building device (Hot-Seat device / Online host); for Online the
- * enriched cards are written into game_state, so every client gets the covers too.
- */
-export async function addCoverArt(cards: GameCard[]): Promise<GameCard[]> {
-  const PREFIX = 'spotify:track:';
-  const idOf = (uri: string) => uri.slice(PREFIX.length);
-  const need = cards.filter((c) => !c.coverUrl && c.trackUri?.startsWith(PREFIX));
-  if (need.length === 0) return cards;
+// ---------------------------------------------------------------------------
+// Cover art for pool songs (the pool stores no cover art).
+//
+// Spotify Feb-2026 migration: the batch GET /v1/tracks?ids=... was REMOVED for
+// Development-Mode apps, so covers cost one GET /v1/tracks/{id} per track. For a
+// 300-card pool that is far too slow to block the "Spiel starten" button on, so
+// cover loading is split in two:
+//   - addCoverArtUrgent: the few cards needed IMMEDIATELY (start cards + first
+//     playing card), awaited before game start. Small, bounded, breaker-guarded.
+//   - startCoverArtPrefetch: everything else, fire-and-forget AFTER the game is
+//     already running. Results land in a module-level cache; consumers pull them
+//     via withCachedCover() at draw time (Online host) or get them dispatched
+//     into the reducer (Pass & Play ADD_COVERS).
+//
+// Robustness:
+//   - CIRCUIT BREAKER: a 429 with an unusually large Retry-After means an
+//     API-wide hard rate limit (observed: ~2300-2480s). Retrying per card is
+//     pointless then - after HARD_LIMIT_STRIKES such responses the whole batch
+//     is abandoned for this run; cards keep their UI fallback.
+//   - ABORT: all requests run on one shared AbortController per job. Starting a
+//     new job replaces (aborts) the previous one, and abortCoverArtFetch() is
+//     wired to the lobby lifecycle (leave/end), so no requests outlive the lobby.
+//
+// Non-fatal by design: no token (non-host device) / failures / breaker / abort
+// all leave coverUrl undefined and the UI shows its fallback.
+// ---------------------------------------------------------------------------
 
-  // Diagnostics use console.warn (not console.log): the project has no
-  // transform-remove-console babel config, so console.* survives dev AND release,
-  // but .warn is the more visible/prominent channel in Metro and device logs.
-  let token: string;
-  try {
-    token = await getWebApiToken();
-  } catch (e: any) {
-    console.warn(
-      `[addCoverArt] no Web API token -> skipping cover fetch for ${need.length} card(s): ${e?.message ?? e}`
-    );
-    return cards; // no token -> keep fallbacks, never block deck loading
+const COVER_PREFIX = 'spotify:track:';
+const coverIdOf = (uri: string) => uri.slice(COVER_PREFIX.length);
+const needsCover = (c: GameCard) => !c.coverUrl && !!c.trackUri?.startsWith(COVER_PREFIX);
+
+/** Resolved covers by track id; survives across games (covers are immutable). */
+const coverCache = new Map<string, string>();
+
+/** A Retry-After this large (seconds) = API-wide hard limit, not a burst 429. */
+const COVER_HARD_RETRY_AFTER_S = 30;
+/** Hard-limit 429s before the whole batch run is abandoned. */
+const COVER_HARD_LIMIT_STRIKES = 2;
+const COVER_CONCURRENCY = 6;
+/** Prefetch flush size: consumers get covers in batches of this many. */
+const COVER_CHUNK = 24;
+
+/** The currently running cover job's controller (single-flight). */
+let coverJobAbort: AbortController | null = null;
+
+/** Abort the running cover fetch (wired to lobby leave/end + job replacement). */
+export function abortCoverArtFetch(): void {
+  if (coverJobAbort && !coverJobAbort.signal.aborted) {
+    console.warn('[coverArt] aborting cover fetch (lobby left / job replaced)');
+    coverJobAbort.abort();
   }
-  console.warn(`[addCoverArt] token present; fetching covers for ${need.length} pool card(s)`);
+  coverJobAbort = null;
+}
 
-  // Spotify Feb-2026 migration: the batch GET /v1/tracks?ids=... was REMOVED for
-  // Development-Mode apps (returned 403 on every batch). The replacement is one
-  // GET /v1/tracks/{id} per track. To avoid firing 300+ requests at once we use a
-  // small fixed concurrency (workers pull from a shared cursor). The `linked_from`
-  // relinking field was also removed in the same migration, so we key purely by t.id.
-  const ids = [...new Set(need.map((c) => idOf(c.trackUri)))];
-  const coverById = new Map<string, string>();
-  let e403 = 0;
-  let e404 = 0;
-  let e429 = 0;
-  let eOther = 0;
-  const CONCURRENCY = 6;
+/** Start a new single-flight cover job, aborting any previous one. */
+function newCoverJob(): AbortController {
+  abortCoverArtFetch();
+  const ctrl = new AbortController();
+  coverJobAbort = ctrl;
+  return ctrl;
+}
+
+/** Cached cover for a card's track URI, if a previous fetch resolved it. */
+export function cachedCoverUrl(trackUri: string): string | undefined {
+  return trackUri?.startsWith(COVER_PREFIX)
+    ? coverCache.get(coverIdOf(trackUri))
+    : undefined;
+}
+
+/** Stamp a card with its cached cover (no-op when it has one / none cached). */
+export function withCachedCover(card: GameCard): GameCard {
+  if (!needsCover(card)) return card;
+  const url = cachedCoverUrl(card.trackUri);
+  return url ? { ...card, coverUrl: url } : card;
+}
+
+/** Shared per-batch state: error counters + the hard-limit circuit breaker. */
+interface CoverBatchState {
+  signal: AbortSignal;
+  token: string;
+  hardStrikes: number;
+  broken: boolean;
+  e403: number;
+  e404: number;
+  e429: number;
+  eOther: number;
+}
+
+/**
+ * Fetch covers for a set of track ids into the cache (bounded concurrency,
+ * breaker- and abort-aware). Returns the covers resolved by THIS call.
+ */
+async function fetchCoverBatch(
+  ids: string[],
+  state: CoverBatchState
+): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   const fetchOne = async (id: string): Promise<void> => {
     for (let attempt = 0; attempt < 2; attempt++) {
+      if (state.broken || state.signal.aborted) return;
       let res: Response;
       try {
         res = await fetch(`https://api.spotify.com/v1/tracks/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${state.token}` },
+          signal: state.signal,
         });
       } catch {
-        eOther += 1; // network error
+        if (!state.signal.aborted) state.eOther += 1; // network error
         return;
       }
       if (res.ok) {
         const t = await res.json().catch(() => null);
         const url = t?.album?.images?.[0]?.url;
-        if (url && t?.id) coverById.set(t.id, url);
-        else eOther += 1; // 200 but no cover image
+        if (url && t?.id) {
+          coverCache.set(t.id, url);
+          found.set(t.id, url);
+        } else {
+          state.eOther += 1; // 200 but no cover image
+        }
         return;
       }
-      // 429: respect Retry-After with ONE short, capped backoff, then retry once.
-      // Never blindly hammer on - if 429s persist they are counted and surfaced.
-      if (res.status === 429 && attempt === 0) {
+      if (res.status === 429) {
+        state.e429 += 1;
         const raw = res.headers.get('retry-after');
         const parsed = parseInt(raw ?? '', 10);
-        const waitS = Number.isFinite(parsed) ? Math.min(parsed, 5) : 1;
-        console.warn(`[addCoverArt] 429 on ${id}; Retry-After=${raw ?? 'none'} -> wait ${waitS}s, one retry`);
-        await sleep(waitS * 1000);
-        continue;
+        // Hard limit: waiting minutes for ONE cover is pointless - strike, and
+        // after enough strikes trip the breaker for the whole batch run.
+        if (Number.isFinite(parsed) && parsed > COVER_HARD_RETRY_AFTER_S) {
+          state.hardStrikes += 1;
+          if (state.hardStrikes >= COVER_HARD_LIMIT_STRIKES && !state.broken) {
+            state.broken = true;
+            console.warn(
+              `[coverArt] hard rate limit (Retry-After=${raw}s, strike ${state.hardStrikes}) ` +
+                '-> circuit breaker: abandoning the remaining batch, cards keep their fallback'
+            );
+          }
+          return;
+        }
+        // Burst 429: respect Retry-After with ONE short, capped backoff + retry.
+        if (attempt === 0) {
+          const waitS = Number.isFinite(parsed) ? Math.min(parsed, 5) : 1;
+          console.warn(`[coverArt] 429 on ${id}; Retry-After=${raw ?? 'none'} -> wait ${waitS}s, one retry`);
+          await sleep(waitS * 1000);
+          continue;
+        }
+        return;
       }
-      if (res.status === 403) e403 += 1;
-      else if (res.status === 404) e404 += 1;
-      else if (res.status === 429) e429 += 1;
-      else eOther += 1;
+      if (res.status === 403) state.e403 += 1;
+      else if (res.status === 404) state.e404 += 1;
+      else state.eOther += 1;
       return;
     }
   };
 
   let cursor = 0;
   const worker = async (): Promise<void> => {
-    while (cursor < ids.length) {
+    while (cursor < ids.length && !state.broken && !state.signal.aborted) {
       const id = ids[cursor++];
       await fetchOne(id);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+  await Promise.all(
+    Array.from({ length: Math.min(COVER_CONCURRENCY, ids.length) }, worker)
+  );
+  return found;
+}
 
+/** Ids (deck order, deduped) of the first `limit` cards still missing a cover. */
+function coverIdsFor(cards: GameCard[], limit: number): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const c of cards) {
+    if (ids.length >= limit) break;
+    if (!needsCover(c) || cachedCoverUrl(c.trackUri)) continue;
+    const id = coverIdOf(c.trackUri);
+    if (!seen.has(id)) {
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Fetch covers for the FIRST `count` cover-less cards (deck order) - the ones
+ * needed the moment the game starts (start cards + first playing card). Small
+ * and bounded; still breaker-guarded so a hard rate limit can't stall the
+ * start. Returns the cards with every cover known so far (fresh + cached)
+ * stamped on. Never throws.
+ */
+export async function addCoverArtUrgent(
+  cards: GameCard[],
+  count: number
+): Promise<GameCard[]> {
+  const stampAll = () => cards.map(withCachedCover);
+  const ids = coverIdsFor(cards, count);
+  if (ids.length === 0) return stampAll();
+
+  // Diagnostics use console.warn (not console.log): the project has no
+  // transform-remove-console babel config, so console.* survives dev AND
+  // release, but .warn is the more visible channel in Metro and device logs.
+  let token: string;
+  try {
+    token = await getWebApiToken();
+  } catch (e: any) {
+    console.warn(
+      `[coverArt] no Web API token -> skipping cover fetch for ${ids.length} card(s): ${e?.message ?? e}`
+    );
+    return stampAll(); // no token -> cached covers + fallbacks, never block game start
+  }
+
+  const ctrl = newCoverJob();
+  const state: CoverBatchState = {
+    signal: ctrl.signal,
+    token,
+    hardStrikes: 0,
+    broken: false,
+    e403: 0,
+    e404: 0,
+    e429: 0,
+    eOther: 0,
+  };
+  console.warn(`[coverArt] urgent: fetching ${ids.length} start cover(s)`);
+  const found = await fetchCoverBatch(ids, state);
   console.warn(
-    `[addCoverArt] resolved ${coverById.size}/${ids.length} cover(s) ` +
-      `(errors: ${e403}x 403, ${e404}x 404, ${e429}x 429, ${eOther}x other)`
+    `[coverArt] urgent: resolved ${found.size}/${ids.length} ` +
+      `(errors: ${state.e403}x 403, ${state.e404}x 404, ${state.e429}x 429, ${state.eOther}x other)`
   );
-  if (coverById.size === 0) return cards;
+  return stampAll();
+}
 
-  return cards.map((c) =>
-    !c.coverUrl && c.trackUri?.startsWith(PREFIX)
-      ? { ...c, coverUrl: coverById.get(idOf(c.trackUri)) ?? c.coverUrl }
-      : c
-  );
+/**
+ * Fire-and-forget background fetch for every remaining cover-less card. Starts
+ * AFTER the game is running - "Spiel starten" never waits on this. Covers land
+ * in the module cache (Online host stamps them at draw time); `onCovers`
+ * additionally delivers each resolved chunk as trackUri -> url (Pass & Play
+ * dispatches it into the reducer so already-dealt cards update too).
+ * Single-flight: starting a new prefetch aborts the previous one.
+ */
+export function startCoverArtPrefetch(
+  cards: GameCard[],
+  onCovers?: (covers: Record<string, string>) => void
+): void {
+  const ids = coverIdsFor(cards, Number.POSITIVE_INFINITY);
+  if (ids.length === 0) return;
+
+  const ctrl = newCoverJob();
+  (async () => {
+    let token: string;
+    try {
+      token = await getWebApiToken();
+    } catch (e: any) {
+      console.warn(
+        `[coverArt] prefetch: no Web API token -> skipping ${ids.length} cover(s): ${e?.message ?? e}`
+      );
+      return;
+    }
+    const state: CoverBatchState = {
+      signal: ctrl.signal,
+      token,
+      hardStrikes: 0,
+      broken: false,
+      e403: 0,
+      e404: 0,
+      e429: 0,
+      eOther: 0,
+    };
+    console.warn(`[coverArt] prefetch: loading ${ids.length} cover(s) in the background`);
+    let resolved = 0;
+    // Chunked so consumers see covers progressively and an abort/breaker stops
+    // between chunks; breaker state carries across chunks (one logical run).
+    for (let i = 0; i < ids.length; i += COVER_CHUNK) {
+      if (state.broken || ctrl.signal.aborted) break;
+      const found = await fetchCoverBatch(ids.slice(i, i + COVER_CHUNK), state);
+      resolved += found.size;
+      if (found.size > 0 && onCovers && !ctrl.signal.aborted) {
+        const byUri: Record<string, string> = {};
+        found.forEach((url, id) => {
+          byUri[`${COVER_PREFIX}${id}`] = url;
+        });
+        onCovers(byUri);
+      }
+    }
+    console.warn(
+      `[coverArt] prefetch: done, resolved ${resolved}/${ids.length} ` +
+        `(aborted=${ctrl.signal.aborted}, breaker=${state.broken}, ` +
+        `errors: ${state.e403}x 403, ${state.e404}x 404, ${state.e429}x 429, ${state.eOther}x other)`
+    );
+  })().catch((e: any) => {
+    console.warn(`[coverArt] prefetch failed: ${e?.message ?? e}`);
+  });
 }
 
 /** Summary of one of the user's playlists, for the in-app picker. */

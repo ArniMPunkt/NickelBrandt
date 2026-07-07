@@ -119,7 +119,11 @@ export default function SetupScreen() {
         }
       }
 
-      const deck = shuffle(tracks);
+      // Covers (pool decks only; playlists already carry them): fetch ONLY what
+      // the game needs immediately - one start card per player + the first
+      // playing card (+ a small buffer). Everything else loads in the
+      // background below; "Spiel starten" never waits on the full pool.
+      const deck = await Spotify.addCoverArtUrgent(shuffle(tracks), trimmed.length + 3);
       // The dealt start cards count as drawn immediately (aborted games too).
       if (source.kind === 'pool') {
         PoolProgress.addPlayedIds(
@@ -152,6 +156,12 @@ export default function SetupScreen() {
           deck,
         },
       });
+      // Remaining covers load in the background while the game runs; each
+      // resolved chunk is merged into the reducer state (pure ADD_COVERS).
+      // dispatch stays valid after navigation (provider lives at app level).
+      Spotify.startCoverArtPrefetch(deck, (covers) =>
+        dispatch({ type: 'ADD_COVERS', payload: { covers } })
+      );
       navigation.navigate('Intro');
     } catch (e: any) {
       const code = e?.code ? `[${e.code}] ` : '';

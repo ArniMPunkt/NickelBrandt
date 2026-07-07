@@ -60,7 +60,10 @@ export type GameAction =
     }
   | { type: 'NEXT_PLAYER' }
   | { type: 'END_GAME'; payload: { winner: Player } }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  // Background cover prefetch resolved a chunk (trackUri -> url); stamp it onto
+  // every card that is still cover-less. Pure merge, no game logic.
+  | { type: 'ADD_COVERS'; payload: { covers: Record<string, string> } };
 
 const initialState: GameState = {
   phase: 'setup',
@@ -371,6 +374,29 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'END_GAME': {
       return { ...state, phase: 'result', winner: action.payload.winner };
+    }
+
+    case 'ADD_COVERS': {
+      // Covers arrive from the background prefetch AFTER the game started, so
+      // they must reach every place a card can already live: deck, current
+      // card, all timelines, the reveal snapshot and the winner snapshot.
+      const { covers } = action.payload;
+      const stamp = (c: GameCard): GameCard =>
+        !c.coverUrl && covers[c.trackUri] ? { ...c, coverUrl: covers[c.trackUri] } : c;
+      const stampPlayer = (p: Player): Player => ({
+        ...p,
+        timeline: p.timeline.map(stamp),
+      });
+      return {
+        ...state,
+        deck: state.deck.map(stamp),
+        currentCard: state.currentCard ? stamp(state.currentCard) : null,
+        players: state.players.map(stampPlayer),
+        winner: state.winner ? stampPlayer(state.winner) : null,
+        lastPlacement: state.lastPlacement
+          ? { ...state.lastPlacement, card: stamp(state.lastPlacement.card) }
+          : null,
+      };
     }
 
     case 'RESET':
