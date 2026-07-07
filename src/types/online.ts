@@ -2,9 +2,9 @@
  * Types for the Online (Supabase) mode. Reuses GameCard from the Hot-Seat types
  * (types only - the Hot-Seat GameContext/reducer is NOT shared).
  */
-import type { GameCard } from './game';
+import type { GameCard, MatchEvent } from './game';
 
-export type { GameCard };
+export type { GameCard, MatchEvent };
 
 export type LobbyStatus = 'waiting' | 'playing' | 'finished' | 'ended';
 
@@ -160,6 +160,14 @@ export interface OnlineGameState {
    */
   turnStartedAt?: number | null;
   winnerId: string | null;
+  /**
+   * Append-only event log of the running HITSTER match for the post-game
+   * statistics (playerId = player_id uuid). Only appended by single-writer
+   * paths (window close / steal resolution / host confirm), so the jsonb
+   * read-modify-write is race-free. Optional for backward-compat with
+   * game_state rows written before this field existed.
+   */
+  statsHistory?: MatchEvent[] | null;
 
   // --- Generic simultaneous-round support (bingo / timeline_quiz) -----------
   // All optional: absent in hitster games / rows written before migration 005.

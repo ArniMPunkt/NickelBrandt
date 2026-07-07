@@ -86,6 +86,53 @@ export interface GameSettings {
 /** The maximum number of chips a player can hold. */
 export const MAX_CHIPS = 5;
 
+// --- Per-match stats history (post-game statistics) --------------------------
+
+/** Slim song snapshot for the stats history (no URI/cover - display only). */
+export interface StatsSong {
+  title: string;
+  artist: string;
+  year: number;
+}
+
+/**
+ * One logged game event for the post-game statistics. Shared by BOTH code
+ * worlds (Pass & Play appends in the reducer, Party > Hitster in the Supabase
+ * writes); playerId is the world's own player id (p0/p1... vs. player_id uuid).
+ *
+ * Not logged on purpose: skips (no guess involved) and blind draws (a bought
+ * card is neither a correct nor a wrong placement).
+ */
+export type MatchEvent =
+  | {
+      /** The active player's OWN placement was resolved. */
+      type: 'place';
+      playerId: string;
+      song: StatsSong;
+      correct: boolean;
+    }
+  | {
+      /** A "Hitster!" steal attempt was resolved (chip always spent). */
+      type: 'steal';
+      playerId: string;
+      /** The active player whose turn/card it was (bestohlen / verbrandt an). */
+      victimId: string;
+      song: StatsSong;
+      correct: boolean;
+    }
+  | {
+      /** A Nickel was actually received (title+artist recognized, not capped). */
+      type: 'nickel';
+      playerId: string;
+      /** The song the Nickel was earned on, when known. */
+      song?: StatsSong;
+    };
+
+/** Drop the URI/cover fields for the stats log. */
+export function toStatsSong(card: GameCard): StatsSong {
+  return { title: card.title, artist: card.artist, year: card.year };
+}
+
 export type PlacementResult = 'correct' | 'incorrect';
 
 /** Snapshot of the most recent placement, used to reveal the result on screen. */
@@ -129,4 +176,9 @@ export interface GameState {
   settings: GameSettings;
   winner: Player | null;
   lastPlacement: LastPlacement | null;
+  /**
+   * Append-only event log of the running match, for the post-game statistics
+   * (ResultScreen). Reset on START_GAME; never read by game logic.
+   */
+  history: MatchEvent[];
 }

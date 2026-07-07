@@ -40,12 +40,13 @@ import {
   insertQuizEntry,
   isCorrectQuizPlacement,
 } from '../game/timelineQuiz';
-import { MAX_CHIPS } from '../types/game';
+import { MAX_CHIPS, toStatsSong } from '../types/game';
 import type {
   GameCard,
   GameMode,
   Lobby,
   LobbyPlayer,
+  MatchEvent,
   ModeConfig,
   OnlineGameState,
   RoundAnswer,
@@ -462,6 +463,16 @@ export async function getLobby(lobbyId: string): Promise<Lobby> {
   return data as Lobby;
 }
 
+/**
+ * Append post-game-statistics events to game_state.statsHistory (hitster
+ * mode). Only called from single-writer paths (atomic window close, steal
+ * resolution, host confirm), so the jsonb read-modify-write is race-free.
+ * Tolerates rows written before the field existed.
+ */
+function appendStats(gs: OnlineGameState, ...events: MatchEvent[]): MatchEvent[] {
+  return [...(gs.statsHistory ?? []), ...events];
+}
+
 async function writeGameState(lobbyId: string, gameState: OnlineGameState): Promise<void> {
   const { error } = await supabase
     .from('lobbies')
@@ -534,6 +545,7 @@ export async function startGame(
     timerSeconds: opts.timerSeconds,
     turnStartedAt: Date.now(),
     winnerId: null,
+    statsHistory: [],
     // This is the HITSTER start path; bingo / timeline_quiz get their own start
     // functions (follow-ups) that snapshot their mode + config here instead.
     gameMode: 'hitster',
@@ -735,6 +747,12 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
         stealEqualYear: false,
         hitsterCallerId: null,
         winnerId: won ? active.player_id : gs.winnerId,
+        statsHistory: appendStats(gs, {
+          type: 'place',
+          playerId: active.player_id,
+          song: toStatsSong(card),
+          correct,
+        }),
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
@@ -874,6 +892,7 @@ export async function resolveHitsterPlacement(
   await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
 
   const won = !!winnerId;
+  const song = toStatsSong(card);
   await writeGameState(lobbyId, {
     ...gs,
     phase: won ? 'finished' : 'awaiting_host_confirmation',
@@ -882,6 +901,19 @@ export async function resolveHitsterPlacement(
     stealEqualYear,
     hitsterCallerId: callerId,
     winnerId,
+    // Two stats events per resolved steal turn: the active player's OWN
+    // placement + the steal attempt (victim = active player).
+    statsHistory: appendStats(
+      gs,
+      { type: 'place', playerId: active.player_id, song, correct: activeCorrect },
+      {
+        type: 'steal',
+        playerId: caller.player_id,
+        victimId: active.player_id,
+        song,
+        correct: stealCorrect,
+      }
+    ),
   });
   if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
 }
@@ -893,17 +925,27 @@ export async function resolveHitsterPlacement(
 export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs) return;
+  let statsHistory = gs.statsHistory ?? [];
   if (wasCorrect) {
     const players = await getLobbyPlayers(lobbyId);
     const active = players.find((p) => p.player_id === gs.activePlayerId);
     if (active) {
+      // Stats: log only ACTUALLY received Nickel (capped at MAX_CHIPS = not
+      // received), together with the song it was earned on.
+      if (active.chips < MAX_CHIPS) {
+        statsHistory = appendStats(gs, {
+          type: 'nickel',
+          playerId: active.player_id,
+          song: gs.currentCard ? toStatsSong(gs.currentCard) : undefined,
+        });
+      }
       await supabase
         .from('lobby_players')
         .update({ chips: Math.min(active.chips + 1, MAX_CHIPS) })
         .eq('id', active.id);
     }
   }
-  await writeGameState(lobbyId, { ...gs, phase: 'finished' });
+  await writeGameState(lobbyId, { ...gs, phase: 'finished', statsHistory });
 }
 
 /** Host draws the next card + rotates to the next player (or finishes). */
