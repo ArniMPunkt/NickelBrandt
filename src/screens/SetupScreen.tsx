@@ -60,6 +60,13 @@ export default function SetupScreen() {
   useFocusEffect(
     useCallback(() => {
       setSpotifyAuthorized(Spotify.isReadyToPlay());
+      // Between-games heal: the App Remote routinely drops after a finished
+      // Partie (idle unbind / background teardown). Probe + silently reconnect
+      // so the screen doesn't demand a manual reconnect; no-op if never
+      // connected, never an interactive app switch.
+      Spotify.ensureReadyToPlay()
+        .then((ready) => setSpotifyAuthorized(ready))
+        .catch(() => {});
     }, [])
   );
 
@@ -85,16 +92,17 @@ export default function SetupScreen() {
       setError('Bitte eine Playlist oder einen Themen-Pool auswählen.');
       return;
     }
-    if (!Spotify.isReadyToPlay()) {
-      setError(
-        'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Einstellungen" ' +
-          'mit Spotify verbinden.'
-      );
-      return;
-    }
-
     setLoading(true);
     try {
+      // Self-healing gate: probes the App Remote and silently reconnects a
+      // dropped session (routine after a finished Partie) before refusing.
+      if (!(await Spotify.ensureReadyToPlay())) {
+        setError(
+          'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Einstellungen" ' +
+            'mit Spotify verbinden.'
+        );
+        return;
+      }
       let tracks = await loadDeckSource(source);
       if (tracks.length < trimmed.length + 1) {
         setError(

@@ -114,6 +114,13 @@ export default function OnlineHomeScreen() {
   useFocusEffect(
     useCallback(() => {
       setSpotifyAuthorized(Spotify.isReadyToPlay());
+      // Between-games heal: the App Remote routinely drops after a finished
+      // Partie (idle unbind / background teardown). Probe + silently reconnect
+      // so the screen doesn't demand a manual reconnect; no-op if never
+      // connected, never an interactive app switch.
+      Spotify.ensureReadyToPlay()
+        .then((ready) => setSpotifyAuthorized(ready))
+        .catch(() => {});
     }, [])
   );
 

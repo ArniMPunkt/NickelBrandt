@@ -218,6 +218,24 @@ function isStaleAuthError(e: any): boolean {
   return `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase().includes('not authorized');
 }
 
+/**
+ * iOS "Spotify couldn't be woken" class of connect failures
+ * (SPTAppRemoteBackgroundWakeupFailedError / transport stream error /
+ * connection refused). Happens when the Spotify app is not running or was
+ * suspended by iOS right after the auth redirect returned - SPTAppRemote can
+ * only attach to an ALIVE Spotify app. Self-healed in connectAppRemote via the
+ * SDK's documented wakeup path (authorize with playURI).
+ */
+function isWakeupError(e: any): boolean {
+  const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
+  return (
+    raw.includes('wakeup') ||
+    raw.includes('connection attempt failed') ||
+    raw.includes('stream error') ||
+    raw.includes('connection refused')
+  );
+}
+
 /** Map a raw connect failure to a friendly, actionable message. */
 function mapConnectError(e: any): Error {
   const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
@@ -253,6 +271,16 @@ function mapConnectError(e: any): Error {
   if (raw.includes('notloggedin') || raw.includes('not logged in')) {
     return new Error('Not logged in to the Spotify app. Log in there, then retry.');
   }
+  if (isWakeupError(e)) {
+    // Reached only when even the playURI wakeup retry failed (e.g. a brand-new
+    // Spotify account with no "last track" to resume). Give a working manual
+    // recovery instead of a dead-end - an app restart is NOT needed.
+    return new Error(
+      'Die Spotify-App konnte nicht im Hintergrund geweckt werden. Bitte öffne die ' +
+        'Spotify-App kurz, spiele dort einen beliebigen Song 1–2 Sekunden an, wechsle ' +
+        'zurück und tippe erneut auf „Mit Spotify verbinden".'
+    );
+  }
   return e instanceof Error ? e : new Error(String(e));
 }
 
@@ -263,27 +291,70 @@ function mapConnectError(e: any): Error {
  */
 async function connectAppRemote(): Promise<void> {
   if (Platform.OS === 'ios') {
-    const session = await withTimeout(
-      getAuth().authorize({
-        clientID: CLIENT_ID,
-        redirectURL: REDIRECT_URL,
-        scopes: WEB_API_SCOPES as any,
-      }),
-      APP_REMOTE_TIMEOUT_MS,
-      'Spotify-Autorisierung'
-    );
-    if (!session?.accessToken) {
-      throw new Error(
-        'Spotify authorization did not return an access token. Check the iOS redirect callback.'
+    // One native authorize() round trip. With `playURI` set, the SDK uses its
+    // authorizeAndPlayURI wakeup path: Spotify is foregrounded AND starts
+    // playback ('' = resume last track), so it stays alive as an audio app in
+    // the background - the documented precondition for SPTAppRemote connect.
+    const authorizeIos = async (playURI?: string): Promise<string> => {
+      const session = await withTimeout(
+        getAuth().authorize({
+          clientID: CLIENT_ID,
+          redirectURL: REDIRECT_URL,
+          scopes: WEB_API_SCOPES as any,
+          ...(playURI != null ? { playURI } : {}),
+        } as any),
+        APP_REMOTE_TIMEOUT_MS,
+        'Spotify-Autorisierung'
       );
+      if (!session?.accessToken) {
+        throw new Error(
+          'Spotify authorization did not return an access token. Check the iOS redirect callback.'
+        );
+      }
+      // Keep the App-Remote token for a later silent reconnect (no app switch).
+      iosAppRemoteToken = session.accessToken;
+      return session.accessToken;
+    };
+
+    const token = await authorizeIos();
+    try {
+      await withTimeout(
+        getRemote().connect(token),
+        APP_REMOTE_TIMEOUT_MS,
+        'Spotify-Verbindung'
+      );
+    } catch (e) {
+      if (!isWakeupError(e)) throw e;
+      // Known SpotifyiOS first-connect failure (BackgroundWakeupFailed /
+      // stream error / connection refused): the Spotify app was suspended by
+      // iOS right after the auth redirect, and every further connect() fails
+      // deterministically because the native session manager now returns its
+      // CACHED session without ever waking Spotify again (verified in
+      // RNSpotifyRemoteAuth.m: the `_initialized && session` fast path skips
+      // initiateSession). Recovery: drop that native session (endSession
+      // resets _sessionManager) and re-authorize WITH playURI - the app
+      // switch + playback wake Spotify for real, then connect sticks. The
+      // consent was already granted, so the switch is a quick bounce.
+      console.warn(
+        `[spotify] iOS connect failed with a wakeup-class error -> retrying via authorize(playURI:'') wakeup: ${
+          (e as any)?.message ?? e
+        }`
+      );
+      try {
+        await getAuth().endSession();
+      } catch {
+        // best-effort - a failed endSession still leaves the retry below valid
+      }
+      const wokenToken = await authorizeIos('');
+      await withTimeout(
+        getRemote().connect(wokenToken),
+        APP_REMOTE_TIMEOUT_MS,
+        'Spotify-Verbindung'
+      );
+      // The wakeup resumed the user's last track - stop that stray playback
+      // again immediately (connecting must not blast music unprompted).
+      pause().catch(() => {});
     }
-    // Keep the App-Remote token for a later silent reconnect (no app switch).
-    iosAppRemoteToken = session.accessToken;
-    await withTimeout(
-      getRemote().connect(session.accessToken),
-      APP_REMOTE_TIMEOUT_MS,
-      'Spotify-Verbindung'
-    );
     setConnected(true);
     ensureConnectionListeners();
     return;
@@ -811,6 +882,21 @@ export async function reconnectIfDropped(): Promise<void> {
     return;
   }
   await reconnectSilently();
+}
+
+/**
+ * Game-start gate with self-healing: probe the real App Remote state and
+ * silently reconnect a dropped session BEFORE deciding readiness. The App
+ * Remote routinely drops between two Partien (Android unbinds the idle
+ * Spotify service after the end-of-game pause; iOS tears the session down
+ * whenever the app is suspended) - a plain isReadyToPlay() check then refuses
+ * and forces a pointless manual reconnect, even though the silent reconnect
+ * would succeed. Never triggers an interactive app switch; false means a real
+ * (re-)connect in the settings is genuinely required.
+ */
+export async function ensureReadyToPlay(): Promise<boolean> {
+  await reconnectIfDropped(); // no-op if never connected; never throws
+  return isReadyToPlay();
 }
 
 /**
