@@ -15,7 +15,9 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
+import { buildPlayerMatchStats } from '../game/stats';
 import * as Spotify from '../services/spotify';
+import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -145,30 +147,30 @@ export default function ResultScreen() {
         )}
       </View>
 
-      <Text style={styles.sectionLabel}>ZEITLINIEN</Text>
+      <Text style={styles.sectionLabel}>SPIELER</Text>
       {state.players.map((p) => {
         const isWinner = leader?.id === p.id;
+        const headerRight = [
+          p.maxBrandtStreak > 0 ? `🔥 ${p.maxBrandtStreak}er-Streak` : null,
+          `${p.score} Pkt.`,
+        ]
+          .filter(Boolean)
+          .join(' · ');
         return (
-          <View
+          <PlayerStatsAccordion
             key={p.id}
-            style={[styles.playerBox, isWinner && styles.playerBoxWinner]}
+            name={p.name}
+            isWinner={isWinner}
+            headerRight={headerRight}
+            stats={buildPlayerMatchStats(state.history, p.id)}
+            resolveName={(id) =>
+              state.players.find((pl) => pl.id === id)?.name ?? '—'
+            }
           >
-            <View style={styles.playerHeader}>
-              <Text style={styles.playerName} numberOfLines={1}>
-                {isWinner ? '👑 ' : ''}
-                {p.name}
-              </Text>
-              <View style={styles.playerStats}>
-                {p.maxBrandtStreak > 0 && (
-                  <Text style={styles.brandtBadge}>🔥 {p.maxBrandtStreak}er-Streak</Text>
-                )}
-                <Text style={styles.playerScore}>{p.score} Pkt.</Text>
-              </View>
-            </View>
             <Text style={styles.timeline}>
               {p.timeline.map((c) => c.year).join('   ·   ')}
             </Text>
-          </View>
+          </PlayerStatsAccordion>
         );
       })}
 
@@ -231,27 +233,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  playerBox: {
-    backgroundColor: COLORS.backgroundAlt,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-  },
-  playerBoxWinner: {
-    borderColor: COLORS.accent,
-    ...glow(COLORS.accent, { radius: 12, opacity: 0.6 }),
-  },
-  playerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  playerName: { color: COLORS.text, fontWeight: '900', fontSize: 18, flexShrink: 1 },
-  playerStats: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandtBadge: { color: COLORS.accent, fontWeight: '900', fontSize: 14 },
-  playerScore: { color: COLORS.primary, fontWeight: '900', fontSize: 15 },
   timeline: { color: COLORS.textMuted, fontSize: 14, fontWeight: '600' },
 
   btn: {

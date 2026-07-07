@@ -17,6 +17,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
 import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
+import * as Spotify from './spotify';
 import {
   BINGO_PICK_SECONDS,
   BINGO_COUNTDOWN_MS,
@@ -40,12 +41,13 @@ import {
   insertQuizEntry,
   isCorrectQuizPlacement,
 } from '../game/timelineQuiz';
-import { MAX_CHIPS } from '../types/game';
+import { MAX_CHIPS, toStatsSong } from '../types/game';
 import type {
   GameCard,
   GameMode,
   Lobby,
   LobbyPlayer,
+  MatchEvent,
   ModeConfig,
   OnlineGameState,
   RoundAnswer,
@@ -316,6 +318,8 @@ export async function joinLobby(playerName: string, code: string): Promise<Lobby
 
 /** Remove this device's player row from a lobby. */
 export async function leaveLobby(lobbyId: string): Promise<void> {
+  // A background cover prefetch must not outlive the lobby it was started for.
+  Spotify.abortCoverArtFetch();
   const playerId = getPlayerId();
   await supabase
     .from('lobby_players')
@@ -332,6 +336,8 @@ export async function leaveLobby(lobbyId: string): Promise<void> {
  * this via their realtime subscription and navigate back to the Online home.
  */
 export async function endLobby(lobbyId: string): Promise<void> {
+  // A background cover prefetch must not outlive the lobby it was started for.
+  Spotify.abortCoverArtFetch();
   const { error } = await supabase
     .from('lobbies')
     .update({ status: 'ended' })
@@ -462,6 +468,16 @@ export async function getLobby(lobbyId: string): Promise<Lobby> {
   return data as Lobby;
 }
 
+/**
+ * Append post-game-statistics events to game_state.statsHistory (hitster
+ * mode). Only called from single-writer paths (atomic window close, steal
+ * resolution, host confirm), so the jsonb read-modify-write is race-free.
+ * Tolerates rows written before the field existed.
+ */
+function appendStats(gs: OnlineGameState, ...events: MatchEvent[]): MatchEvent[] {
+  return [...(gs.statsHistory ?? []), ...events];
+}
+
 async function writeGameState(lobbyId: string, gameState: OnlineGameState): Promise<void> {
   const { error } = await supabase
     .from('lobbies')
@@ -498,7 +514,11 @@ export async function startGame(
     );
   }
 
-  const shuffled = shuffle(cards);
+  // Covers (pool decks only; playlists already carry them): urgently fetch only
+  // the start cards + first playing card (+ small buffer); the rest loads in
+  // the background AFTER the game_state write below - starting never blocks on
+  // the full pool. Later draws stamp cached covers on (drawNextCard/skip/blind).
+  const shuffled = await Spotify.addCoverArtUrgent(shuffle(cards), players.length + 3);
 
   // Deal one start card per player.
   for (let i = 0; i < players.length; i++) {
@@ -534,6 +554,7 @@ export async function startGame(
     timerSeconds: opts.timerSeconds,
     turnStartedAt: Date.now(),
     winnerId: null,
+    statsHistory: [],
     // This is the HITSTER start path; bingo / timeline_quiz get their own start
     // functions (follow-ups) that snapshot their mode + config here instead.
     gameMode: 'hitster',
@@ -544,6 +565,9 @@ export async function startGame(
     .update({ game_state: gameState, status: 'playing' })
     .eq('id', lobbyId);
   if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
+  // Remaining covers load in the background while the game runs; draws pull
+  // them from the cache (withCachedCover). Aborted on leave/end of the lobby.
+  Spotify.startCoverArtPrefetch(shuffled);
 }
 
 /**
@@ -590,7 +614,7 @@ export async function skipCard(lobbyId: string): Promise<void> {
       // New song -> restart the music timer (turnStartedAt) too.
       game_state: {
         ...gs,
-        currentCard: next,
+        currentCard: Spotify.withCachedCover(next),
         deck: rest,
         turnStartedAt: Date.now(),
       } as OnlineGameState,
@@ -637,7 +661,7 @@ export async function blindDraw(lobbyId: string): Promise<void> {
     nextGs = {
       ...gs,
       deck: rest,
-      currentCard: next,
+      currentCard: Spotify.withCachedCover(next),
       activePlayerId: gs.turnOrder[(i + 1) % gs.turnOrder.length],
       phase: 'card_drawn',
       pendingInsertIndex: null,
@@ -735,6 +759,12 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
         stealEqualYear: false,
         hitsterCallerId: null,
         winnerId: won ? active.player_id : gs.winnerId,
+        statsHistory: appendStats(gs, {
+          type: 'place',
+          playerId: active.player_id,
+          song: toStatsSong(card),
+          correct,
+        }),
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
@@ -874,6 +904,7 @@ export async function resolveHitsterPlacement(
   await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
 
   const won = !!winnerId;
+  const song = toStatsSong(card);
   await writeGameState(lobbyId, {
     ...gs,
     phase: won ? 'finished' : 'awaiting_host_confirmation',
@@ -882,6 +913,19 @@ export async function resolveHitsterPlacement(
     stealEqualYear,
     hitsterCallerId: callerId,
     winnerId,
+    // Two stats events per resolved steal turn: the active player's OWN
+    // placement + the steal attempt (victim = active player).
+    statsHistory: appendStats(
+      gs,
+      { type: 'place', playerId: active.player_id, song, correct: activeCorrect },
+      {
+        type: 'steal',
+        playerId: caller.player_id,
+        victimId: active.player_id,
+        song,
+        correct: stealCorrect,
+      }
+    ),
   });
   if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
 }
@@ -893,17 +937,27 @@ export async function resolveHitsterPlacement(
 export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs) return;
+  let statsHistory = gs.statsHistory ?? [];
   if (wasCorrect) {
     const players = await getLobbyPlayers(lobbyId);
     const active = players.find((p) => p.player_id === gs.activePlayerId);
     if (active) {
+      // Stats: log only ACTUALLY received Nickel (capped at MAX_CHIPS = not
+      // received), together with the song it was earned on.
+      if (active.chips < MAX_CHIPS) {
+        statsHistory = appendStats(gs, {
+          type: 'nickel',
+          playerId: active.player_id,
+          song: gs.currentCard ? toStatsSong(gs.currentCard) : undefined,
+        });
+      }
       await supabase
         .from('lobby_players')
         .update({ chips: Math.min(active.chips + 1, MAX_CHIPS) })
         .eq('id', active.id);
     }
   }
-  await writeGameState(lobbyId, { ...gs, phase: 'finished' });
+  await writeGameState(lobbyId, { ...gs, phase: 'finished', statsHistory });
 }
 
 /** Host draws the next card + rotates to the next player (or finishes). */
@@ -924,7 +978,7 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
   await writeGameState(lobbyId, {
     ...gs,
     deck: rest,
-    currentCard: next,
+    currentCard: Spotify.withCachedCover(next),
     activePlayerId: nextActive,
     phase: 'card_drawn',
     pendingInsertIndex: null,
@@ -1235,7 +1289,9 @@ export async function startBingoGame(
     }
   }
 
-  const [first, ...deck] = shuffle(cards);
+  // Covers: only the first card urgently (revealed at round end); the rest
+  // loads in the background after the start write - never blocks starting.
+  const [first, ...deck] = await Spotify.addCoverArtUrgent(shuffle(cards), 2);
   const base: OnlineGameState = {
     deck,
     currentCard: first,
@@ -1257,6 +1313,7 @@ export async function startBingoGame(
     // the shrinking deck can't narrow the choices over the game).
     bingoDecades: decadeRange(cards),
     bingoRound: drawBingoRound(first, decadeRange(cards)),
+    bingoStatsHistory: [],
     // Round 1 opens in the SPIN stage: the first player (join order) presses
     // the wheel button; the answer deadline is only set on the press.
     roundNumber: 1,
@@ -1275,6 +1332,8 @@ export async function startBingoGame(
     .update({ game_state: base, status: 'playing' })
     .eq('id', lobbyId);
   if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
+  // Remaining covers load in the background; nextBingoRound stamps them on.
+  Spotify.startCoverArtPrefetch([first, ...deck]);
 }
 
 /**
@@ -1406,6 +1465,22 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
         expectedMarks[p.player_id] = countMarked(board) + (earnsPick ? 1 : 0);
       }
 
+      // Stats: one event per player per resolved round (missed = not
+      // fulfilled). Appended inside this patch, so it lands in the SAME
+      // atomically claimed final write as the round results - a dead claim
+      // never wrote, a re-claim recomputes identically: no loss, no dupes.
+      const bingoStatsHistory = [...(gs.bingoStatsHistory ?? [])];
+      if (card && round) {
+        for (const p of players) {
+          bingoStatsHistory.push({
+            playerId: p.player_id,
+            category: round.type,
+            correct: results[p.player_id] === 'correct',
+            song: toStatsSong(card),
+          });
+        }
+      }
+
       return {
         results,
         patch: {
@@ -1413,6 +1488,7 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
           expectedMarks,
           reviewDeadline: null,
           reviewVerdicts: null,
+          bingoStatsHistory,
         },
       };
     },
@@ -1600,7 +1676,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
       game_state: {
         ...gs,
         deck: rest,
-        currentCard: next,
+        currentCard: Spotify.withCachedCover(next),
         bingoRound: drawBingoRound(next, gs.bingoDecades ?? undefined),
         roundNumber: gs.roundNumber + 1,
         roundDeadline: null,
@@ -1654,7 +1730,9 @@ export async function startTimelineQuiz(
     if (error) throw new Error(`Punktestand konnte nicht zurückgesetzt werden: ${error.message}`);
   }
 
-  const [first, ...deck] = shuffle(cards);
+  // Covers: only the first card urgently (revealed at round end); the rest
+  // loads in the background after the start write - never blocks starting.
+  const [first, ...deck] = await Spotify.addCoverArtUrgent(shuffle(cards), 2);
   const base: OnlineGameState = {
     deck,
     currentCard: first,
@@ -1680,6 +1758,8 @@ export async function startTimelineQuiz(
     .update({ game_state: base, status: 'playing' })
     .eq('id', lobbyId);
   if (error) throw new Error(`Spiel konnte nicht gestartet werden: ${error.message}`);
+  // Remaining covers load in the background; the next-round draw stamps them on.
+  Spotify.startCoverArtPrefetch([first, ...deck]);
 
   // Opens round 1 on the foundation (also clears stale round_answers).
   await startSimulRound(lobbyId, QUIZ_ROUND_SECONDS);
@@ -1779,7 +1859,7 @@ export async function nextTimelineQuizRound(lobbyId: string): Promise<void> {
       game_state: {
         ...gs,
         deck: rest,
-        currentCard: next,
+        currentCard: Spotify.withCachedCover(next),
         roundNumber: gs.roundNumber + 1,
         roundDeadline: Date.now() + QUIZ_ROUND_SECONDS * 1000,
         roundPhase: 'collecting',

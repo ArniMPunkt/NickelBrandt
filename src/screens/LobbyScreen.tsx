@@ -207,13 +207,23 @@ export default function LobbyScreen() {
     }
   };
 
-  const onStartPressed = () => {
+  const onStartPressed = async () => {
     setError(null);
     if (players.length < 2) {
       setError('Mindestens 2 Spieler nötig.');
       return;
     }
-    if (!Spotify.isReadyToPlay()) {
+    // Self-healing gate: probes the App Remote and silently reconnects a
+    // dropped session (routine after a finished Partie) before refusing.
+    // `starting` doubles as the busy indicator during the short probe.
+    setStarting(true);
+    let ready = false;
+    try {
+      ready = await Spotify.ensureReadyToPlay();
+    } finally {
+      setStarting(false);
+    }
+    if (!ready) {
       setError('Bitte zuerst im Tab „Einstellungen" mit Spotify verbinden (nur der Host braucht Spotify).');
       return;
     }

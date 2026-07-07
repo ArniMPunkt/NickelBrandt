@@ -7,9 +7,11 @@
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import {
   MAX_CHIPS,
+  toStatsSong,
   type GameCard,
   type GameSettings,
   type GameState,
+  type MatchEvent,
   type Player,
 } from '../types/game';
 import { insertAt, sortedInsertIndex } from '../game/cards';
@@ -58,7 +60,10 @@ export type GameAction =
     }
   | { type: 'NEXT_PLAYER' }
   | { type: 'END_GAME'; payload: { winner: Player } }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  // Background cover prefetch resolved a chunk (trackUri -> url); stamp it onto
+  // every card that is still cover-less. Pure merge, no game logic.
+  | { type: 'ADD_COVERS'; payload: { covers: Record<string, string> } };
 
 const initialState: GameState = {
   phase: 'setup',
@@ -80,6 +85,7 @@ const initialState: GameState = {
   },
   winner: null,
   lastPlacement: null,
+  history: [],
 };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -167,6 +173,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           card,
           insertIndex,
         },
+        history: [
+          ...state.history,
+          { type: 'place', playerId: player.id, song: toStatsSong(card), correct },
+        ],
         winner: won ? updatedPlayer : state.winner,
         phase: won ? 'result' : state.phase,
       };
@@ -226,10 +236,25 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'AWARD_CHIP': {
       const { playerId } = action.payload;
+      const target = state.players.find((p) => p.id === playerId);
+      const received = !!target && target.chips < MAX_CHIPS;
       const players = state.players.map((p) =>
         p.id === playerId && p.chips < MAX_CHIPS ? { ...p, chips: p.chips + 1 } : p
       );
-      return { ...state, players };
+      // Log only ACTUALLY received Nickel (capped at MAX_CHIPS = not received).
+      // The chip question runs during the reveal, so lastPlacement still holds
+      // the song the Nickel was earned on.
+      const history: MatchEvent[] = received
+        ? [
+            ...state.history,
+            {
+              type: 'nickel',
+              playerId,
+              song: state.lastPlacement ? toStatsSong(state.lastPlacement.card) : undefined,
+            },
+          ]
+        : state.history;
+      return { ...state, players, history };
     }
 
     case 'ATTEMPT_STEAL': {
@@ -305,10 +330,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const winner =
         players.find((p) => p.score >= state.settings.cardsToWin) ?? null;
 
+      // Two stats events per resolved steal turn: the active player's OWN
+      // placement and the steal attempt (victim = the active player, whose
+      // turn/card it was).
+      const song = toStatsSong(card);
+      const history: MatchEvent[] = [
+        ...state.history,
+        { type: 'place', playerId: active.id, song, correct: activeCorrect },
+        { type: 'steal', playerId: stealerId, victimId: active.id, song, correct: stealCorrect },
+      ];
+
       return {
         ...state,
         players,
         currentCard: null,
+        history,
         lastPlacement: {
           result: activeCorrect ? 'correct' : 'incorrect',
           card,
@@ -338,6 +374,29 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'END_GAME': {
       return { ...state, phase: 'result', winner: action.payload.winner };
+    }
+
+    case 'ADD_COVERS': {
+      // Covers arrive from the background prefetch AFTER the game started, so
+      // they must reach every place a card can already live: deck, current
+      // card, all timelines, the reveal snapshot and the winner snapshot.
+      const { covers } = action.payload;
+      const stamp = (c: GameCard): GameCard =>
+        !c.coverUrl && covers[c.trackUri] ? { ...c, coverUrl: covers[c.trackUri] } : c;
+      const stampPlayer = (p: Player): Player => ({
+        ...p,
+        timeline: p.timeline.map(stamp),
+      });
+      return {
+        ...state,
+        deck: state.deck.map(stamp),
+        currentCard: state.currentCard ? stamp(state.currentCard) : null,
+        players: state.players.map(stampPlayer),
+        winner: state.winner ? stampPlayer(state.winner) : null,
+        lastPlacement: state.lastPlacement
+          ? { ...state.lastPlacement, card: stamp(state.lastPlacement.card) }
+          : null,
+      };
     }
 
     case 'RESET':

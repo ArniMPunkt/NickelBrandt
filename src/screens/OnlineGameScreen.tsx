@@ -30,10 +30,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { STEAL_WINDOW_MS } from '../game/constants';
+import { buildPlayerMatchStats } from '../game/stats';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
+import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -479,6 +481,9 @@ export default function OnlineGameScreen() {
         />
       );
     }
+    const statsHistory = gs.statsHistory ?? [];
+    const nameOf = (playerId: string) =>
+      players.find((p) => p.player_id === playerId)?.player_name ?? '—';
     return (
       <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]}>
         <Text style={styles.trophy}>🏆</Text>
@@ -488,14 +493,14 @@ export default function OnlineGameScreen() {
         {[...players]
           .sort((a, b) => b.score - a.score)
           .map((p) => (
-            <View key={p.id} style={styles.scoreRow}>
-              <Text style={styles.scoreName} numberOfLines={1}>
-                {p.player_name}
-              </Text>
-              <Text style={styles.scoreVal}>
-                {p.score} Pkt · 🔥 {p.max_brandt_streak}er-Streak
-              </Text>
-            </View>
+            <PlayerStatsAccordion
+              key={p.id}
+              name={p.player_name}
+              isWinner={p.player_id === gs.winnerId}
+              headerRight={`${p.score} Pkt · 🔥 ${p.max_brandt_streak}er-Streak`}
+              stats={buildPlayerMatchStats(statsHistory, p.player_id)}
+              resolveName={nameOf}
+            />
           ))}
         <PressableButton
           style={styles.primaryBtn}

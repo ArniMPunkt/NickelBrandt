@@ -60,6 +60,13 @@ export default function SetupScreen() {
   useFocusEffect(
     useCallback(() => {
       setSpotifyAuthorized(Spotify.isReadyToPlay());
+      // Between-games heal: the App Remote routinely drops after a finished
+      // Partie (idle unbind / background teardown). Probe + silently reconnect
+      // so the screen doesn't demand a manual reconnect; no-op if never
+      // connected, never an interactive app switch.
+      Spotify.ensureReadyToPlay()
+        .then((ready) => setSpotifyAuthorized(ready))
+        .catch(() => {});
     }, [])
   );
 
@@ -85,16 +92,17 @@ export default function SetupScreen() {
       setError('Bitte eine Playlist oder einen Themen-Pool auswählen.');
       return;
     }
-    if (!Spotify.isReadyToPlay()) {
-      setError(
-        'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Einstellungen" ' +
-          'mit Spotify verbinden.'
-      );
-      return;
-    }
-
     setLoading(true);
     try {
+      // Self-healing gate: probes the App Remote and silently reconnects a
+      // dropped session (routine after a finished Partie) before refusing.
+      if (!(await Spotify.ensureReadyToPlay())) {
+        setError(
+          'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Einstellungen" ' +
+            'mit Spotify verbinden.'
+        );
+        return;
+      }
       let tracks = await loadDeckSource(source);
       if (tracks.length < trimmed.length + 1) {
         setError(
@@ -119,7 +127,11 @@ export default function SetupScreen() {
         }
       }
 
-      const deck = shuffle(tracks);
+      // Covers (pool decks only; playlists already carry them): fetch ONLY what
+      // the game needs immediately - one start card per player + the first
+      // playing card (+ a small buffer). Everything else loads in the
+      // background below; "Spiel starten" never waits on the full pool.
+      const deck = await Spotify.addCoverArtUrgent(shuffle(tracks), trimmed.length + 3);
       // The dealt start cards count as drawn immediately (aborted games too).
       if (source.kind === 'pool') {
         PoolProgress.addPlayedIds(
@@ -152,6 +164,12 @@ export default function SetupScreen() {
           deck,
         },
       });
+      // Remaining covers load in the background while the game runs; each
+      // resolved chunk is merged into the reducer state (pure ADD_COVERS).
+      // dispatch stays valid after navigation (provider lives at app level).
+      Spotify.startCoverArtPrefetch(deck, (covers) =>
+        dispatch({ type: 'ADD_COVERS', payload: { covers } })
+      );
       navigation.navigate('Intro');
     } catch (e: any) {
       const code = e?.code ? `[${e.code}] ` : '';

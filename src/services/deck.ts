@@ -18,10 +18,12 @@ export type DeckSource =
 export async function loadDeckSource(src: DeckSource): Promise<GameCard[]> {
   // Playlists already carry album cover art from the Web API.
   if (src.kind === 'playlist') return Spotify.getPlaylistTracks(src.playlist.id);
-  // Pools store no cover art -> fetch it by track id (non-fatal; falls back if no
-  // token / request fails). On Online the host does this, so all clients get covers.
-  const cards = await Online.getPoolSongs(src.pool.id);
-  return Spotify.addCoverArt(cards);
+  // Pools store no cover art. Deliberately NOT fetched here: covers for a full
+  // pool are hundreds of single-track requests and must never block "Spiel
+  // starten". The game-start paths fetch the first few urgently
+  // (Spotify.addCoverArtUrgent) and the rest in the background
+  // (Spotify.startCoverArtPrefetch) once the game is already running.
+  return Online.getPoolSongs(src.pool.id);
 }
 
 /** Stable identifier for the chosen source (stored in GameSettings.playlistId). */
