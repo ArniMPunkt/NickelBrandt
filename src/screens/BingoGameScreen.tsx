@@ -39,12 +39,14 @@ import {
   titleAnswerText,
   type BingoAnswer,
 } from '../game/bingo';
+import { buildPlayerBingoStats } from '../game/stats';
 import { BingoCountdown } from '../components/BingoCountdown';
 import { CategoryWheel } from '../components/CategoryWheel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BingoLineReveal } from '../components/BingoLineReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { PlayBackupButton } from '../components/PlayBackupButton';
+import { PlayerBingoStatsAccordion } from '../components/PlayerStatsAccordion';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -602,16 +604,13 @@ export default function BingoGameScreen() {
         {[...players]
           .sort((a, b) => markedCount(b.bingo_board) - markedCount(a.bingo_board))
           .map((p) => (
-            <View key={p.id} style={styles.scoreRow}>
-              <Text style={styles.scoreName} numberOfLines={1}>
-                {winnerIds.includes(p.player_id) ? '🏆 ' : ''}
-                {p.player_name}
-                {p.player_id === myId ? ' (du)' : ''}
-              </Text>
-              <Text style={styles.scoreVal}>
-                {markedCount(p.bingo_board)} / {size * size} markiert
-              </Text>
-            </View>
+            <PlayerBingoStatsAccordion
+              key={p.id}
+              name={`${p.player_name}${p.player_id === myId ? ' (du)' : ''}`}
+              isWinner={winnerIds.includes(p.player_id)}
+              headerRight={`${markedCount(p.bingo_board)} / ${size * size} markiert`}
+              stats={buildPlayerBingoStats(gs.bingoStatsHistory ?? [], p.player_id)}
+            />
           ))}
         <PressableButton
           style={styles.primaryBtn}

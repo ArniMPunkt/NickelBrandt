@@ -2,7 +2,7 @@
  * Types for the Online (Supabase) mode. Reuses GameCard from the Hot-Seat types
  * (types only - the Hot-Seat GameContext/reducer is NOT shared).
  */
-import type { GameCard, MatchEvent } from './game';
+import type { GameCard, MatchEvent, StatsSong } from './game';
 
 export type { GameCard, MatchEvent };
 
@@ -97,6 +97,23 @@ export interface BingoCell {
 
 /** Row-major, length = size*size. Stored in lobby_players.bingo_board (jsonb). */
 export type BingoBoard = BingoCell[];
+
+/**
+ * One logged bingo round for the post-game statistics: what was asked, of
+ * whom, and whether they fulfilled it. One event per PLAYER per resolved
+ * round; a missed round (no answer) counts as not fulfilled (binary, matching
+ * the round outcome that drives the cell marks). Bingo's counterpart to the
+ * hitster MatchEvent - separate type because the categories/colors have no
+ * hitster equivalent.
+ */
+export interface BingoRoundEvent {
+  playerId: string;
+  /** The spun category = the cell color this round played on. */
+  category: BingoCategoryType;
+  /** True when the player answered correctly (earned a mark pick). */
+  correct: boolean;
+  song: StatsSong;
+}
 
 /** The current round's spun category ("digitale Discokugel"), synced in game_state. */
 export interface BingoRoundSpec {
@@ -193,6 +210,13 @@ export interface OnlineGameState {
   roundResults?: Record<string, RoundOutcome> | null;
   /** Bingo: the current round's category (drawn together with the card). */
   bingoRound?: BingoRoundSpec | null;
+  /**
+   * Append-only per-player round log of the running BINGO match for the
+   * post-game statistics. Only appended by the resolve-claim winner (inside
+   * the atomically guarded final write of resolveSimulRound), so the jsonb
+   * read-modify-write is race-free. Optional for backward-compat.
+   */
+  bingoStatsHistory?: BingoRoundEvent[] | null;
   /** Bingo: the pool's decade span, fixed at game start (decade MC options). */
   bingoDecades?: number[] | null;
   /**

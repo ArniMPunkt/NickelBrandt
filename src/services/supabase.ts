@@ -1299,6 +1299,7 @@ export async function startBingoGame(
     // the shrinking deck can't narrow the choices over the game).
     bingoDecades: decadeRange(cards),
     bingoRound: drawBingoRound(first, decadeRange(cards)),
+    bingoStatsHistory: [],
     // Round 1 opens in the SPIN stage: the first player (join order) presses
     // the wheel button; the answer deadline is only set on the press.
     roundNumber: 1,
@@ -1448,6 +1449,22 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
         expectedMarks[p.player_id] = countMarked(board) + (earnsPick ? 1 : 0);
       }
 
+      // Stats: one event per player per resolved round (missed = not
+      // fulfilled). Appended inside this patch, so it lands in the SAME
+      // atomically claimed final write as the round results - a dead claim
+      // never wrote, a re-claim recomputes identically: no loss, no dupes.
+      const bingoStatsHistory = [...(gs.bingoStatsHistory ?? [])];
+      if (card && round) {
+        for (const p of players) {
+          bingoStatsHistory.push({
+            playerId: p.player_id,
+            category: round.type,
+            correct: results[p.player_id] === 'correct',
+            song: toStatsSong(card),
+          });
+        }
+      }
+
       return {
         results,
         patch: {
@@ -1455,6 +1472,7 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
           expectedMarks,
           reviewDeadline: null,
           reviewVerdicts: null,
+          bingoStatsHistory,
         },
       };
     },

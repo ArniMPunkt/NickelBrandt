@@ -1,7 +1,7 @@
 /**
- * PlayerStatsAccordion - one expandable per-player card for the post-game
- * statistics, shared by BOTH code worlds (Pass & Play ResultScreen + Party >
- * Hitster end view). Tap the header to expand the five stat categories with
+ * Expandable per-player cards for the post-game statistics, shared by the
+ * three stat surfaces (Pass & Play ResultScreen, Party > Hitster end view,
+ * Party > Bingo end view). Tap the header to expand the stat categories with
  * song details; `children` (e.g. the Pass & Play timeline line) stays visible
  * in the collapsed state too.
  *
@@ -11,13 +11,28 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import type { StatsSong } from '../types/game';
-import type { PlayerMatchStats, StealEntry } from '../game/stats';
-import { isEmptyStats } from '../game/stats';
+import type {
+  PlayerBingoStats,
+  PlayerMatchStats,
+  BingoStatEntry,
+  StealEntry,
+} from '../game/stats';
+import { isEmptyBingoStats, isEmptyStats } from '../game/stats';
+import { BINGO_CATEGORY_LABEL } from '../game/bingo';
 import { PressableButton } from './PressableButton';
-import { COLORS } from '../theme/colors';
+import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
-function SongRow({ song, subline }: { song: StatsSong; subline?: string }) {
+function SongRow({
+  song,
+  subline,
+  sublineColor,
+}: {
+  song: StatsSong;
+  subline?: string;
+  /** Optional subline accent (e.g. the bingo category color); default muted. */
+  sublineColor?: string;
+}) {
   return (
     <View style={styles.songRow}>
       <View style={styles.songMain}>
@@ -27,7 +42,11 @@ function SongRow({ song, subline }: { song: StatsSong; subline?: string }) {
         <Text style={styles.songArtist} numberOfLines={1}>
           {song.artist}
         </Text>
-        {!!subline && <Text style={styles.songSub}>{subline}</Text>}
+        {!!subline && (
+          <Text style={[styles.songSub, sublineColor ? { color: sublineColor, fontStyle: 'normal', fontWeight: '800' } : null]}>
+            {subline}
+          </Text>
+        )}
       </View>
       <Text style={styles.songYear}>{song.year}</Text>
     </View>
@@ -55,23 +74,20 @@ function Section({
   );
 }
 
-export function PlayerStatsAccordion({
+/** Shared card shell: tappable header, always-visible children, expandable body. */
+function StatsAccordionShell({
   name,
   isWinner,
   headerRight,
-  stats,
-  resolveName,
   children,
+  body,
 }: {
   name: string;
   isWinner?: boolean;
-  /** Short right-aligned header info, e.g. "7 Pkt · 🔥 3er-Streak". */
   headerRight?: string;
-  stats: PlayerMatchStats;
-  /** Maps a player id from the stats (steal victims) to a display name. */
-  resolveName: (playerId: string) => string;
-  /** Always-visible content under the header (e.g. the timeline years). */
   children?: ReactNode;
+  /** Rendered only while expanded. */
+  body: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const chevronAnim = useRef(new Animated.Value(0)).current;
@@ -89,15 +105,6 @@ export function PlayerStatsAccordion({
     inputRange: [0, 1],
     outputRange: ['0deg', '90deg'],
   });
-
-  const stealRows = (entries: StealEntry[], subline: (victimName: string) => string) =>
-    entries.map((s, i) => (
-      <SongRow
-        key={`${s.song.title}-${i}`}
-        song={s.song}
-        subline={subline(resolveName(s.victimId))}
-      />
-    ));
 
   return (
     <View style={[styles.box, isWinner && styles.boxWinner]}>
@@ -118,41 +125,131 @@ export function PlayerStatsAccordion({
 
       {children}
 
-      {expanded &&
-        (isEmptyStats(stats) ? (
-          <Text style={styles.emptyLine}>Keine Aktionen in dieser Partie.</Text>
-        ) : (
-          <View style={styles.body}>
-            <Section icon="✅" label="Richtig platziert" count={stats.placedCorrect.length}>
-              {stats.placedCorrect.map((s, i) => (
-                <SongRow key={`c-${i}`} song={s} />
-              ))}
-            </Section>
-            <Section icon="❌" label="Falsch platziert" count={stats.placedWrong.length}>
-              {stats.placedWrong.map((s, i) => (
-                <SongRow key={`w-${i}`} song={s} />
-              ))}
-            </Section>
-            <Section icon="🎯" label="Erfolgreich geklaut" count={stats.stealsWon.length}>
-              {stealRows(stats.stealsWon, (n) => `Karte von ${n} geklaut`)}
-            </Section>
-            <Section icon="💥" label="Verbrandt (Klau daneben)" count={stats.stealsFailed.length}>
-              {stealRows(stats.stealsFailed, (n) => `Karte von ${n}`)}
-            </Section>
-            <Section icon="🪙" label="Erhaltene Nickel" count={stats.nickels.length}>
-              {stats.nickels.map((s, i) =>
-                s ? (
-                  <SongRow key={`n-${i}`} song={s} subline="Titel + Interpret erkannt" />
-                ) : (
-                  <Text key={`n-${i}`} style={styles.songSub}>
-                    🪙 Nickel erhalten
-                  </Text>
-                )
-              )}
-            </Section>
-          </View>
-        ))}
+      {expanded && body}
     </View>
+  );
+}
+
+// --- Hitster / Pass & Play ----------------------------------------------------
+
+export function PlayerStatsAccordion({
+  name,
+  isWinner,
+  headerRight,
+  stats,
+  resolveName,
+  children,
+}: {
+  name: string;
+  isWinner?: boolean;
+  /** Short right-aligned header info, e.g. "7 Pkt · 🔥 3er-Streak". */
+  headerRight?: string;
+  stats: PlayerMatchStats;
+  /** Maps a player id from the stats (steal victims) to a display name. */
+  resolveName: (playerId: string) => string;
+  /** Always-visible content under the header (e.g. the timeline years). */
+  children?: ReactNode;
+}) {
+  const stealRows = (entries: StealEntry[], subline: (victimName: string) => string) =>
+    entries.map((s, i) => (
+      <SongRow
+        key={`${s.song.title}-${i}`}
+        song={s.song}
+        subline={subline(resolveName(s.victimId))}
+      />
+    ));
+
+  const body = isEmptyStats(stats) ? (
+    <Text style={styles.emptyLine}>Keine Aktionen in dieser Partie.</Text>
+  ) : (
+    <View style={styles.body}>
+      <Section icon="✅" label="Richtig platziert" count={stats.placedCorrect.length}>
+        {stats.placedCorrect.map((s, i) => (
+          <SongRow key={`c-${i}`} song={s} />
+        ))}
+      </Section>
+      <Section icon="❌" label="Falsch platziert" count={stats.placedWrong.length}>
+        {stats.placedWrong.map((s, i) => (
+          <SongRow key={`w-${i}`} song={s} />
+        ))}
+      </Section>
+      <Section icon="🎯" label="Erfolgreich geklaut" count={stats.stealsWon.length}>
+        {stealRows(stats.stealsWon, (n) => `Karte von ${n} geklaut`)}
+      </Section>
+      <Section icon="💥" label="Verbrandt (Klau daneben)" count={stats.stealsFailed.length}>
+        {stealRows(stats.stealsFailed, (n) => `Karte von ${n}`)}
+      </Section>
+      <Section icon="🪙" label="Erhaltene Nickel" count={stats.nickels.length}>
+        {stats.nickels.map((s, i) =>
+          s ? (
+            <SongRow key={`n-${i}`} song={s} subline="Titel + Interpret erkannt" />
+          ) : (
+            <Text key={`n-${i}`} style={styles.songSub}>
+              🪙 Nickel erhalten
+            </Text>
+          )
+        )}
+      </Section>
+    </View>
+  );
+
+  return (
+    <StatsAccordionShell
+      name={name}
+      isWinner={isWinner}
+      headerRight={headerRight}
+      body={body}
+    >
+      {children}
+    </StatsAccordionShell>
+  );
+}
+
+// --- Bingo ---------------------------------------------------------------------
+
+/** "● Jahrzehnt" subline in the category's cell color. */
+const bingoRows = (entries: BingoStatEntry[]) =>
+  entries.map((e, i) => (
+    <SongRow
+      key={`${e.song.title}-${i}`}
+      song={e.song}
+      subline={`● ${BINGO_CATEGORY_LABEL[e.category]}`}
+      sublineColor={BINGO_CATEGORY_COLOR[e.category]}
+    />
+  ));
+
+export function PlayerBingoStatsAccordion({
+  name,
+  isWinner,
+  headerRight,
+  stats,
+}: {
+  name: string;
+  isWinner?: boolean;
+  /** Short right-aligned header info, e.g. "9 / 16 markiert". */
+  headerRight?: string;
+  stats: PlayerBingoStats;
+}) {
+  const body = isEmptyBingoStats(stats) ? (
+    <Text style={styles.emptyLine}>Keine Runden in dieser Partie.</Text>
+  ) : (
+    <View style={styles.body}>
+      <Section icon="✅" label="Erfüllt" count={stats.fulfilled.length}>
+        {bingoRows(stats.fulfilled)}
+      </Section>
+      <Section icon="❌" label="Nicht erfüllt" count={stats.missed.length}>
+        {bingoRows(stats.missed)}
+      </Section>
+    </View>
+  );
+
+  return (
+    <StatsAccordionShell
+      name={name}
+      isWinner={isWinner}
+      headerRight={headerRight}
+      body={body}
+    />
   );
 }
 

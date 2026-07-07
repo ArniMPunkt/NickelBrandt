@@ -6,6 +6,7 @@
  * OnlineGameState.statsHistory) and how player ids map to names.
  */
 import type { MatchEvent, StatsSong } from '../types/game';
+import type { BingoCategoryType, BingoRoundEvent } from '../types/online';
 
 /** A resolved steal attempt, with the other player's id (victim/owner). */
 export interface StealEntry {
@@ -37,6 +38,44 @@ export function isEmptyStats(s: PlayerMatchStats): boolean {
     s.stealsFailed.length === 0 &&
     s.nickels.length === 0
   );
+}
+
+// --- Bingo ------------------------------------------------------------------
+
+/** One resolved bingo round from THIS player's perspective. */
+export interface BingoStatEntry {
+  song: StatsSong;
+  /** The spun category = the cell color the round played on. */
+  category: BingoCategoryType;
+}
+
+/** One player's aggregated bingo match statistics. */
+export interface PlayerBingoStats {
+  /** Rounds answered correctly (earned a mark pick). */
+  fulfilled: BingoStatEntry[];
+  /** Rounds answered wrongly or not at all. */
+  missed: BingoStatEntry[];
+}
+
+/** True when a player has no logged bingo rounds at all. */
+export function isEmptyBingoStats(s: PlayerBingoStats): boolean {
+  return s.fulfilled.length === 0 && s.missed.length === 0;
+}
+
+/** Aggregate the bingo round log for ONE player (chronological order kept). */
+export function buildPlayerBingoStats(
+  history: BingoRoundEvent[],
+  playerId: string
+): PlayerBingoStats {
+  const stats: PlayerBingoStats = { fulfilled: [], missed: [] };
+  for (const e of history) {
+    if (e.playerId !== playerId) continue;
+    (e.correct ? stats.fulfilled : stats.missed).push({
+      song: e.song,
+      category: e.category,
+    });
+  }
+  return stats;
 }
 
 /** Aggregate the match history for ONE player (chronological order kept). */
