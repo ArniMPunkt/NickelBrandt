@@ -301,7 +301,10 @@ export default function GameScreen() {
       return;
     }
     const ms = state.settings.timerSeconds * 1000;
-    setMusicDeadline(Date.now() + ms);
+    // serverNow() so the shared TurnCountdown (which compares against
+    // serverNow()) reads this single-device deadline correctly - the offset
+    // cancels between write and read, online AND offline.
+    setMusicDeadline(Online.serverNow() + ms);
     const t = setTimeout(() => Spotify.pause().catch(() => {}), ms);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

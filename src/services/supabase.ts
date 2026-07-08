@@ -603,7 +603,7 @@ export async function startGame(
     timerSeconds: opts.timerSeconds,
     sourceId: opts.sourceId ?? null,
     sourceName: opts.sourceName ?? null,
-    turnStartedAt: Date.now(),
+    turnStartedAt: serverNow(),
     winnerId: null,
     statsHistory: [],
     // This is the HITSTER start path; bingo / timeline_quiz get their own start
@@ -667,7 +667,7 @@ export async function skipCard(lobbyId: string): Promise<void> {
         ...gs,
         currentCard: Spotify.withCachedCover(next),
         deck: rest,
-        turnStartedAt: Date.now(),
+        turnStartedAt: serverNow(),
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
@@ -721,7 +721,7 @@ export async function blindDraw(lobbyId: string): Promise<void> {
       passedHitster: [],
       stealResult: null,
       stealEqualYear: false,
-      turnStartedAt: Date.now(),
+      turnStartedAt: serverNow(),
     };
   }
 
@@ -1038,7 +1038,7 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
     passedHitster: [],
     stealResult: null,
     stealEqualYear: false,
-    turnStartedAt: Date.now(),
+    turnStartedAt: serverNow(),
   });
 }
 
