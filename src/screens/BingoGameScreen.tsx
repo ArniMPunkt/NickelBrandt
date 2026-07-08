@@ -127,15 +127,15 @@ function BingoGrid({
 /** Local per-second countdown from the synced round deadline (cosmetic). */
 function RoundCountdown({ deadlineMs }: { deadlineMs: number }) {
   const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000))
+    Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000))
   );
   useEffect(() => {
     const iv = setInterval(() => {
-      const r = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      const r = Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000));
       setRemaining(r);
       if (r <= 0) clearInterval(iv);
     }, 250);
-    setRemaining(Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000)));
+    setRemaining(Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000)));
     return () => clearInterval(iv);
   }, [deadlineMs]);
 
@@ -181,6 +181,13 @@ export default function BingoGameScreen() {
   const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
 
   const myId = Online.getPlayerId();
+
+  // One-time server-clock sync: the simultaneous-round timestamps
+  // (roundDeadline etc.) are written and compared via serverNow(), so each
+  // device corrects its own clock skew once per game (see services/supabase).
+  useEffect(() => {
+    Online.syncServerClock();
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -317,7 +324,7 @@ export default function BingoGameScreen() {
     const t = setTimeout(() => {
       const opts = pickableRef.current;
       if (opts.length > 0) onPickCell(opts[Math.floor(Math.random() * opts.length)]);
-    }, Math.max(0, gs.pickDeadline - Date.now()));
+    }, Math.max(0, gs.pickDeadline - Online.serverNow()));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickPending, pickableCells.length === 1, gs?.pickDeadline, gs?.roundNumber]);
@@ -330,7 +337,7 @@ export default function BingoGameScreen() {
       setPickWindowOver(true);
       return;
     }
-    const remaining = gs.pickDeadline - Date.now();
+    const remaining = gs.pickDeadline - Online.serverNow();
     if (remaining <= 0) {
       setPickWindowOver(true);
       return;
@@ -383,7 +390,7 @@ export default function BingoGameScreen() {
       InteractionManager.runAfterInteractions(() => {
         Spotify.playUriGuarded(card.trackUri).catch((e: any) => setError(e?.message ?? String(e)));
       });
-    const wait = gs.spinStartedAt + BINGO_SPIN_MS + BINGO_COUNTDOWN_MS - Date.now();
+    const wait = gs.spinStartedAt + BINGO_SPIN_MS + BINGO_COUNTDOWN_MS - Online.serverNow();
     if (wait <= 0) {
       play();
       return;
@@ -397,7 +404,7 @@ export default function BingoGameScreen() {
   // a host disconnect must never strand the round; the claim dedupes).
   useEffect(() => {
     if (roundPhase !== 'collecting' || gs?.roundDeadline == null) return;
-    const wait = Math.max(0, gs.roundDeadline + RESOLVE_GRACE_MS - Date.now());
+    const wait = Math.max(0, gs.roundDeadline + RESOLVE_GRACE_MS - Online.serverNow());
     const t = setTimeout(() => {
       Online.resolveBingoRound(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
     }, wait);
@@ -416,10 +423,10 @@ export default function BingoGameScreen() {
   // any client may re-claim after RESOLVE_STALE_MS (atomic in the service).
   useEffect(() => {
     if (roundPhase !== 'resolving') return;
-    const claimedAt = gs?.resolveClaimedAt ?? gs?.roundDeadline ?? Date.now();
+    const claimedAt = gs?.resolveClaimedAt ?? gs?.roundDeadline ?? Online.serverNow();
     const wait = Math.max(
       0,
-      claimedAt + Online.RESOLVE_STALE_MS + RESOLVE_GRACE_MS - Date.now()
+      claimedAt + Online.RESOLVE_STALE_MS + RESOLVE_GRACE_MS - Online.serverNow()
     );
     const t = setTimeout(() => {
       Online.resolveBingoRound(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
@@ -451,7 +458,7 @@ export default function BingoGameScreen() {
       setSpinOpenForAll(false);
       return;
     }
-    const remaining = gs.spinArmedAt + BINGO_SPIN_OPEN_ALL_MS - Date.now();
+    const remaining = gs.spinArmedAt + BINGO_SPIN_OPEN_ALL_MS - Online.serverNow();
     if (remaining <= 0) {
       setSpinOpenForAll(true);
       return;
@@ -468,7 +475,7 @@ export default function BingoGameScreen() {
     roundPhase === 'collecting' &&
     gs?.spinStartedAt != null &&
     !spinFinished &&
-    Date.now() - gs.spinStartedAt < BINGO_SPIN_MS;
+    Online.serverNow() - gs.spinStartedAt < BINGO_SPIN_MS;
   // After the wheel and before the song: the 3-2-1 countdown (also shared-clock
   // driven, so late joiners land on the right beat and skip it if already past).
   const countdownRunning =
@@ -476,7 +483,7 @@ export default function BingoGameScreen() {
     gs?.spinStartedAt != null &&
     !spinRunning &&
     !countdownFinished &&
-    Date.now() - gs.spinStartedAt < BINGO_SPIN_MS + BINGO_COUNTDOWN_MS;
+    Online.serverNow() - gs.spinStartedAt < BINGO_SPIN_MS + BINGO_COUNTDOWN_MS;
   const onSpin = () =>
     Online.triggerBingoSpin(lobbyId)
       .then(() => refresh())
@@ -493,7 +500,7 @@ export default function BingoGameScreen() {
   // strand the round; unjudged answers fall back to the honor rule).
   useEffect(() => {
     if (roundPhase !== 'reviewing' || gs?.reviewDeadline == null) return;
-    const wait = Math.max(0, gs.reviewDeadline + RESOLVE_GRACE_MS - Date.now());
+    const wait = Math.max(0, gs.reviewDeadline + RESOLVE_GRACE_MS - Online.serverNow());
     const t = setTimeout(() => {
       Online.resolveBingoRound(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
     }, wait);

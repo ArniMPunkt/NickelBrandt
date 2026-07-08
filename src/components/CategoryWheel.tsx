@@ -8,7 +8,7 @@
  *  - `startedAt` null  -> idle disc at rest (no result shown yet)
  *  - `startedAt` set   -> spin, driven DETERMINISTICALLY off the shared
  *    spinStartedAt timestamp so every client shows the same landing, and a late
- *    joiner mid-spin catches up (elapsed = Date.now() - startedAt).
+ *    joiner mid-spin catches up (elapsed = serverNow() - startedAt).
  *  - `category`        -> the pre-drawn result; the wheel only visualises it
  *    (the draw itself is uniform 1/4, decided server-side - see bingo.ts). With
  *    two same-colour segments, WHICH one it lands on is derived from the shared
@@ -25,6 +25,10 @@
  */
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+// Shared server clock: spinStartedAt is compared against serverNow(), never the
+// raw device clock - device clock skew (e.g. a drifted emulator) used to skip
+// or stretch the animation by many seconds on individual devices.
+import { serverNow } from '../services/supabase';
 import { BINGO_CATEGORIES, BINGO_SPIN_MS } from '../game/bingo';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -103,7 +107,7 @@ export function CategoryWheel({
     }
     const finalDeg = targetDeg(category, pickSegment(startedAt));
     const animMs = BINGO_SPIN_MS - SPIN_HOLD_MS;
-    const elapsed = Date.now() - startedAt;
+    const elapsed = serverNow() - startedAt;
 
     if (elapsed >= animMs) {
       // Joined after the spin already finished -> hold on the result.

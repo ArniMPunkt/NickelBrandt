@@ -78,6 +78,13 @@ export default function LobbyScreen() {
   const myId = Online.getPlayerId();
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
+
+  // One-time server-clock sync while everyone waits: the game modes coordinate
+  // via serverNow()-based timestamps (see services/supabase), so each device
+  // corrects its own clock skew before the first round starts.
+  useEffect(() => {
+    Online.syncServerClock();
+  }, []);
   // Navigate to the intro exactly once when the game starts (guards against the
   // realtime/poll re-firing and yanking the player back from Intro/Game).
   const navigatedRef = useRef(false);
