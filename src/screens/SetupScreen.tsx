@@ -5,7 +5,7 @@
  * START_GAME and hand off to the first player. (Spotify must already be
  * connected via the Spotify tab.) UI only - game logic unchanged.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +27,7 @@ import * as PoolProgress from '../services/poolProgress';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
+import { GameRulesSection } from '../components/GameRulesSection';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -81,7 +82,13 @@ export default function SetupScreen() {
       prev.length > MIN_PLAYERS ? prev.filter((_, idx) => idx !== i) : prev
     );
 
-  const startGame = async () => {
+  // Two-stage start: with no source chosen yet, "Spiel starten" opens the
+  // picker instead of erroring; the selection then continues the start
+  // automatically (this flag remembers WHY the picker was opened - the
+  // "Ändern" entry point must NOT auto-start).
+  const startAfterPickRef = useRef(false);
+
+  const onStartPressed = () => {
     setError(null);
     const trimmed = names.map((n) => n.trim());
     if (trimmed.some((n) => !n)) {
@@ -89,9 +96,21 @@ export default function SetupScreen() {
       return;
     }
     if (!source) {
-      setError('Bitte eine Playlist oder einen Themen-Pool auswählen.');
+      startAfterPickRef.current = true;
+      setPickerVisible(true);
       return;
     }
+    void startGame(source);
+  };
+
+  const startGame = async (src: DeckSource) => {
+    setError(null);
+    const trimmed = names.map((n) => n.trim());
+    if (trimmed.some((n) => !n)) {
+      setError('Bitte für jeden Spieler einen Namen eingeben.');
+      return;
+    }
+    const source = src;
     setLoading(true);
     try {
       // Self-healing gate: probes the App Remote and silently reconnects a
@@ -260,10 +279,8 @@ export default function SetupScreen() {
         </PressableButton>
       )}
 
-      <Text style={styles.rulesNote}>
-        Spielregeln (Karten zum Gewinnen, Varianten, Nickel) findest du im Tab
-        „Einstellungen".
-      </Text>
+      <Text style={styles.label}>SPIELREGELN</Text>
+      <GameRulesSection />
 
       {error && (
         <View style={styles.errorBox}>
@@ -273,7 +290,7 @@ export default function SetupScreen() {
 
       <PressableButton
         style={[styles.startBtn, (loading || !spotifyAuthorized) && styles.startBtnDisabled]}
-        onPress={startGame}
+        onPress={onStartPressed}
         disabled={loading || !spotifyAuthorized}
       >
         {loading ? (
@@ -290,11 +307,20 @@ export default function SetupScreen() {
     </ScrollView>
     <PlaylistPicker
       visible={pickerVisible}
-      onClose={() => setPickerVisible(false)}
+      onClose={() => {
+        setPickerVisible(false);
+        startAfterPickRef.current = false; // dismissed without choosing -> no auto-start
+      }}
       showPoolProgress
       onSelect={(s) => {
         setSource(s);
         setError(null);
+        // Opened via "Spiel starten" (first use, no source yet) -> continue the
+        // start seamlessly with the fresh selection.
+        if (startAfterPickRef.current) {
+          startAfterPickRef.current = false;
+          void startGame(s);
+        }
       }}
     />
     {source?.kind === 'playlist' && (
@@ -442,14 +468,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
   },
   addBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 15 },
-
-  rulesNote: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
 
   errorBox: {
     backgroundColor: COLORS.backgroundAlt,

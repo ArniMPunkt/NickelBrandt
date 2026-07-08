@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +22,7 @@ import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { GameRulesSection } from '../components/GameRulesSection';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
@@ -65,6 +67,13 @@ export default function LobbyScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [starting, setStarting] = useState(false);
   const [endConfirmVisible, setEndConfirmVisible] = useState(false);
+  // The host's chosen deck source, picked BEFORE starting (visible in the new
+  // Songpool row). Local to the host device - only the host loads the deck.
+  const [source, setSource] = useState<DeckSource | null>(null);
+  // Two-stage start: remembers that the picker was opened via "Spiel starten"
+  // (no source chosen yet) so the selection continues the start seamlessly;
+  // the Songpool row entry point must NOT auto-start.
+  const startAfterPickRef = useRef(false);
   // Local slider value for the timeline-quiz card count (written to the lobby
   // only on release, so dragging doesn't spam Supabase).
   const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
@@ -227,7 +236,15 @@ export default function LobbyScreen() {
       setError('Bitte zuerst im Tab „Einstellungen" mit Spotify verbinden (nur der Host braucht Spotify).');
       return;
     }
-    setPickerVisible(true);
+    // Two-stage start: with a source already chosen this IS the start action;
+    // without one it opens the picker (first use), and the selection then
+    // continues the start automatically.
+    if (source) {
+      void onSourceChosen(source);
+    } else {
+      startAfterPickRef.current = true;
+      setPickerVisible(true);
+    }
   };
 
   const onSourceChosen = async (source: DeckSource) => {
@@ -294,9 +311,10 @@ export default function LobbyScreen() {
             })}
           </View>
           {gameMode === 'hitster' && (
-            <Text style={styles.modeHint}>
-              Spielregeln wie im Tab „Einstellungen" konfiguriert.
-            </Text>
+            <>
+              <Text style={styles.label}>SPIELREGELN</Text>
+              <GameRulesSection />
+            </>
           )}
           {gameMode === 'bingo' && (
             <View style={styles.modeConfigBox}>
@@ -348,6 +366,43 @@ export default function LobbyScreen() {
               : ''}
           </Text>
         </View>
+      )}
+
+      {/* Songpool: always visible for the host, independent of the mode. Local
+          to the host device (only the host loads the deck + plays audio). */}
+      {isHost && (
+        <>
+          <Text style={styles.label}>SONGPOOL</Text>
+          {source ? (
+            <View style={styles.poolCard}>
+              {source.kind === 'playlist' && source.playlist.imageUrl ? (
+                <Image source={{ uri: source.playlist.imageUrl }} style={styles.poolCover} />
+              ) : (
+                <View style={[styles.poolCover, styles.poolCoverFallback]}>
+                  <Text style={styles.poolGlyph}>{source.kind === 'pool' ? '🎵' : '💿'}</Text>
+                </View>
+              )}
+              <View style={styles.poolText}>
+                <Text style={styles.poolLabel}>Ausgewählt</Text>
+                <Text style={styles.poolName} numberOfLines={1}>
+                  {source.kind === 'playlist' ? source.playlist.name : source.pool.name}
+                </Text>
+                <Text style={styles.poolMeta} numberOfLines={1}>
+                  {source.kind === 'playlist'
+                    ? `${source.playlist.trackCount} Songs`
+                    : 'Themen-Pool'}
+                </Text>
+              </View>
+              <PressableButton style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
+                <Text style={styles.changeBtnText}>Ändern</Text>
+              </PressableButton>
+            </View>
+          ) : (
+            <PressableButton style={styles.poolPickBtn} onPress={() => setPickerVisible(true)}>
+              <Text style={styles.poolPickText}>Kein Songpool ausgewählt — antippen zum Wählen 🎵</Text>
+            </PressableButton>
+          )}
+        </>
       )}
 
       <Text style={styles.label}>SPIELER ({players.length})</Text>
@@ -403,8 +458,20 @@ export default function LobbyScreen() {
 
       <PlaylistPicker
         visible={pickerVisible}
-        onClose={() => setPickerVisible(false)}
-        onSelect={onSourceChosen}
+        onClose={() => {
+          setPickerVisible(false);
+          startAfterPickRef.current = false; // dismissed without choosing -> no auto-start
+        }}
+        onSelect={(s) => {
+          setSource(s);
+          setError(null);
+          // Opened via "Spiel starten" (first use) -> start seamlessly with the
+          // fresh selection; the Songpool row entry point only stores it.
+          if (startAfterPickRef.current) {
+            startAfterPickRef.current = false;
+            void onSourceChosen(s);
+          }
+        }}
       />
 
       <ConfirmDialog
@@ -468,7 +535,51 @@ const styles = StyleSheet.create({
   modeBtnActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accent },
   modeBtnText: { color: COLORS.text, fontSize: 13, fontWeight: '900', textAlign: 'center' },
   modeBtnTextActive: { color: COLORS.background },
-  modeHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', fontStyle: 'italic' },
+
+  // Songpool row (mirrors the Pass & Play setup's "MUSIK" card).
+  poolCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    padding: 12,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.5 }),
+  },
+  poolCover: { width: 52, height: 52, borderRadius: 10 },
+  poolCoverFallback: {
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  poolGlyph: { fontSize: 26, color: COLORS.border },
+  poolText: { flex: 1 },
+  poolLabel: { color: COLORS.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  poolName: { color: COLORS.text, fontSize: 17, fontWeight: '900' },
+  poolMeta: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
+  changeBtn: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changeBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 14 },
+  poolPickBtn: {
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  poolPickText: { color: COLORS.textMuted, fontWeight: '800', fontSize: 14, textAlign: 'center' },
   modeConfigBox: {
     backgroundColor: COLORS.backgroundAlt,
     borderWidth: 1,
