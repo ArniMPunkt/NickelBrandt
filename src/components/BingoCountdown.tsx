@@ -15,13 +15,16 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+// Shared server clock (see CategoryWheel): device clock skew must not shift
+// the countdown relative to the other devices.
+import { serverNow } from '../services/supabase';
 import { BINGO_CATEGORY_LABEL, BINGO_COUNTDOWN_MS } from '../game/bingo';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { BingoCategoryType } from '../types/online';
 
 const secondsLeft = (startAt: number) =>
-  Math.max(0, Math.ceil((startAt + BINGO_COUNTDOWN_MS - Date.now()) / 1000));
+  Math.max(0, Math.ceil((startAt + BINGO_COUNTDOWN_MS - serverNow()) / 1000));
 
 export function BingoCountdown({
   startAt,
@@ -40,7 +43,7 @@ export function BingoCountdown({
   useEffect(() => {
     let done = false;
     const iv = setInterval(() => {
-      const msLeft = startAt + BINGO_COUNTDOWN_MS - Date.now();
+      const msLeft = startAt + BINGO_COUNTDOWN_MS - serverNow();
       setRemaining(Math.max(0, Math.ceil(msLeft / 1000)));
       if (msLeft <= 0 && !done) {
         done = true;

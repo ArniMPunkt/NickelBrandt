@@ -190,6 +190,14 @@ export default function OnlineGameScreen() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const myId = Online.getPlayerId();
+
+  // One-time server-clock sync: turnStartedAt (music timer) is written and
+  // compared via serverNow(), so each device corrects its own clock skew once
+  // per game screen (see services/supabase; same pattern as bingo/quiz).
+  useEffect(() => {
+    Online.syncServerClock();
+  }, []);
+
   const barAnim = useRef(new Animated.Value(1)).current;
   // Handle a host-ended lobby exactly once.
   const endedRef = useRef(false);
@@ -351,7 +359,8 @@ export default function OnlineGameScreen() {
   useEffect(() => {
     if (!isHost || !gs?.timerEnabled || gs.turnStartedAt == null || !card) return;
     if (phase === 'finished' && gs.winnerId) return;
-    const remaining = gs.turnStartedAt + (gs.timerSeconds ?? 60) * 1000 - Date.now();
+    // turnStartedAt is serverNow()-based (shared server clock, see supabase.ts).
+    const remaining = gs.turnStartedAt + (gs.timerSeconds ?? 60) * 1000 - Online.serverNow();
     const t = setTimeout(() => Spotify.pause().catch(() => {}), Math.max(0, remaining));
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

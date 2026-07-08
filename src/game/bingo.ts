@@ -118,30 +118,28 @@ export function decadeOf(year: number): number {
 }
 
 /**
- * All decades spanned by a card set (contiguous from oldest to newest, so no
- * gap leaks "this decade has no songs" info). Computed once at game start and
- * stored in game_state, so every round offers the same, pool-matched choices.
+ * The decades that ACTUALLY occur in a card set, sorted ascending. Computed
+ * once at game start and stored in game_state, so every round offers the
+ * same, pool-matched choices.
+ *
+ * Deliberately no longer gap-filled: the old contiguous min..max range avoided
+ * leaking "this decade has no songs", but on pools with sparse decades (e.g.
+ * one 1949 outlier in a 90s/00s pool) most options were dead - the category
+ * felt pointless. Only real decades show now; pools are curated to contain at
+ * least 4 distinct ones, so no padding/minimum logic is needed.
  */
 export function decadeRange(cards: GameCard[]): number[] {
-  if (cards.length === 0) return [];
-  let min = Infinity;
-  let max = -Infinity;
-  for (const c of cards) {
-    const d = decadeOf(c.year);
-    if (d < min) min = d;
-    if (d > max) max = d;
-  }
-  const out: number[] = [];
-  for (let d = min; d <= max; d += 10) out.push(d);
-  return out;
+  const present = new Set<number>();
+  for (const c of cards) present.add(decadeOf(c.year));
+  return [...present].sort((a, b) => a - b);
 }
 
 /**
- * The decade multiple-choice options for one round. With a pool span the
- * options are ALL of the pool's decades in chronological order (stable across
- * rounds, no info leak); above the layout cap a random contiguous window that
+ * The decade multiple-choice options for one round. With a pool list the
+ * options are ALL decades actually present in the pool, chronological (stable
+ * across rounds); above the layout cap a random contiguous window that
  * contains the correct decade is cut out (random offset, so the correct one
- * doesn't always sit in the middle). Without a span (defensive fallback) the
+ * doesn't always sit in the middle). Without a list (defensive fallback) the
  * old behavior: correct + 3 nearby distractors, shuffled.
  */
 function decadeOptionsFor(correct: number, decadePool?: number[]): number[] {

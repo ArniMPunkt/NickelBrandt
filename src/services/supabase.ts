@@ -70,6 +70,52 @@ export function isSupabaseConfigured(): boolean {
   return !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
 }
 
+// --- Server clock (shared time reference across devices) ---------------------
+//
+// The simultaneous rounds coordinate via ABSOLUTE epoch timestamps in
+// game_state (spinStartedAt, roundDeadline, ...). Writing them with the
+// writer's Date.now() and comparing against each reader's Date.now() silently
+// assumes all device clocks agree - but they don't (an Android emulator's
+// clock drifts by many seconds after the host PC sleeps). Observed effect: the
+// bingo wheel/countdown was skipped entirely on a device whose clock ran ~9s
+// ahead of the spinner's, giving it the answer UI ~9s early.
+//
+// Fix: every device estimates its offset to the SUPABASE SERVER clock once
+// (Date response header of a cheap HEAD request, midpoint-compensated for
+// latency, +500ms for the header's whole-second truncation) and uses
+// serverNow() wherever cross-device timestamps are written or compared.
+// Residual error is well under a second - vs. arbitrary device skew.
+
+let serverClockOffsetMs = 0;
+
+/**
+ * Estimate the local-clock -> server-clock offset. Fire-and-forget on the
+ * screens that consume shared timestamps (lobby + simultaneous-round modes);
+ * until it resolves, serverNow() falls back to the untouched local clock.
+ */
+export async function syncServerClock(): Promise<void> {
+  try {
+    const t0 = Date.now();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: 'HEAD',
+      headers: { apikey: SUPABASE_ANON_KEY },
+    });
+    const header = res.headers.get('date');
+    if (!header) return;
+    const server = Date.parse(header);
+    if (!Number.isFinite(server)) return;
+    const mid = (t0 + Date.now()) / 2;
+    serverClockOffsetMs = server + 500 - mid;
+  } catch {
+    // Offline etc. -> keep the previous offset (0 = trust the local clock).
+  }
+}
+
+/** Best-known server time (epoch ms). The shared clock for synced timestamps. */
+export function serverNow(): number {
+  return Date.now() + serverClockOffsetMs;
+}
+
 // --- Identity ---------------------------------------------------------------
 
 const PLAYER_ID_STORE_KEY = 'nb.online.playerId';
@@ -557,7 +603,7 @@ export async function startGame(
     timerSeconds: opts.timerSeconds,
     sourceId: opts.sourceId ?? null,
     sourceName: opts.sourceName ?? null,
-    turnStartedAt: Date.now(),
+    turnStartedAt: serverNow(),
     winnerId: null,
     statsHistory: [],
     // This is the HITSTER start path; bingo / timeline_quiz get their own start
@@ -621,7 +667,7 @@ export async function skipCard(lobbyId: string): Promise<void> {
         ...gs,
         currentCard: Spotify.withCachedCover(next),
         deck: rest,
-        turnStartedAt: Date.now(),
+        turnStartedAt: serverNow(),
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
@@ -675,7 +721,7 @@ export async function blindDraw(lobbyId: string): Promise<void> {
       passedHitster: [],
       stealResult: null,
       stealEqualYear: false,
-      turnStartedAt: Date.now(),
+      turnStartedAt: serverNow(),
     };
   }
 
@@ -992,7 +1038,7 @@ export async function drawNextCard(lobbyId: string): Promise<void> {
     passedHitster: [],
     stealResult: null,
     stealEqualYear: false,
-    turnStartedAt: Date.now(),
+    turnStartedAt: serverNow(),
   });
 }
 
@@ -1046,7 +1092,7 @@ export async function startSimulRound(
     ...gs,
     ...patch,
     roundNumber,
-    roundDeadline: Date.now() + durationSeconds * 1000,
+    roundDeadline: serverNow() + durationSeconds * 1000,
     roundPhase: 'collecting',
     roundResults: null,
   });
@@ -1155,7 +1201,7 @@ export async function resolveSimulRound(
     ...gs,
     roundPhase: 'resolving',
     resolveClaimId: claimId,
-    resolveClaimedAt: Date.now(),
+    resolveClaimedAt: serverNow(),
   };
   let claim = supabase
     .from('lobbies')
@@ -1167,7 +1213,7 @@ export async function resolveSimulRound(
     // firing with stale state): a collecting round may only be resolved once
     // its deadline passed OR everyone actually answered - checked against the
     // CURRENT answer rows, not whatever the caller believed.
-    const deadlinePassed = gs.roundDeadline == null || Date.now() >= gs.roundDeadline;
+    const deadlinePassed = gs.roundDeadline == null || serverNow() >= gs.roundDeadline;
     if (!deadlinePassed) {
       const [answers, players] = await Promise.all([
         getRoundAnswers(lobbyId, gs.roundNumber),
@@ -1185,7 +1231,7 @@ export async function resolveSimulRound(
     // the previous token (or its absence, for rounds stuck before this fix),
     // so two rescuers can never both win.
     const claimedAt = gs.resolveClaimedAt ?? gs.roundDeadline ?? 0;
-    if (Date.now() - claimedAt < RESOLVE_STALE_MS) return false;
+    if (serverNow() - claimedAt < RESOLVE_STALE_MS) return false;
     claim = claim.filter('game_state->>roundPhase', 'eq', 'resolving');
     claim =
       gs.resolveClaimId != null
@@ -1242,9 +1288,9 @@ export async function resolveSimulRound(
           roundPhase: backToReview ? 'reviewing' : 'collecting',
           roundDeadline: backToReview
             ? (gs.roundDeadline ?? null)
-            : Date.now() + RESOLVE_RETRY_WINDOW_MS,
+            : serverNow() + RESOLVE_RETRY_WINDOW_MS,
           reviewDeadline: backToReview
-            ? Date.now() + RESOLVE_RETRY_WINDOW_MS
+            ? serverNow() + RESOLVE_RETRY_WINDOW_MS
             : (gs.reviewDeadline ?? null),
           resolveClaimId: null,
           resolveClaimedAt: null,
@@ -1328,7 +1374,7 @@ export async function startBingoGame(
     roundPhase: 'spinning',
     roundResults: null,
     spinnerId: players[0].player_id,
-    spinArmedAt: Date.now(),
+    spinArmedAt: serverNow(),
     spinStartedAt: null,
   };
   // Leftover answers of a previous game in this lobby would collide with the
@@ -1363,10 +1409,10 @@ export async function triggerBingoSpin(lobbyId: string): Promise<void> {
     return;
   }
   const openForAll =
-    gs.spinArmedAt == null || Date.now() >= gs.spinArmedAt + BINGO_SPIN_OPEN_ALL_MS;
+    gs.spinArmedAt == null || serverNow() >= gs.spinArmedAt + BINGO_SPIN_OPEN_ALL_MS;
   if (gs.spinnerId !== myId && !openForAll) return;
 
-  const now = Date.now();
+  const now = serverNow();
   await supabase
     .from('lobbies')
     .update({
@@ -1425,7 +1471,7 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
     const verdicts = pre.reviewVerdicts ?? {};
     const allJudged = answers.every((a) => typeof verdicts[a.player_id] === 'boolean');
     const deadlinePassed =
-      pre.reviewDeadline == null || Date.now() >= pre.reviewDeadline;
+      pre.reviewDeadline == null || serverNow() >= pre.reviewDeadline;
     if (!allJudged && !deadlinePassed) return;
   }
 
@@ -1491,7 +1537,7 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
       return {
         results,
         patch: {
-          pickDeadline: Date.now() + BINGO_PICK_SECONDS * 1000,
+          pickDeadline: serverNow() + BINGO_PICK_SECONDS * 1000,
           expectedMarks,
           reviewDeadline: null,
           reviewVerdicts: null,
@@ -1513,7 +1559,7 @@ async function openBingoReview(
   gs: OnlineGameState,
   answerCount: number
 ): Promise<void> {
-  const deadlinePassed = gs.roundDeadline == null || Date.now() >= gs.roundDeadline;
+  const deadlinePassed = gs.roundDeadline == null || serverNow() >= gs.roundDeadline;
   if (!deadlinePassed) {
     const players = await getLobbyPlayers(lobbyId);
     if (players.length === 0 || answerCount < players.length) return;
@@ -1524,7 +1570,7 @@ async function openBingoReview(
       game_state: {
         ...gs,
         roundPhase: 'reviewing',
-        reviewDeadline: Date.now() + BINGO_REVIEW_SECONDS * 1000,
+        reviewDeadline: serverNow() + BINGO_REVIEW_SECONDS * 1000,
         reviewVerdicts: {},
       } as OnlineGameState,
     })
@@ -1629,7 +1675,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
   const allPicked = players.every(
     (p) => countMarked(p.bingo_board) >= (gs.expectedMarks?.[p.player_id] ?? 0)
   );
-  if (!allPicked && gs.pickDeadline != null && Date.now() < gs.pickDeadline) return;
+  if (!allPicked && gs.pickDeadline != null && serverNow() < gs.pickDeadline) return;
 
   const size = gs.modeConfig?.bingoGridSize ?? 4;
   const winnerIds = players
@@ -1694,7 +1740,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         reviewDeadline: null,
         reviewVerdicts: null,
         spinnerId: spinner?.player_id ?? null,
-        spinArmedAt: Date.now(),
+        spinArmedAt: serverNow(),
         spinStartedAt: null,
       } as OnlineGameState,
     })
@@ -1889,7 +1935,7 @@ export async function nextTimelineQuizRound(lobbyId: string): Promise<void> {
         deck: rest,
         currentCard: Spotify.withCachedCover(next),
         roundNumber: gs.roundNumber + 1,
-        roundDeadline: Date.now() + QUIZ_ROUND_SECONDS * 1000,
+        roundDeadline: serverNow() + QUIZ_ROUND_SECONDS * 1000,
         roundPhase: 'collecting',
         roundResults: null,
       } as OnlineGameState,

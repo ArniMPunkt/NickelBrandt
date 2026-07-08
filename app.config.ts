@@ -16,7 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'NickelBrandt',
   slug: 'nickelbrandt',
-  version: '1.1.0',
+  version: '1.1.1',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -30,7 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.nickelbrandt.app',
     icon: './assets/icon.png',
     // iOS build number (CFBundleVersion). Bump on every TestFlight/App Store build.
-    buildNumber: '10',
+    buildNumber: '11',
     infoPlist: {
       // Only standard TLS/HTTPS (Supabase, Spotify SDK, Expo) — no custom
       // crypto. Answers App Store Connect's export-compliance question
@@ -41,7 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.nickelbrandt.app',
     // Android build number (versionCode). Bump on every Play/release build.
-    versionCode: 8,
+    versionCode: 9,
     adaptiveIcon: {
       // Solid logo-purple background behind the masked foreground. NOTE: a
       // backgroundImage would override backgroundColor, so it is intentionally

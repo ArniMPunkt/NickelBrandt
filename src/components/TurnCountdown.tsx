@@ -8,22 +8,27 @@
  */
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+// Shared server clock: the deadline is serverNow()-based (Online: turnStartedAt
+// written by the host; Hot-Seat: musicDeadline created with serverNow() too, so
+// the offset cancels). Comparing against the raw device clock would shift the
+// display by the device's clock skew on Online clients.
+import { serverNow } from '../services/supabase';
 import { COLORS } from '../theme/colors';
 
 const SHOW_LAST_S = 10;
 
 export function TurnCountdown({ deadlineMs }: { deadlineMs: number }) {
   const [remaining, setRemaining] = useState(() =>
-    Math.ceil((deadlineMs - Date.now()) / 1000)
+    Math.ceil((deadlineMs - serverNow()) / 1000)
   );
 
   useEffect(() => {
     const iv = setInterval(() => {
-      const r = Math.ceil((deadlineMs - Date.now()) / 1000);
+      const r = Math.ceil((deadlineMs - serverNow()) / 1000);
       setRemaining(r);
       if (r <= 0) clearInterval(iv);
     }, 250);
-    setRemaining(Math.ceil((deadlineMs - Date.now()) / 1000));
+    setRemaining(Math.ceil((deadlineMs - serverNow()) / 1000));
     return () => clearInterval(iv);
   }, [deadlineMs]);
 

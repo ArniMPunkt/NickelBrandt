@@ -150,15 +150,15 @@ function QuizTimelineStrip({
 /** Local per-second countdown from the synced round deadline (cosmetic). */
 function RoundCountdown({ deadlineMs }: { deadlineMs: number }) {
   const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000))
+    Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000))
   );
   useEffect(() => {
     const iv = setInterval(() => {
-      const r = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      const r = Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000));
       setRemaining(r);
       if (r <= 0) clearInterval(iv);
     }, 250);
-    setRemaining(Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000)));
+    setRemaining(Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000)));
     return () => clearInterval(iv);
   }, [deadlineMs]);
 
@@ -196,6 +196,13 @@ export default function TimelineQuizScreen() {
   const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
 
   const myId = Online.getPlayerId();
+
+  // One-time server-clock sync: the simultaneous-round timestamps
+  // (roundDeadline etc.) are written and compared via serverNow(), so each
+  // device corrects its own clock skew once per game (see services/supabase).
+  useEffect(() => {
+    Online.syncServerClock();
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -320,7 +327,7 @@ export default function TimelineQuizScreen() {
   // never strand the round; the claim dedupes).
   useEffect(() => {
     if (roundPhase !== 'collecting' || gs?.roundDeadline == null) return;
-    const wait = Math.max(0, gs.roundDeadline + RESOLVE_GRACE_MS - Date.now());
+    const wait = Math.max(0, gs.roundDeadline + RESOLVE_GRACE_MS - Online.serverNow());
     const t = setTimeout(() => {
       Online.resolveTimelineQuizRound(lobbyId).catch((e: any) =>
         setError(e?.message ?? String(e))
@@ -343,10 +350,10 @@ export default function TimelineQuizScreen() {
   // any client may re-claim after RESOLVE_STALE_MS (atomic in the service).
   useEffect(() => {
     if (roundPhase !== 'resolving') return;
-    const claimedAt = gs?.resolveClaimedAt ?? gs?.roundDeadline ?? Date.now();
+    const claimedAt = gs?.resolveClaimedAt ?? gs?.roundDeadline ?? Online.serverNow();
     const wait = Math.max(
       0,
-      claimedAt + Online.RESOLVE_STALE_MS + RESOLVE_GRACE_MS - Date.now()
+      claimedAt + Online.RESOLVE_STALE_MS + RESOLVE_GRACE_MS - Online.serverNow()
     );
     const t = setTimeout(() => {
       Online.resolveTimelineQuizRound(lobbyId).catch((e: any) =>
