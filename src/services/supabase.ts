@@ -1761,6 +1761,7 @@ export async function startTimelineQuiz(
     sourceName: config.sourceName ?? null,
     quizTimeline: generateBaseTimeline(cards),
     quizTotalRounds: totalRounds,
+    quizStatsHistory: [],
   };
   const { error } = await supabase
     .from('lobbies')
@@ -1782,7 +1783,7 @@ export async function startTimelineQuiz(
  * awards +1 score to every correct player.
  */
 export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
-  const claimed = await resolveSimulRound(lobbyId, (answers, gs) => {
+  const claimed = await resolveSimulRound(lobbyId, async (answers, gs) => {
     const card = gs.currentCard;
     const timeline = gs.quizTimeline ?? [];
     const results: Record<string, RoundOutcome> = {};
@@ -1795,6 +1796,23 @@ export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
             : 'incorrect';
       }
     }
+
+    // Stats: one event per player per resolved round (missed = wrong, binary
+    // like the score). Appended inside this patch, so it lands in the SAME
+    // atomically claimed final write as the round results - a dead claim
+    // never wrote, a re-claim recomputes identically: no loss, no dupes.
+    const quizStatsHistory = [...(gs.quizStatsHistory ?? [])];
+    if (card) {
+      const players = await getLobbyPlayers(lobbyId);
+      for (const p of players) {
+        quizStatsHistory.push({
+          playerId: p.player_id,
+          correct: results[p.player_id] === 'correct',
+          song: toStatsSong(card),
+        });
+      }
+    }
+
     const patch = card
       ? {
           quizTimeline: insertQuizEntry(timeline, {
@@ -1802,6 +1820,7 @@ export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
             title: card.title,
             artist: card.artist,
           }),
+          quizStatsHistory,
         }
       : {};
     return { results, patch };

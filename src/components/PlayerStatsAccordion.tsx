@@ -14,10 +14,11 @@ import type { StatsSong } from '../types/game';
 import type {
   PlayerBingoStats,
   PlayerMatchStats,
+  PlayerQuizStats,
   BingoStatEntry,
   StealEntry,
 } from '../game/stats';
-import { isEmptyBingoStats, isEmptyStats } from '../game/stats';
+import { isEmptyBingoStats, isEmptyQuizStats, isEmptyStats } from '../game/stats';
 import { BINGO_CATEGORY_LABEL } from '../game/bingo';
 import { PressableButton } from './PressableButton';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
@@ -269,6 +270,51 @@ export function PlayerBingoStatsAccordion({
       </Section>
       <Section icon="❌" label="Nicht erfüllt" count={stats.missed.length}>
         {bingoRows(stats.missed, onReportSong)}
+      </Section>
+    </View>
+  );
+
+  return (
+    <StatsAccordionShell
+      name={name}
+      isWinner={isWinner}
+      headerRight={headerRight}
+      body={body}
+    />
+  );
+}
+
+// --- Timeline-Quiz ---------------------------------------------------------------
+
+export function PlayerQuizStatsAccordion({
+  name,
+  isWinner,
+  headerRight,
+  stats,
+  onReportSong,
+}: {
+  name: string;
+  isWinner?: boolean;
+  /** Short right-aligned header info, e.g. "7 / 15 richtig". */
+  headerRight?: string;
+  stats: PlayerQuizStats;
+  /** "Song melden" flag on every song item (host only). */
+  onReportSong?: ReportStatsSong;
+}) {
+  const rows = (songs: typeof stats.correct, prefix: string) =>
+    songs.map((s, i) => (
+      <SongRow key={`${prefix}-${i}`} song={s} onReportSong={onReportSong} />
+    ));
+
+  const body = isEmptyQuizStats(stats) ? (
+    <Text style={styles.emptyLine}>Keine Runden in dieser Partie.</Text>
+  ) : (
+    <View style={styles.body}>
+      <Section icon="✅" label="Richtig geschätzt" count={stats.correct.length}>
+        {rows(stats.correct, 'c')}
+      </Section>
+      <Section icon="❌" label="Falsch geschätzt" count={stats.wrong.length}>
+        {rows(stats.wrong, 'w')}
       </Section>
     </View>
   );

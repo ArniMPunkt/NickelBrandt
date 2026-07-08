@@ -31,9 +31,10 @@ import { PressableButton } from '../components/PressableButton';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
-import { ReportSongDialog } from '../components/ReportSongDialog';
+import { buildPlayerTimelineQuizStats } from '../game/stats';
+import { PlayerQuizStatsAccordion } from '../components/PlayerStatsAccordion';
+import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import type {
-  GameCard,
   Lobby,
   LobbyPlayer,
   QuizTimelineEntry,
@@ -189,9 +190,10 @@ export default function TimelineQuizScreen() {
   const [showStats, setShowStats] = useState(false);
   const [endedHandled, setEndedHandled] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
-  // "Song melden": snapshot of the revealed card taken when the dialog opens,
-  // so an advancing round can never swap the reported song underneath it.
-  const [reportCard, setReportCard] = useState<GameCard | null>(null);
+  // "Song melden": snapshot taken when the dialog opens (live: the revealed
+  // card; stats view: the tapped history item), so an advancing round can
+  // never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
 
   const myId = Online.getPlayerId();
 
@@ -400,6 +402,29 @@ export default function TimelineQuizScreen() {
     );
   }
 
+  // Shared between the playing view AND the finished stats view (both are
+  // separate returns): one dialog, one snapshot state, one submit.
+  const reportDialog = (
+    <ReportSongDialog
+      visible={reportCard != null}
+      card={reportCard}
+      onClose={() => setReportCard(null)}
+      onSubmit={(reason) =>
+        Online.reportSong({
+          title: reportCard!.title,
+          artist: reportCard!.artist,
+          year: reportCard!.year,
+          trackUri: reportCard!.trackUri,
+          sourceId: gs.sourceId,
+          sourceName: gs.sourceName,
+          reason,
+          mode: 'timeline_quiz',
+          lobbyId,
+        })
+      }
+    />
+  );
+
   // ----- Game over -----
   if (gs.phase === 'finished') {
     if (gs.winnerId && !showStats) {
@@ -424,16 +449,14 @@ export default function TimelineQuizScreen() {
         {[...players]
           .sort((a, b) => b.score - a.score)
           .map((p) => (
-            <View key={p.id} style={styles.scoreRow}>
-              <Text style={styles.scoreName} numberOfLines={1}>
-                {winnerIds.includes(p.player_id) ? '🏆 ' : ''}
-                {p.player_name}
-                {p.player_id === myId ? ' (du)' : ''}
-              </Text>
-              <Text style={styles.scoreVal}>
-                {p.score} / {totalRounds} richtig
-              </Text>
-            </View>
+            <PlayerQuizStatsAccordion
+              key={p.id}
+              name={`${p.player_name}${p.player_id === myId ? ' (du)' : ''}`}
+              isWinner={winnerIds.includes(p.player_id)}
+              headerRight={`${p.score} / ${totalRounds} richtig`}
+              stats={buildPlayerTimelineQuizStats(gs.quizStatsHistory ?? [], p.player_id)}
+              onReportSong={isHost ? setReportCard : undefined}
+            />
           ))}
         <PressableButton
           style={styles.primaryBtn}
@@ -444,6 +467,7 @@ export default function TimelineQuizScreen() {
         >
           <Text style={styles.primaryBtnText}>Zurück</Text>
         </PressableButton>
+        {reportDialog}
       </ScrollView>
     );
   }
@@ -610,24 +634,7 @@ export default function TimelineQuizScreen() {
         onCancel={() => setExitConfirmVisible(false)}
       />
 
-      <ReportSongDialog
-        visible={reportCard != null}
-        card={reportCard}
-        onClose={() => setReportCard(null)}
-        onSubmit={(reason) =>
-          Online.reportSong({
-            title: reportCard!.title,
-            artist: reportCard!.artist,
-            year: reportCard!.year,
-            trackUri: reportCard!.trackUri,
-            sourceId: gs.sourceId,
-            sourceName: gs.sourceName,
-            reason,
-            mode: 'timeline_quiz',
-            lobbyId,
-          })
-        }
-      />
+      {reportDialog}
     </ScrollView>
   );
 }
