@@ -578,8 +578,19 @@ async function authorizeWebApi(): Promise<void> {
   // preferEphemeralSession keeps the iOS sheet private/in-app; on Android the
   // Custom Tab is already an in-app overlay. If the Spotify app is installed and
   // handles the accounts.spotify.com link, it takes over the login app-to-app.
+  //
+  // showInRecents (Android only, ignored on iOS): WITHOUT it the Custom Tab is
+  // launched with FLAG_ACTIVITY_NO_HISTORY + EXCLUDE_FROM_RECENTS (verified in
+  // expo-web-browser's WebBrowserModule.kt), so Android FINISHES the auth tab
+  // the moment the user switches away - e.g. to the mail app for Spotify's
+  // one-time login code. Returning then found the code window gone and
+  // promptAsync resolved '(dismiss)', forcing a NEW code: a hard first-login
+  // blocker. With true, the tab survives app switches and shows up in the
+  // recents view so the user can switch straight back to it. iOS's
+  // ASWebAuthenticationSession survives backgrounding natively either way.
   const result = await request.promptAsync(SPOTIFY_DISCOVERY, {
     preferEphemeralSession: true,
+    showInRecents: true,
   });
   if (result.type !== 'success' || !result.params.code) {
     const reason =
