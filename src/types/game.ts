@@ -93,11 +93,17 @@ export const MAX_CHIPS = 5;
 
 // --- Per-match stats history (post-game statistics) --------------------------
 
-/** Slim song snapshot for the stats history (no URI/cover - display only). */
+/**
+ * Slim song snapshot for the stats history (no cover - display only). The
+ * trackUri is carried along so the post-game statistics can feed the "Song
+ * melden" report; optional for backward-compat with histories logged before
+ * the field existed (the report flag simply hides on those entries).
+ */
 export interface StatsSong {
   title: string;
   artist: string;
   year: number;
+  trackUri?: string;
 }
 
 /**
@@ -133,9 +139,9 @@ export type MatchEvent =
       song?: StatsSong;
     };
 
-/** Drop the URI/cover fields for the stats log. */
+/** Drop the cover/id fields for the stats log (uri kept for song reports). */
 export function toStatsSong(card: GameCard): StatsSong {
-  return { title: card.title, artist: card.artist, year: card.year };
+  return { title: card.title, artist: card.artist, year: card.year, trackUri: card.trackUri };
 }
 
 export type PlacementResult = 'correct' | 'incorrect';

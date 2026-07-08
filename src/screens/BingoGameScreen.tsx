@@ -47,7 +47,7 @@ import { BingoLineReveal } from '../components/BingoLineReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { HeaderMenu } from '../components/HeaderMenu';
 import { PlayerBingoStatsAccordion } from '../components/PlayerStatsAccordion';
-import { ReportSongDialog } from '../components/ReportSongDialog';
+import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -56,7 +56,6 @@ import { glow } from '../theme/glow';
 import type {
   BingoBoard,
   BingoCategoryType,
-  GameCard,
   Lobby,
   LobbyPlayer,
   RoundAnswer,
@@ -176,9 +175,10 @@ export default function BingoGameScreen() {
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   // Win-line interstitial shown once before the victory celebration.
   const [finaleDone, setFinaleDone] = useState(false);
-  // "Song melden": snapshot of the revealed card taken when the dialog opens,
-  // so an advancing round can never swap the reported song underneath it.
-  const [reportCard, setReportCard] = useState<GameCard | null>(null);
+  // "Song melden": snapshot taken when the dialog opens (live: the revealed
+  // card; stats view: the tapped history item), so an advancing round can
+  // never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
 
   const myId = Online.getPlayerId();
 
@@ -564,6 +564,29 @@ export default function BingoGameScreen() {
     );
   }
 
+  // Shared between the playing view AND the finished stats view (both are
+  // separate returns): one dialog, one snapshot state, one submit.
+  const reportDialog = (
+    <ReportSongDialog
+      visible={reportCard != null}
+      card={reportCard}
+      onClose={() => setReportCard(null)}
+      onSubmit={(reason) =>
+        Online.reportSong({
+          title: reportCard!.title,
+          artist: reportCard!.artist,
+          year: reportCard!.year,
+          trackUri: reportCard!.trackUri,
+          sourceId: gs.sourceId,
+          sourceName: gs.sourceName,
+          reason,
+          mode: 'bingo',
+          lobbyId,
+        })
+      }
+    />
+  );
+
   // ----- Game over -----
   if (gs.phase === 'finished') {
     // First the automatic interstitial: the winning line is traced on each
@@ -615,6 +638,7 @@ export default function BingoGameScreen() {
               isWinner={winnerIds.includes(p.player_id)}
               headerRight={`${markedCount(p.bingo_board)} / ${size * size} markiert`}
               stats={buildPlayerBingoStats(gs.bingoStatsHistory ?? [], p.player_id)}
+              onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
         <PressableButton
@@ -626,6 +650,7 @@ export default function BingoGameScreen() {
         >
           <Text style={styles.primaryBtnText}>Zurück</Text>
         </PressableButton>
+        {reportDialog}
       </ScrollView>
     );
   }
@@ -1022,24 +1047,7 @@ export default function BingoGameScreen() {
         onCancel={() => setExitConfirmVisible(false)}
       />
 
-      <ReportSongDialog
-        visible={reportCard != null}
-        card={reportCard}
-        onClose={() => setReportCard(null)}
-        onSubmit={(reason) =>
-          Online.reportSong({
-            title: reportCard!.title,
-            artist: reportCard!.artist,
-            year: reportCard!.year,
-            trackUri: reportCard!.trackUri,
-            sourceId: gs.sourceId,
-            sourceName: gs.sourceName,
-            reason,
-            mode: 'bingo',
-            lobbyId,
-          })
-        }
-      />
+      {reportDialog}
     </ScrollView>
   );
 }

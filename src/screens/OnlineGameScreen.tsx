@@ -36,7 +36,7 @@ import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { HeaderMenu } from '../components/HeaderMenu';
 import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
-import { ReportSongDialog } from '../components/ReportSongDialog';
+import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -199,9 +199,10 @@ export default function OnlineGameScreen() {
   const [showStats, setShowStats] = useState(false);
   // The automatic final-card interstitial runs BEFORE the celebration (per device).
   const [finaleDone, setFinaleDone] = useState(false);
-  // "Song melden": snapshot of the revealed card taken when the dialog opens,
-  // so an advancing round can never swap the reported song underneath it.
-  const [reportCard, setReportCard] = useState<GameCard | null>(null);
+  // "Song melden": snapshot taken when the dialog opens (live: the revealed
+  // card; stats view: the tapped history item), so an advancing round can
+  // never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -457,6 +458,29 @@ export default function OnlineGameScreen() {
 
   const barWidth = barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
+  // Shared between the playing view AND the finished stats view (both are
+  // separate returns): one dialog, one snapshot state, one submit.
+  const reportDialog = (
+    <ReportSongDialog
+      visible={reportCard != null}
+      card={reportCard}
+      onClose={() => setReportCard(null)}
+      onSubmit={(reason) =>
+        Online.reportSong({
+          title: reportCard!.title,
+          artist: reportCard!.artist,
+          year: reportCard!.year,
+          trackUri: reportCard!.trackUri,
+          sourceId: gs.sourceId,
+          sourceName: gs.sourceName,
+          reason,
+          mode: 'hitster',
+          lobbyId,
+        })
+      }
+    />
+  );
+
   // ----- Finished: game over (winner) -----
   if (phase === 'finished' && gs.winnerId) {
     const winner = players.find((p) => p.player_id === gs.winnerId);
@@ -503,6 +527,7 @@ export default function OnlineGameScreen() {
               headerRight={`${p.score} Pkt · 🔥 ${p.max_brandt_streak}er-Streak`}
               stats={buildPlayerMatchStats(statsHistory, p.player_id)}
               resolveName={nameOf}
+              onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
         <PressableButton
@@ -514,6 +539,7 @@ export default function OnlineGameScreen() {
         >
           <Text style={styles.primaryBtnText}>Zurück</Text>
         </PressableButton>
+        {reportDialog}
       </ScrollView>
     );
   }
@@ -781,24 +807,7 @@ export default function OnlineGameScreen() {
         onCancel={() => setEndConfirmVisible(false)}
       />
 
-      <ReportSongDialog
-        visible={reportCard != null}
-        card={reportCard}
-        onClose={() => setReportCard(null)}
-        onSubmit={(reason) =>
-          Online.reportSong({
-            title: reportCard!.title,
-            artist: reportCard!.artist,
-            year: reportCard!.year,
-            trackUri: reportCard!.trackUri,
-            sourceId: gs.sourceId,
-            sourceName: gs.sourceName,
-            reason,
-            mode: 'hitster',
-            lobbyId,
-          })
-        }
-      />
+      {reportDialog}
     </ScrollView>
   );
 }

@@ -32,6 +32,15 @@ export interface ReportSongCard {
   year: number;
 }
 
+/**
+ * Full snapshot the screens keep in state while the dialog is open: the
+ * display fields plus the uri needed for the song_reports insert. GameCard
+ * (live report) and a StatsSong with uri (stats report) both satisfy it.
+ */
+export interface ReportSongTarget extends ReportSongCard {
+  trackUri: string;
+}
+
 export function ReportSongDialog({
   visible,
   card,
