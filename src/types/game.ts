@@ -54,6 +54,11 @@ export interface GameSettings {
   /** Spotify playlist id the deck was built from. */
   playlistId: string;
   /**
+   * Display name of the deck source (playlist/pool name), snapshotted at game
+   * start for the "Song melden" report. Optional (older callers omit it).
+   */
+  sourceName?: string;
+  /**
    * When true, the cover/title/artist stay hidden ("????") until the card is
    * placed (for title/artist-guessing variants). Default false.
    */

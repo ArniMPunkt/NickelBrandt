@@ -26,12 +26,14 @@ import * as Spotify from '../services/spotify';
 import type { QuizAnswer } from '../game/timelineQuiz';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { VictoryCelebration } from '../components/VictoryCelebration';
-import { PlayBackupButton } from '../components/PlayBackupButton';
+import { HeaderMenu } from '../components/HeaderMenu';
 import { PressableButton } from '../components/PressableButton';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
+import { ReportSongDialog } from '../components/ReportSongDialog';
 import type {
+  GameCard,
   Lobby,
   LobbyPlayer,
   QuizTimelineEntry,
@@ -187,6 +189,9 @@ export default function TimelineQuizScreen() {
   const [showStats, setShowStats] = useState(false);
   const [endedHandled, setEndedHandled] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
+  // "Song melden": snapshot of the revealed card taken when the dialog opens,
+  // so an advancing round can never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<GameCard | null>(null);
 
   const myId = Online.getPlayerId();
 
@@ -456,11 +461,26 @@ export default function TimelineQuizScreen() {
             Runde {gs.roundNumber ?? 1}/{totalRounds}
           </Text>
         </View>
-        {/* Backup play: only the host's device plays audio. */}
-        {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
-        <PressableButton style={styles.iconBtn} onPress={onExit} hitSlop={8}>
-          <Text style={styles.iconBtnText}>✕</Text>
-        </PressableButton>
+        {/* Single overflow: Play/Pause (host), report, lobby code, exit. No deck
+            count - the quiz shows its fixed round progress in the pill instead.
+            Reveal = round resolved (the result view shows the song). */}
+        <HeaderMenu
+          playback={isHost ? { uri: card?.trackUri ?? null, onError: setError } : undefined}
+          report={
+            isHost
+              ? {
+                  enabled: roundPhase === 'resolved' && !!card,
+                  onPress: () => setReportCard(card),
+                }
+              : undefined
+          }
+          code={lobby?.code ?? '—'}
+          action={{
+            label: isHost ? 'Lobby beenden' : 'Lobby verlassen',
+            destructive: true,
+            onPress: onExit,
+          }}
+        />
       </View>
 
       {/* ---- collecting: mystery song + shared timeline with tap gaps ---- */}
@@ -589,6 +609,25 @@ export default function TimelineQuizScreen() {
         onConfirm={confirmExit}
         onCancel={() => setExitConfirmVisible(false)}
       />
+
+      <ReportSongDialog
+        visible={reportCard != null}
+        card={reportCard}
+        onClose={() => setReportCard(null)}
+        onSubmit={(reason) =>
+          Online.reportSong({
+            title: reportCard!.title,
+            artist: reportCard!.artist,
+            year: reportCard!.year,
+            trackUri: reportCard!.trackUri,
+            sourceId: gs.sourceId,
+            sourceName: gs.sourceName,
+            reason,
+            mode: 'timeline_quiz',
+            lobbyId,
+          })
+        }
+      />
     </ScrollView>
   );
 }
@@ -621,17 +660,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   roundPillText: { color: COLORS.text, fontWeight: '900', fontSize: 14 },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.backgroundAlt,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '900' },
 
   mysteryBox: {
     backgroundColor: COLORS.backgroundAlt,

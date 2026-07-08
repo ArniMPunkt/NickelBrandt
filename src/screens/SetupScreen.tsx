@@ -5,7 +5,7 @@
  * START_GAME and hand off to the first player. (Spotify must already be
  * connected via the Spotify tab.) UI only - game logic unchanged.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,13 +22,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
-import { loadDeckSource, sourceId, type DeckSource } from '../services/deck';
+import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 import * as PoolProgress from '../services/poolProgress';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { GameRulesSection } from '../components/GameRulesSection';
 import { PressableButton } from '../components/PressableButton';
+import { missingRequirements, StartRequirementsHint } from '../components/StartRequirements';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
@@ -82,24 +83,23 @@ export default function SetupScreen() {
       prev.length > MIN_PLAYERS ? prev.filter((_, idx) => idx !== i) : prev
     );
 
-  // Two-stage start: with no source chosen yet, "Spiel starten" opens the
-  // picker instead of erroring; the selection then continues the start
-  // automatically (this flag remembers WHY the picker was opened - the
-  // "Ändern" entry point must NOT auto-start).
-  const startAfterPickRef = useRef(false);
+  // Start prerequisites: the button stays DISABLED (with a quiet checklist
+  // below it) until everything is fulfilled - all names entered, a source
+  // chosen, Spotify connected (statically gated here, kept current by the
+  // focus-effect heal above).
+  const trimmedNames = names.map((n) => n.trim());
+  const missing = missingRequirements({
+    playerCount: trimmedNames.filter(Boolean).length,
+    minPlayers: MIN_PLAYERS,
+    unnamedPlayers: trimmedNames.some((n) => !n),
+    hasSource: !!source,
+    spotifyReady: spotifyAuthorized,
+  });
+  const canStart = missing.length === 0;
 
   const onStartPressed = () => {
     setError(null);
-    const trimmed = names.map((n) => n.trim());
-    if (trimmed.some((n) => !n)) {
-      setError('Bitte für jeden Spieler einen Namen eingeben.');
-      return;
-    }
-    if (!source) {
-      startAfterPickRef.current = true;
-      setPickerVisible(true);
-      return;
-    }
+    if (!canStart || !source) return; // defensive - the button is disabled then
     void startGame(source);
   };
 
@@ -171,6 +171,7 @@ export default function SetupScreen() {
           settings: {
             cardsToWin: settings.cardsToWin,
             playlistId: sourceId(source),
+            sourceName: sourceName(source),
             hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
             chipsEnabled: settings.chipsEnabled,
             skipEnabled: settings.skipEnabled,
@@ -289,9 +290,9 @@ export default function SetupScreen() {
       )}
 
       <PressableButton
-        style={[styles.startBtn, (loading || !spotifyAuthorized) && styles.startBtnDisabled]}
+        style={[styles.startBtn, (loading || !canStart) && styles.startBtnDisabled]}
         onPress={onStartPressed}
-        disabled={loading || !spotifyAuthorized}
+        disabled={loading || !canStart}
       >
         {loading ? (
           <ActivityIndicator color={COLORS.background} />
@@ -299,28 +300,15 @@ export default function SetupScreen() {
           <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
         )}
       </PressableButton>
-      {!spotifyAuthorized && (
-        <Text style={styles.spotifyGateHint}>
-          Bitte zuerst mit Spotify verbinden (siehe Tab „Einstellungen").
-        </Text>
-      )}
+      <StartRequirementsHint missing={missing} />
     </ScrollView>
     <PlaylistPicker
       visible={pickerVisible}
-      onClose={() => {
-        setPickerVisible(false);
-        startAfterPickRef.current = false; // dismissed without choosing -> no auto-start
-      }}
+      onClose={() => setPickerVisible(false)}
       showPoolProgress
       onSelect={(s) => {
         setSource(s);
         setError(null);
-        // Opened via "Spiel starten" (first use, no source yet) -> continue the
-        // start seamlessly with the fresh selection.
-        if (startAfterPickRef.current) {
-          startAfterPickRef.current = false;
-          void startGame(s);
-        }
       }}
     />
     {source?.kind === 'playlist' && (
@@ -493,13 +481,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1,
-  },
-  spotifyGateHint: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
   },
 });

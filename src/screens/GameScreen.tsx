@@ -23,12 +23,14 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
+import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import * as PoolProgress from '../services/poolProgress';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
-import { PlayBackupButton } from '../components/PlayBackupButton';
+import { HeaderMenu } from '../components/HeaderMenu';
 import { PressableButton } from '../components/PressableButton';
+import { ReportSongDialog } from '../components/ReportSongDialog';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
@@ -179,6 +181,9 @@ export default function GameScreen() {
   // The automatic final-card interstitial has run (guards against re-showing it
   // when this screen re-renders below the Victory route).
   const [finaleDone, setFinaleDone] = useState(false);
+  // "Song melden": snapshot of the revealed card taken when the dialog opens,
+  // so an advancing round can never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<GameCard | null>(null);
   // Absolute deadline (epoch ms) for the music timer of the current card, or
   // null when the timer setting is off / no card is playing.
   const [musicDeadline, setMusicDeadline] = useState<number | null>(null);
@@ -460,7 +465,8 @@ export default function GameScreen() {
       {/* Header */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={styles.activePlayer} numberOfLines={1}>
+          {/* Two lines allowed + font shrink: long names must never truncate. */}
+          <Text style={styles.activePlayer} numberOfLines={2} adjustsFontSizeToFit>
             {player.name}
           </Text>
           <Text style={styles.scoreLine}>
@@ -468,17 +474,21 @@ export default function GameScreen() {
           </Text>
         </View>
         <View style={styles.headerRight}>
-          {/* Backup play: single device, so no host gating needed here. */}
-          <PlayBackupButton uri={shownCard?.trackUri ?? null} onError={setPlayError} />
           {chipsEnabled && (
             <View style={styles.chipPill}>
               <Text style={styles.chipPillText}>🪙 {player.chips}</Text>
             </View>
           )}
-          <View style={styles.deckPill}>
-            <Text style={styles.deckCount}>{state.deck.length}</Text>
-            <Text style={styles.deckLabel}>im Deck</Text>
-          </View>
+          {/* Single overflow: Play/Pause (single device, no host gating) + deck
+              count. No lobby code / leave - Pass & Play has no lobby. */}
+          <HeaderMenu
+            playback={{ uri: shownCard?.trackUri ?? null, onError: setPlayError }}
+            report={{
+              enabled: isRevealed && !!lastPlacement,
+              onPress: () => setReportCard(lastPlacement?.card ?? null),
+            }}
+            deckCount={state.deck.length}
+          />
         </View>
       </View>
 
@@ -692,6 +702,25 @@ export default function GameScreen() {
           </Text>
         </View>
       )}
+
+      <ReportSongDialog
+        visible={reportCard != null}
+        card={reportCard}
+        onClose={() => setReportCard(null)}
+        onSubmit={(reason) =>
+          Online.reportSong({
+            title: reportCard!.title,
+            artist: reportCard!.artist,
+            year: reportCard!.year,
+            trackUri: reportCard!.trackUri,
+            sourceId: state.settings.playlistId,
+            sourceName: state.settings.sourceName ?? null,
+            reason,
+            mode: 'pass_and_play',
+            lobbyId: null,
+          })
+        }
+      />
     </ScrollView>
   );
 }
@@ -734,18 +763,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   chipPillText: { color: COLORS.accent, fontWeight: '900', fontSize: 16 },
-  deckPill: {
-    backgroundColor: COLORS.backgroundAlt,
-    borderColor: COLORS.border,
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'center',
-    minWidth: 64,
-  },
-  deckCount: { color: COLORS.secondary, fontWeight: '900', fontSize: 22 },
-  deckLabel: { color: COLORS.textMuted, fontWeight: '700', fontSize: 10, letterSpacing: 1 },
 
   cardBox: {
     backgroundColor: COLORS.backgroundAlt,

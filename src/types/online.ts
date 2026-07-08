@@ -171,6 +171,13 @@ export interface OnlineGameState {
   timerEnabled?: boolean;
   timerSeconds?: number;
   /**
+   * Deck source snapshot at game start ("pool:<id>" / playlist id + display
+   * name), so any game screen can attach it to a "Song melden" report.
+   * Optional for backward-compat with game_state rows written before this.
+   */
+  sourceId?: string | null;
+  sourceName?: string | null;
+  /**
    * Epoch ms when the current turn's song started (written on every draw AND on
    * a skip - the replacement song restarts the timer). Clients derive the
    * countdown locally from this; only the HOST's timer pauses the music.

@@ -45,8 +45,9 @@ import { CategoryWheel } from '../components/CategoryWheel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BingoLineReveal } from '../components/BingoLineReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
-import { PlayBackupButton } from '../components/PlayBackupButton';
+import { HeaderMenu } from '../components/HeaderMenu';
 import { PlayerBingoStatsAccordion } from '../components/PlayerStatsAccordion';
+import { ReportSongDialog } from '../components/ReportSongDialog';
 import { PressableButton } from '../components/PressableButton';
 import { StepSlider } from '../components/StepSlider';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -55,6 +56,7 @@ import { glow } from '../theme/glow';
 import type {
   BingoBoard,
   BingoCategoryType,
+  GameCard,
   Lobby,
   LobbyPlayer,
   RoundAnswer,
@@ -174,6 +176,9 @@ export default function BingoGameScreen() {
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   // Win-line interstitial shown once before the victory celebration.
   const [finaleDone, setFinaleDone] = useState(false);
+  // "Song melden": snapshot of the revealed card taken when the dialog opens,
+  // so an advancing round can never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<GameCard | null>(null);
 
   const myId = Online.getPlayerId();
 
@@ -642,15 +647,26 @@ export default function BingoGameScreen() {
         <View style={styles.roundPill}>
           <Text style={styles.roundPillText}>Runde {gs.roundNumber ?? 1}</Text>
         </View>
-        <View style={styles.deckPill}>
-          <Text style={styles.deckCount}>{gs.deck.length}</Text>
-          <Text style={styles.deckLabel}>im Deck</Text>
-        </View>
-        {/* Backup play: only the host's device plays audio. */}
-        {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
-        <PressableButton style={styles.iconBtn} onPress={onExit} hitSlop={8}>
-          <Text style={styles.iconBtnText}>✕</Text>
-        </PressableButton>
+        {/* Single overflow: Play/Pause (host), report, lobby code, deck count,
+            exit. Reveal = round resolved (the result view shows the song). */}
+        <HeaderMenu
+          playback={isHost ? { uri: card?.trackUri ?? null, onError: setError } : undefined}
+          report={
+            isHost
+              ? {
+                  enabled: roundPhase === 'resolved' && !!card,
+                  onPress: () => setReportCard(card),
+                }
+              : undefined
+          }
+          code={lobby?.code ?? '—'}
+          deckCount={gs.deck.length}
+          action={{
+            label: isHost ? 'Lobby beenden' : 'Lobby verlassen',
+            destructive: true,
+            onPress: onExit,
+          }}
+        />
       </View>
 
       {/* ---- spinning: idle wheel + round-robin trigger button ---- */}
@@ -1005,6 +1021,25 @@ export default function BingoGameScreen() {
         onConfirm={confirmExit}
         onCancel={() => setExitConfirmVisible(false)}
       />
+
+      <ReportSongDialog
+        visible={reportCard != null}
+        card={reportCard}
+        onClose={() => setReportCard(null)}
+        onSubmit={(reason) =>
+          Online.reportSong({
+            title: reportCard!.title,
+            artist: reportCard!.artist,
+            year: reportCard!.year,
+            trackUri: reportCard!.trackUri,
+            sourceId: gs.sourceId,
+            sourceName: gs.sourceName,
+            reason,
+            mode: 'bingo',
+            lobbyId,
+          })
+        }
+      />
     </ScrollView>
   );
 }
@@ -1037,28 +1072,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   roundPillText: { color: COLORS.text, fontWeight: '900', fontSize: 14 },
-  deckPill: {
-    backgroundColor: COLORS.backgroundAlt,
-    borderColor: COLORS.border,
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  deckCount: { color: COLORS.secondary, fontWeight: '900', fontSize: 18 },
-  deckLabel: { color: COLORS.textMuted, fontWeight: '700', fontSize: 10, letterSpacing: 1 },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.backgroundAlt,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '900' },
 
   mysteryBox: {
     backgroundColor: COLORS.backgroundAlt,

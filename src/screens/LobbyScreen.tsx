@@ -24,12 +24,13 @@ import { PlaylistPicker } from './PlaylistPickerScreen';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { GameRulesSection } from '../components/GameRulesSection';
 import { PressableButton } from '../components/PressableButton';
+import { missingRequirements, StartRequirementsHint } from '../components/StartRequirements';
 import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { GameMode, Lobby, LobbyPlayer, ModeConfig } from '../types/online';
-import { loadDeckSource, type DeckSource } from '../services/deck';
+import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 
 const MODES: Array<{ mode: GameMode; label: string }> = [
   { mode: 'hitster', label: 'Hitster' },
@@ -67,13 +68,9 @@ export default function LobbyScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [starting, setStarting] = useState(false);
   const [endConfirmVisible, setEndConfirmVisible] = useState(false);
-  // The host's chosen deck source, picked BEFORE starting (visible in the new
+  // The host's chosen deck source, picked BEFORE starting (visible in the
   // Songpool row). Local to the host device - only the host loads the deck.
   const [source, setSource] = useState<DeckSource | null>(null);
-  // Two-stage start: remembers that the picker was opened via "Spiel starten"
-  // (no source chosen yet) so the selection continues the start seamlessly;
-  // the Songpool row entry point must NOT auto-start.
-  const startAfterPickRef = useRef(false);
   // Local slider value for the timeline-quiz card count (written to the lobby
   // only on release, so dragging doesn't spam Supabase).
   const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
@@ -216,12 +213,22 @@ export default function LobbyScreen() {
     }
   };
 
+  // Start prerequisites: the button stays DISABLED (with a quiet checklist
+  // below it) until everything is fulfilled. Min players is 2 in all three
+  // modes (mirrors the server-side checks in start{Game,BingoGame,TimelineQuiz});
+  // bingo grid size / quiz card count always carry defaults, so they can never
+  // block. Spotify is deliberately NOT gated statically here - it is checked
+  // at press time via the self-healing ensureReadyToPlay gate below.
+  const missing = missingRequirements({
+    playerCount: players.length,
+    minPlayers: 2,
+    hasSource: !!source,
+  });
+  const canStart = missing.length === 0;
+
   const onStartPressed = async () => {
     setError(null);
-    if (players.length < 2) {
-      setError('Mindestens 2 Spieler nötig.');
-      return;
-    }
+    if (!canStart || !source) return; // defensive - the button is disabled then
     // Self-healing gate: probes the App Remote and silently reconnects a
     // dropped session (routine after a finished Partie) before refusing.
     // `starting` doubles as the busy indicator during the short probe.
@@ -236,15 +243,7 @@ export default function LobbyScreen() {
       setError('Bitte zuerst im Tab „Einstellungen" mit Spotify verbinden (nur der Host braucht Spotify).');
       return;
     }
-    // Two-stage start: with a source already chosen this IS the start action;
-    // without one it opens the picker (first use), and the selection then
-    // continues the start automatically.
-    if (source) {
-      void onSourceChosen(source);
-    } else {
-      startAfterPickRef.current = true;
-      setPickerVisible(true);
-    }
+    void onSourceChosen(source);
   };
 
   const onSourceChosen = async (source: DeckSource) => {
@@ -252,13 +251,17 @@ export default function LobbyScreen() {
     setError(null);
     try {
       const cards = await loadDeckSource(source);
+      // Deck-source snapshot for "Song melden" reports (written to game_state).
+      const src = { sourceId: sourceId(source), sourceName: sourceName(source) };
       if (gameMode === 'bingo') {
         await Online.startBingoGame(lobbyId, cards, {
           bingoGridSize: modeConfig.bingoGridSize ?? 4,
+          ...src,
         });
       } else if (gameMode === 'timeline_quiz') {
         await Online.startTimelineQuiz(lobbyId, cards, {
           timelineCardCount: modeConfig.timelineCardCount ?? DEFAULT_QUIZ_CARDS,
+          ...src,
         });
       } else {
         await Online.startGame(lobbyId, cards, {
@@ -270,6 +273,7 @@ export default function LobbyScreen() {
           blindCost: settings.blindCost,
           timerEnabled: settings.timerEnabled,
           timerSeconds: settings.timerSeconds,
+          ...src,
         });
       }
       // Navigation happens via the realtime subscription (status -> 'playing').
@@ -431,17 +435,20 @@ export default function LobbyScreen() {
       )}
 
       {isHost ? (
-        <PressableButton
-          style={[styles.startBtn, starting && styles.disabled]}
-          onPress={onStartPressed}
-          disabled={starting}
-        >
-          {starting ? (
-            <ActivityIndicator color={COLORS.background} />
-          ) : (
-            <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
-          )}
-        </PressableButton>
+        <>
+          <PressableButton
+            style={[styles.startBtn, (starting || !canStart) && styles.disabled]}
+            onPress={onStartPressed}
+            disabled={starting || !canStart}
+          >
+            {starting ? (
+              <ActivityIndicator color={COLORS.background} />
+            ) : (
+              <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
+            )}
+          </PressableButton>
+          <StartRequirementsHint missing={missing} />
+        </>
       ) : (
         <Text style={styles.waitText}>Warte auf Host…</Text>
       )}
@@ -458,19 +465,10 @@ export default function LobbyScreen() {
 
       <PlaylistPicker
         visible={pickerVisible}
-        onClose={() => {
-          setPickerVisible(false);
-          startAfterPickRef.current = false; // dismissed without choosing -> no auto-start
-        }}
+        onClose={() => setPickerVisible(false)}
         onSelect={(s) => {
           setSource(s);
           setError(null);
-          // Opened via "Spiel starten" (first use) -> start seamlessly with the
-          // fresh selection; the Songpool row entry point only stores it.
-          if (startAfterPickRef.current) {
-            startAfterPickRef.current = false;
-            void onSourceChosen(s);
-          }
         }}
       />
 
