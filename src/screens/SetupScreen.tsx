@@ -22,12 +22,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
-import { loadDeckSource, sourceId, type DeckSource } from '../services/deck';
+import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 import * as PoolProgress from '../services/poolProgress';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
+import { GameRulesSection } from '../components/GameRulesSection';
 import { PressableButton } from '../components/PressableButton';
+import { missingRequirements, StartRequirementsHint } from '../components/StartRequirements';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
@@ -81,17 +83,34 @@ export default function SetupScreen() {
       prev.length > MIN_PLAYERS ? prev.filter((_, idx) => idx !== i) : prev
     );
 
-  const startGame = async () => {
+  // Start prerequisites: the button stays DISABLED (with a quiet checklist
+  // below it) until everything is fulfilled - all names entered, a source
+  // chosen, Spotify connected (statically gated here, kept current by the
+  // focus-effect heal above).
+  const trimmedNames = names.map((n) => n.trim());
+  const missing = missingRequirements({
+    playerCount: trimmedNames.filter(Boolean).length,
+    minPlayers: MIN_PLAYERS,
+    unnamedPlayers: trimmedNames.some((n) => !n),
+    hasSource: !!source,
+    spotifyReady: spotifyAuthorized,
+  });
+  const canStart = missing.length === 0;
+
+  const onStartPressed = () => {
+    setError(null);
+    if (!canStart || !source) return; // defensive - the button is disabled then
+    void startGame(source);
+  };
+
+  const startGame = async (src: DeckSource) => {
     setError(null);
     const trimmed = names.map((n) => n.trim());
     if (trimmed.some((n) => !n)) {
       setError('Bitte für jeden Spieler einen Namen eingeben.');
       return;
     }
-    if (!source) {
-      setError('Bitte eine Playlist oder einen Themen-Pool auswählen.');
-      return;
-    }
+    const source = src;
     setLoading(true);
     try {
       // Self-healing gate: probes the App Remote and silently reconnects a
@@ -152,6 +171,7 @@ export default function SetupScreen() {
           settings: {
             cardsToWin: settings.cardsToWin,
             playlistId: sourceId(source),
+            sourceName: sourceName(source),
             hideCoverUntilRevealed: settings.hideCoverUntilRevealed,
             chipsEnabled: settings.chipsEnabled,
             skipEnabled: settings.skipEnabled,
@@ -260,10 +280,8 @@ export default function SetupScreen() {
         </PressableButton>
       )}
 
-      <Text style={styles.rulesNote}>
-        Spielregeln (Karten zum Gewinnen, Varianten, Nickel) findest du im Tab
-        „Einstellungen".
-      </Text>
+      <Text style={styles.label}>SPIELREGELN</Text>
+      <GameRulesSection />
 
       {error && (
         <View style={styles.errorBox}>
@@ -272,9 +290,9 @@ export default function SetupScreen() {
       )}
 
       <PressableButton
-        style={[styles.startBtn, (loading || !spotifyAuthorized) && styles.startBtnDisabled]}
-        onPress={startGame}
-        disabled={loading || !spotifyAuthorized}
+        style={[styles.startBtn, (loading || !canStart) && styles.startBtnDisabled]}
+        onPress={onStartPressed}
+        disabled={loading || !canStart}
       >
         {loading ? (
           <ActivityIndicator color={COLORS.background} />
@@ -282,11 +300,7 @@ export default function SetupScreen() {
           <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
         )}
       </PressableButton>
-      {!spotifyAuthorized && (
-        <Text style={styles.spotifyGateHint}>
-          Bitte zuerst mit Spotify verbinden (siehe Tab „Einstellungen").
-        </Text>
-      )}
+      <StartRequirementsHint missing={missing} />
     </ScrollView>
     <PlaylistPicker
       visible={pickerVisible}
@@ -443,14 +457,6 @@ const styles = StyleSheet.create({
   },
   addBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 15 },
 
-  rulesNote: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-
   errorBox: {
     backgroundColor: COLORS.backgroundAlt,
     borderColor: COLORS.incorrect,
@@ -475,13 +481,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1,
-  },
-  spotifyGateHint: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
   },
 });

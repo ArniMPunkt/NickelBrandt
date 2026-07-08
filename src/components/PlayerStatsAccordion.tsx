@@ -14,25 +14,36 @@ import type { StatsSong } from '../types/game';
 import type {
   PlayerBingoStats,
   PlayerMatchStats,
+  PlayerQuizStats,
   BingoStatEntry,
   StealEntry,
 } from '../game/stats';
-import { isEmptyBingoStats, isEmptyStats } from '../game/stats';
+import { isEmptyBingoStats, isEmptyQuizStats, isEmptyStats } from '../game/stats';
 import { BINGO_CATEGORY_LABEL } from '../game/bingo';
 import { PressableButton } from './PressableButton';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
+/** Called with a song that VERIFIABLY carries a trackUri (report insert needs it). */
+export type ReportStatsSong = (song: StatsSong & { trackUri: string }) => void;
+
 function SongRow({
   song,
   subline,
   sublineColor,
+  onReportSong,
 }: {
   song: StatsSong;
   subline?: string;
   /** Optional subline accent (e.g. the bingo category color); default muted. */
   sublineColor?: string;
+  /** Renders the small 🚩 report flag (host / device holder only). */
+  onReportSong?: ReportStatsSong;
 }) {
+  // The flag needs a trackUri for the report row; histories logged before the
+  // field existed simply don't offer it.
+  const trackUri = song.trackUri;
+  const report = onReportSong && trackUri ? () => onReportSong({ ...song, trackUri }) : null;
   return (
     <View style={styles.songRow}>
       <View style={styles.songMain}>
@@ -48,7 +59,14 @@ function SongRow({
           </Text>
         )}
       </View>
-      <Text style={styles.songYear}>{song.year}</Text>
+      <View style={styles.songRight}>
+        {report && (
+          <PressableButton style={styles.flagBtn} onPress={report} hitSlop={8}>
+            <Text style={styles.flagText}>🚩</Text>
+          </PressableButton>
+        )}
+        <Text style={styles.songYear}>{song.year}</Text>
+      </View>
     </View>
   );
 }
@@ -138,6 +156,7 @@ export function PlayerStatsAccordion({
   headerRight,
   stats,
   resolveName,
+  onReportSong,
   children,
 }: {
   name: string;
@@ -147,6 +166,8 @@ export function PlayerStatsAccordion({
   stats: PlayerMatchStats;
   /** Maps a player id from the stats (steal victims) to a display name. */
   resolveName: (playerId: string) => string;
+  /** "Song melden" flag on every song item (host / device holder only). */
+  onReportSong?: ReportStatsSong;
   /** Always-visible content under the header (e.g. the timeline years). */
   children?: ReactNode;
 }) {
@@ -156,6 +177,7 @@ export function PlayerStatsAccordion({
         key={`${s.song.title}-${i}`}
         song={s.song}
         subline={subline(resolveName(s.victimId))}
+        onReportSong={onReportSong}
       />
     ));
 
@@ -165,12 +187,12 @@ export function PlayerStatsAccordion({
     <View style={styles.body}>
       <Section icon="✅" label="Richtig platziert" count={stats.placedCorrect.length}>
         {stats.placedCorrect.map((s, i) => (
-          <SongRow key={`c-${i}`} song={s} />
+          <SongRow key={`c-${i}`} song={s} onReportSong={onReportSong} />
         ))}
       </Section>
       <Section icon="❌" label="Falsch platziert" count={stats.placedWrong.length}>
         {stats.placedWrong.map((s, i) => (
-          <SongRow key={`w-${i}`} song={s} />
+          <SongRow key={`w-${i}`} song={s} onReportSong={onReportSong} />
         ))}
       </Section>
       <Section icon="🎯" label="Erfolgreich geklaut" count={stats.stealsWon.length}>
@@ -182,7 +204,12 @@ export function PlayerStatsAccordion({
       <Section icon="🪙" label="Erhaltene Nickel" count={stats.nickels.length}>
         {stats.nickels.map((s, i) =>
           s ? (
-            <SongRow key={`n-${i}`} song={s} subline="Titel + Interpret erkannt" />
+            <SongRow
+              key={`n-${i}`}
+              song={s}
+              subline="Titel + Interpret erkannt"
+              onReportSong={onReportSong}
+            />
           ) : (
             <Text key={`n-${i}`} style={styles.songSub}>
               🪙 Nickel erhalten
@@ -208,13 +235,14 @@ export function PlayerStatsAccordion({
 // --- Bingo ---------------------------------------------------------------------
 
 /** "● Jahrzehnt" subline in the category's cell color. */
-const bingoRows = (entries: BingoStatEntry[]) =>
+const bingoRows = (entries: BingoStatEntry[], onReportSong?: ReportStatsSong) =>
   entries.map((e, i) => (
     <SongRow
       key={`${e.song.title}-${i}`}
       song={e.song}
       subline={`● ${BINGO_CATEGORY_LABEL[e.category]}`}
       sublineColor={BINGO_CATEGORY_COLOR[e.category]}
+      onReportSong={onReportSong}
     />
   ));
 
@@ -223,22 +251,70 @@ export function PlayerBingoStatsAccordion({
   isWinner,
   headerRight,
   stats,
+  onReportSong,
 }: {
   name: string;
   isWinner?: boolean;
   /** Short right-aligned header info, e.g. "9 / 16 markiert". */
   headerRight?: string;
   stats: PlayerBingoStats;
+  /** "Song melden" flag on every song item (host only). */
+  onReportSong?: ReportStatsSong;
 }) {
   const body = isEmptyBingoStats(stats) ? (
     <Text style={styles.emptyLine}>Keine Runden in dieser Partie.</Text>
   ) : (
     <View style={styles.body}>
       <Section icon="✅" label="Erfüllt" count={stats.fulfilled.length}>
-        {bingoRows(stats.fulfilled)}
+        {bingoRows(stats.fulfilled, onReportSong)}
       </Section>
       <Section icon="❌" label="Nicht erfüllt" count={stats.missed.length}>
-        {bingoRows(stats.missed)}
+        {bingoRows(stats.missed, onReportSong)}
+      </Section>
+    </View>
+  );
+
+  return (
+    <StatsAccordionShell
+      name={name}
+      isWinner={isWinner}
+      headerRight={headerRight}
+      body={body}
+    />
+  );
+}
+
+// --- Timeline-Quiz ---------------------------------------------------------------
+
+export function PlayerQuizStatsAccordion({
+  name,
+  isWinner,
+  headerRight,
+  stats,
+  onReportSong,
+}: {
+  name: string;
+  isWinner?: boolean;
+  /** Short right-aligned header info, e.g. "7 / 15 richtig". */
+  headerRight?: string;
+  stats: PlayerQuizStats;
+  /** "Song melden" flag on every song item (host only). */
+  onReportSong?: ReportStatsSong;
+}) {
+  const rows = (songs: typeof stats.correct, prefix: string) =>
+    songs.map((s, i) => (
+      <SongRow key={`${prefix}-${i}`} song={s} onReportSong={onReportSong} />
+    ));
+
+  const body = isEmptyQuizStats(stats) ? (
+    <Text style={styles.emptyLine}>Keine Runden in dieser Partie.</Text>
+  ) : (
+    <View style={styles.body}>
+      <Section icon="✅" label="Richtig geschätzt" count={stats.correct.length}>
+        {rows(stats.correct, 'c')}
+      </Section>
+      <Section icon="❌" label="Falsch geschätzt" count={stats.wrong.length}>
+        {rows(stats.wrong, 'w')}
       </Section>
     </View>
   );
@@ -301,5 +377,8 @@ const styles = StyleSheet.create({
   songTitle: { color: COLORS.text, fontWeight: '800', fontSize: 14 },
   songArtist: { color: COLORS.textMuted, fontWeight: '600', fontSize: 12 },
   songSub: { color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic', marginTop: 2 },
+  songRight: { alignItems: 'flex-end', gap: 2 },
+  flagBtn: { paddingHorizontal: 2 },
+  flagText: { fontSize: 12 },
   songYear: { color: COLORS.accent, fontWeight: '900', fontSize: 16 },
 });

@@ -6,7 +6,7 @@
  * OnlineGameState.statsHistory) and how player ids map to names.
  */
 import type { MatchEvent, StatsSong } from '../types/game';
-import type { BingoCategoryType, BingoRoundEvent } from '../types/online';
+import type { BingoCategoryType, BingoRoundEvent, QuizRoundEvent } from '../types/online';
 
 /** A resolved steal attempt, with the other player's id (victim/owner). */
 export interface StealEntry {
@@ -74,6 +74,34 @@ export function buildPlayerBingoStats(
       song: e.song,
       category: e.category,
     });
+  }
+  return stats;
+}
+
+// --- Timeline-Quiz ------------------------------------------------------------
+
+/** One player's aggregated timeline-quiz match statistics. */
+export interface PlayerQuizStats {
+  /** Rounds where the slot guess was correct (scored a point). */
+  correct: StatsSong[];
+  /** Rounds guessed wrongly or not at all. */
+  wrong: StatsSong[];
+}
+
+/** True when a player has no logged quiz rounds at all. */
+export function isEmptyQuizStats(s: PlayerQuizStats): boolean {
+  return s.correct.length === 0 && s.wrong.length === 0;
+}
+
+/** Aggregate the quiz round log for ONE player (chronological order kept). */
+export function buildPlayerTimelineQuizStats(
+  history: QuizRoundEvent[],
+  playerId: string
+): PlayerQuizStats {
+  const stats: PlayerQuizStats = { correct: [], wrong: [] };
+  for (const e of history) {
+    if (e.playerId !== playerId) continue;
+    (e.correct ? stats.correct : stats.wrong).push(e.song);
   }
   return stats;
 }

@@ -63,6 +63,19 @@ export type OnlinePhase =
 // --- Timeline-Quiz mode -------------------------------------------------------
 
 /**
+ * One logged timeline-quiz round for the post-game statistics: which song was
+ * to be placed and whether THIS player guessed the slot correctly. One event
+ * per player per resolved round; a missed round (no answer) counts as wrong
+ * (binary, matching the score that the round awards). The quiz counterpart to
+ * BingoRoundEvent - no category (the mode has none).
+ */
+export interface QuizRoundEvent {
+  playerId: string;
+  correct: boolean;
+  song: StatsSong;
+}
+
+/**
  * One entry of the SHARED quiz timeline (game_state.quizTimeline). Base slots
  * are pure years; resolved songs carry title/artist too. Single writer per
  * round (start / resolve-claim winner), so game_state jsonb is safe here.
@@ -171,6 +184,13 @@ export interface OnlineGameState {
   timerEnabled?: boolean;
   timerSeconds?: number;
   /**
+   * Deck source snapshot at game start ("pool:<id>" / playlist id + display
+   * name), so any game screen can attach it to a "Song melden" report.
+   * Optional for backward-compat with game_state rows written before this.
+   */
+  sourceId?: string | null;
+  sourceName?: string | null;
+  /**
    * Epoch ms when the current turn's song started (written on every draw AND on
    * a skip - the replacement song restarts the timer). Clients derive the
    * countdown locally from this; only the HOST's timer pauses the music.
@@ -254,6 +274,13 @@ export interface OnlineGameState {
   quizTimeline?: QuizTimelineEntry[] | null;
   /** Timeline-Quiz: fixed number of rounds (from mode_config, clamped to deck). */
   quizTotalRounds?: number;
+  /**
+   * Append-only per-player round log of the running TIMELINE-QUIZ match for
+   * the post-game statistics. Only appended by the resolve-claim winner
+   * (inside the atomically guarded final write of resolveSimulRound), so the
+   * jsonb read-modify-write is race-free. Optional for backward-compat.
+   */
+  quizStatsHistory?: QuizRoundEvent[] | null;
   /**
    * Bingo: ALL players who completed a row/column/diagonal in the same
    * resolution (simultaneous multi-win is allowed). winnerId stays set to the

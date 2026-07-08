@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,13 +22,15 @@ import * as Spotify from '../services/spotify';
 import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { GameRulesSection } from '../components/GameRulesSection';
 import { PressableButton } from '../components/PressableButton';
+import { missingRequirements, StartRequirementsHint } from '../components/StartRequirements';
 import { StepSlider } from '../components/StepSlider';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { GameMode, Lobby, LobbyPlayer, ModeConfig } from '../types/online';
-import { loadDeckSource, type DeckSource } from '../services/deck';
+import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 
 const MODES: Array<{ mode: GameMode; label: string }> = [
   { mode: 'hitster', label: 'Hitster' },
@@ -65,6 +68,9 @@ export default function LobbyScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [starting, setStarting] = useState(false);
   const [endConfirmVisible, setEndConfirmVisible] = useState(false);
+  // The host's chosen deck source, picked BEFORE starting (visible in the
+  // Songpool row). Local to the host device - only the host loads the deck.
+  const [source, setSource] = useState<DeckSource | null>(null);
   // Local slider value for the timeline-quiz card count (written to the lobby
   // only on release, so dragging doesn't spam Supabase).
   const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
@@ -207,12 +213,22 @@ export default function LobbyScreen() {
     }
   };
 
+  // Start prerequisites: the button stays DISABLED (with a quiet checklist
+  // below it) until everything is fulfilled. Min players is 2 in all three
+  // modes (mirrors the server-side checks in start{Game,BingoGame,TimelineQuiz});
+  // bingo grid size / quiz card count always carry defaults, so they can never
+  // block. Spotify is deliberately NOT gated statically here - it is checked
+  // at press time via the self-healing ensureReadyToPlay gate below.
+  const missing = missingRequirements({
+    playerCount: players.length,
+    minPlayers: 2,
+    hasSource: !!source,
+  });
+  const canStart = missing.length === 0;
+
   const onStartPressed = async () => {
     setError(null);
-    if (players.length < 2) {
-      setError('Mindestens 2 Spieler nötig.');
-      return;
-    }
+    if (!canStart || !source) return; // defensive - the button is disabled then
     // Self-healing gate: probes the App Remote and silently reconnects a
     // dropped session (routine after a finished Partie) before refusing.
     // `starting` doubles as the busy indicator during the short probe.
@@ -227,7 +243,7 @@ export default function LobbyScreen() {
       setError('Bitte zuerst im Tab „Einstellungen" mit Spotify verbinden (nur der Host braucht Spotify).');
       return;
     }
-    setPickerVisible(true);
+    void onSourceChosen(source);
   };
 
   const onSourceChosen = async (source: DeckSource) => {
@@ -235,13 +251,17 @@ export default function LobbyScreen() {
     setError(null);
     try {
       const cards = await loadDeckSource(source);
+      // Deck-source snapshot for "Song melden" reports (written to game_state).
+      const src = { sourceId: sourceId(source), sourceName: sourceName(source) };
       if (gameMode === 'bingo') {
         await Online.startBingoGame(lobbyId, cards, {
           bingoGridSize: modeConfig.bingoGridSize ?? 4,
+          ...src,
         });
       } else if (gameMode === 'timeline_quiz') {
         await Online.startTimelineQuiz(lobbyId, cards, {
           timelineCardCount: modeConfig.timelineCardCount ?? DEFAULT_QUIZ_CARDS,
+          ...src,
         });
       } else {
         await Online.startGame(lobbyId, cards, {
@@ -253,6 +273,7 @@ export default function LobbyScreen() {
           blindCost: settings.blindCost,
           timerEnabled: settings.timerEnabled,
           timerSeconds: settings.timerSeconds,
+          ...src,
         });
       }
       // Navigation happens via the realtime subscription (status -> 'playing').
@@ -294,9 +315,10 @@ export default function LobbyScreen() {
             })}
           </View>
           {gameMode === 'hitster' && (
-            <Text style={styles.modeHint}>
-              Spielregeln wie im Tab „Einstellungen" konfiguriert.
-            </Text>
+            <>
+              <Text style={styles.label}>SPIELREGELN</Text>
+              <GameRulesSection />
+            </>
           )}
           {gameMode === 'bingo' && (
             <View style={styles.modeConfigBox}>
@@ -350,6 +372,43 @@ export default function LobbyScreen() {
         </View>
       )}
 
+      {/* Songpool: always visible for the host, independent of the mode. Local
+          to the host device (only the host loads the deck + plays audio). */}
+      {isHost && (
+        <>
+          <Text style={styles.label}>SONGPOOL</Text>
+          {source ? (
+            <View style={styles.poolCard}>
+              {source.kind === 'playlist' && source.playlist.imageUrl ? (
+                <Image source={{ uri: source.playlist.imageUrl }} style={styles.poolCover} />
+              ) : (
+                <View style={[styles.poolCover, styles.poolCoverFallback]}>
+                  <Text style={styles.poolGlyph}>{source.kind === 'pool' ? '🎵' : '💿'}</Text>
+                </View>
+              )}
+              <View style={styles.poolText}>
+                <Text style={styles.poolLabel}>Ausgewählt</Text>
+                <Text style={styles.poolName} numberOfLines={1}>
+                  {source.kind === 'playlist' ? source.playlist.name : source.pool.name}
+                </Text>
+                <Text style={styles.poolMeta} numberOfLines={1}>
+                  {source.kind === 'playlist'
+                    ? `${source.playlist.trackCount} Songs`
+                    : 'Themen-Pool'}
+                </Text>
+              </View>
+              <PressableButton style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
+                <Text style={styles.changeBtnText}>Ändern</Text>
+              </PressableButton>
+            </View>
+          ) : (
+            <PressableButton style={styles.poolPickBtn} onPress={() => setPickerVisible(true)}>
+              <Text style={styles.poolPickText}>Kein Songpool ausgewählt — antippen zum Wählen 🎵</Text>
+            </PressableButton>
+          )}
+        </>
+      )}
+
       <Text style={styles.label}>SPIELER ({players.length})</Text>
       {players.length === 0 ? (
         <Text style={styles.muted}>Lade Spieler…</Text>
@@ -376,17 +435,20 @@ export default function LobbyScreen() {
       )}
 
       {isHost ? (
-        <PressableButton
-          style={[styles.startBtn, starting && styles.disabled]}
-          onPress={onStartPressed}
-          disabled={starting}
-        >
-          {starting ? (
-            <ActivityIndicator color={COLORS.background} />
-          ) : (
-            <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
-          )}
-        </PressableButton>
+        <>
+          <PressableButton
+            style={[styles.startBtn, (starting || !canStart) && styles.disabled]}
+            onPress={onStartPressed}
+            disabled={starting || !canStart}
+          >
+            {starting ? (
+              <ActivityIndicator color={COLORS.background} />
+            ) : (
+              <Text style={styles.startBtnText}>SPIEL STARTEN</Text>
+            )}
+          </PressableButton>
+          <StartRequirementsHint missing={missing} />
+        </>
       ) : (
         <Text style={styles.waitText}>Warte auf Host…</Text>
       )}
@@ -404,7 +466,10 @@ export default function LobbyScreen() {
       <PlaylistPicker
         visible={pickerVisible}
         onClose={() => setPickerVisible(false)}
-        onSelect={onSourceChosen}
+        onSelect={(s) => {
+          setSource(s);
+          setError(null);
+        }}
       />
 
       <ConfirmDialog
@@ -468,7 +533,51 @@ const styles = StyleSheet.create({
   modeBtnActive: { borderColor: COLORS.accent, backgroundColor: COLORS.accent },
   modeBtnText: { color: COLORS.text, fontSize: 13, fontWeight: '900', textAlign: 'center' },
   modeBtnTextActive: { color: COLORS.background },
-  modeHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', fontStyle: 'italic' },
+
+  // Songpool row (mirrors the Pass & Play setup's "MUSIK" card).
+  poolCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    padding: 12,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.5 }),
+  },
+  poolCover: { width: 52, height: 52, borderRadius: 10 },
+  poolCoverFallback: {
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  poolGlyph: { fontSize: 26, color: COLORS.border },
+  poolText: { flex: 1 },
+  poolLabel: { color: COLORS.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  poolName: { color: COLORS.text, fontSize: 17, fontWeight: '900' },
+  poolMeta: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
+  changeBtn: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changeBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 14 },
+  poolPickBtn: {
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  poolPickText: { color: COLORS.textMuted, fontWeight: '800', fontSize: 14, textAlign: 'center' },
   modeConfigBox: {
     backgroundColor: COLORS.backgroundAlt,
     borderWidth: 1,

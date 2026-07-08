@@ -504,6 +504,9 @@ export async function startGame(
     blindCost: number;
     timerEnabled: boolean;
     timerSeconds: number;
+    /** Deck source snapshot for "Song melden" reports. */
+    sourceId?: string;
+    sourceName?: string;
   }
 ): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
@@ -552,6 +555,8 @@ export async function startGame(
     blindCost: opts.blindCost,
     timerEnabled: opts.timerEnabled,
     timerSeconds: opts.timerSeconds,
+    sourceId: opts.sourceId ?? null,
+    sourceName: opts.sourceName ?? null,
     turnStartedAt: Date.now(),
     winnerId: null,
     statsHistory: [],
@@ -1271,7 +1276,7 @@ export async function resolveSimulRound(
 export async function startBingoGame(
   lobbyId: string,
   cards: GameCard[],
-  config: { bingoGridSize: 4 | 5 }
+  config: { bingoGridSize: 4 | 5; sourceId?: string; sourceName?: string }
 ): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
   if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
@@ -1309,6 +1314,8 @@ export async function startBingoGame(
     winnerId: null,
     gameMode: 'bingo',
     modeConfig: { bingoGridSize: config.bingoGridSize },
+    sourceId: config.sourceId ?? null,
+    sourceName: config.sourceName ?? null,
     // Decade MC options are cut from the pool's real span (fixed at start, so
     // the shrinking deck can't narrow the choices over the game).
     bingoDecades: decadeRange(cards),
@@ -1713,7 +1720,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
 export async function startTimelineQuiz(
   lobbyId: string,
   cards: GameCard[],
-  config: { timelineCardCount: number }
+  config: { timelineCardCount: number; sourceId?: string; sourceName?: string }
 ): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
   if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
@@ -1750,8 +1757,11 @@ export async function startTimelineQuiz(
     winnerId: null,
     gameMode: 'timeline_quiz',
     modeConfig: { timelineCardCount: totalRounds },
+    sourceId: config.sourceId ?? null,
+    sourceName: config.sourceName ?? null,
     quizTimeline: generateBaseTimeline(cards),
     quizTotalRounds: totalRounds,
+    quizStatsHistory: [],
   };
   const { error } = await supabase
     .from('lobbies')
@@ -1773,7 +1783,7 @@ export async function startTimelineQuiz(
  * awards +1 score to every correct player.
  */
 export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
-  const claimed = await resolveSimulRound(lobbyId, (answers, gs) => {
+  const claimed = await resolveSimulRound(lobbyId, async (answers, gs) => {
     const card = gs.currentCard;
     const timeline = gs.quizTimeline ?? [];
     const results: Record<string, RoundOutcome> = {};
@@ -1786,6 +1796,23 @@ export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
             : 'incorrect';
       }
     }
+
+    // Stats: one event per player per resolved round (missed = wrong, binary
+    // like the score). Appended inside this patch, so it lands in the SAME
+    // atomically claimed final write as the round results - a dead claim
+    // never wrote, a re-claim recomputes identically: no loss, no dupes.
+    const quizStatsHistory = [...(gs.quizStatsHistory ?? [])];
+    if (card) {
+      const players = await getLobbyPlayers(lobbyId);
+      for (const p of players) {
+        quizStatsHistory.push({
+          playerId: p.player_id,
+          correct: results[p.player_id] === 'correct',
+          song: toStatsSong(card),
+        });
+      }
+    }
+
     const patch = card
       ? {
           quizTimeline: insertQuizEntry(timeline, {
@@ -1793,6 +1820,7 @@ export async function resolveTimelineQuizRound(lobbyId: string): Promise<void> {
             title: card.title,
             artist: card.artist,
           }),
+          quizStatsHistory,
         }
       : {};
     return { results, patch };
@@ -1869,6 +1897,48 @@ export async function nextTimelineQuizRound(lobbyId: string): Promise<void> {
     .eq('id', lobbyId)
     .filter('game_state->>roundPhase', 'eq', 'resolved')
     .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+}
+
+// ---------------------------------------------------------------------------
+// Song reports ("Song melden" from the in-game overflow menu).
+// ---------------------------------------------------------------------------
+
+/** Fixed report reasons - deliberately no free text (privacy/security). */
+export type SongReportReason = 'wrong_year' | 'wrong_title_artist' | 'not_in_pool' | 'other';
+
+export type SongReportMode = 'hitster' | 'bingo' | 'timeline_quiz' | 'pass_and_play';
+
+/**
+ * Write one song report (snapshot of the song AS DISPLAYED at report time -
+ * not a pool reference, so it stays traceable after corrections). The
+ * song_reports table is INSERT-only for the app (migration 009); Arni reads
+ * it manually in the Supabase table editor. Throws on failure (offline etc.) -
+ * the dialog surfaces that as a non-blocking retryable message.
+ */
+export async function reportSong(report: {
+  title: string;
+  artist: string;
+  year: number;
+  trackUri: string;
+  sourceId?: string | null;
+  sourceName?: string | null;
+  reason: SongReportReason;
+  mode: SongReportMode;
+  /** Party lobby id; null/undefined = Pass & Play (local game). */
+  lobbyId?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.from('song_reports').insert({
+    title: report.title,
+    artist: report.artist,
+    year: report.year,
+    track_uri: report.trackUri,
+    source_id: report.sourceId ?? null,
+    source_name: report.sourceName ?? null,
+    reason: report.reason,
+    mode: report.mode,
+    lobby_id: report.lobbyId ?? null,
+  });
+  if (error) throw new Error(`Meldung konnte nicht gespeichert werden: ${error.message}`);
 }
 
 /**

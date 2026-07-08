@@ -34,8 +34,9 @@ import { buildPlayerMatchStats } from '../game/stats';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
-import { PlayBackupButton } from '../components/PlayBackupButton';
+import { HeaderMenu } from '../components/HeaderMenu';
 import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
+import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import { PressableButton } from '../components/PressableButton';
 import { TurnCountdown } from '../components/TurnCountdown';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -192,13 +193,16 @@ export default function OnlineGameScreen() {
   const barAnim = useRef(new Animated.Value(1)).current;
   // Handle a host-ended lobby exactly once.
   const endedRef = useRef(false);
-  const [codeVisible, setCodeVisible] = useState(false);
   const [endConfirmVisible, setEndConfirmVisible] = useState(false);
   // Victory screen shows first when the game finishes (server-driven phase, so all
   // devices show it together); each player then taps through to the stats locally.
   const [showStats, setShowStats] = useState(false);
   // The automatic final-card interstitial runs BEFORE the celebration (per device).
   const [finaleDone, setFinaleDone] = useState(false);
+  // "Song melden": snapshot taken when the dialog opens (live: the revealed
+  // card; stats view: the tapped history item), so an advancing round can
+  // never swap the reported song underneath it.
+  const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -454,6 +458,29 @@ export default function OnlineGameScreen() {
 
   const barWidth = barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
+  // Shared between the playing view AND the finished stats view (both are
+  // separate returns): one dialog, one snapshot state, one submit.
+  const reportDialog = (
+    <ReportSongDialog
+      visible={reportCard != null}
+      card={reportCard}
+      onClose={() => setReportCard(null)}
+      onSubmit={(reason) =>
+        Online.reportSong({
+          title: reportCard!.title,
+          artist: reportCard!.artist,
+          year: reportCard!.year,
+          trackUri: reportCard!.trackUri,
+          sourceId: gs.sourceId,
+          sourceName: gs.sourceName,
+          reason,
+          mode: 'hitster',
+          lobbyId,
+        })
+      }
+    />
+  );
+
   // ----- Finished: game over (winner) -----
   if (phase === 'finished' && gs.winnerId) {
     const winner = players.find((p) => p.player_id === gs.winnerId);
@@ -500,6 +527,7 @@ export default function OnlineGameScreen() {
               headerRight={`${p.score} Pkt · 🔥 ${p.max_brandt_streak}er-Streak`}
               stats={buildPlayerMatchStats(statsHistory, p.player_id)}
               resolveName={nameOf}
+              onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
         <PressableButton
@@ -511,6 +539,7 @@ export default function OnlineGameScreen() {
         >
           <Text style={styles.primaryBtnText}>Zurück</Text>
         </PressableButton>
+        {reportDialog}
       </ScrollView>
     );
   }
@@ -520,34 +549,30 @@ export default function OnlineGameScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.activeName} numberOfLines={1}>
+          {/* Two lines allowed + font shrink: long names must never truncate. */}
+          <Text style={styles.activeName} numberOfLines={2} adjustsFontSizeToFit>
             {isActive ? 'Du bist dran' : `${activePlayer?.player_name ?? '—'} ist dran`}
           </Text>
           <Text style={styles.subLine}>{me ? `${me.score} Pkt · 🪙 ${me.chips}` : ''}</Text>
         </View>
-        <View style={styles.deckPill}>
-          <Text style={styles.deckCount}>{gs.deck.length}</Text>
-          <Text style={styles.deckLabel}>im Deck</Text>
-        </View>
-        <View style={styles.headerActions}>
-          {/* Backup play: only the host's device plays audio. */}
-          {isHost && <PlayBackupButton uri={card?.trackUri ?? null} onError={setError} />}
-          <PressableButton style={styles.iconBtn} onPress={() => setCodeVisible((v) => !v)} hitSlop={8}>
-            <Text style={styles.iconBtnText}>ⓘ</Text>
-          </PressableButton>
-          {isHost && (
-            <PressableButton style={styles.iconBtn} onPress={onEndLobby} hitSlop={8}>
-              <Text style={styles.iconBtnText}>⋯</Text>
-            </PressableButton>
-          )}
-        </View>
+        {/* Single overflow: Play/Pause (host), report, lobby code, deck count,
+            end lobby. */}
+        <HeaderMenu
+          playback={isHost ? { uri: card?.trackUri ?? null, onError: setError } : undefined}
+          report={
+            isHost
+              ? { enabled: isRevealed && !!card, onPress: () => setReportCard(card) }
+              : undefined
+          }
+          code={lobby?.code ?? '—'}
+          deckCount={gs.deck.length}
+          action={
+            isHost
+              ? { label: 'Lobby beenden', destructive: true, onPress: onEndLobby }
+              : undefined
+          }
+        />
       </View>
-
-      {codeVisible && (
-        <Text style={styles.codeLine}>
-          Lobby-Code: <Text style={styles.codeLineValue}>{lobby?.code ?? '—'}</Text>
-        </Text>
-      )}
 
       {/* Card */}
       {card && (
@@ -781,6 +806,8 @@ export default function OnlineGameScreen() {
         onConfirm={confirmEndLobby}
         onCancel={() => setEndConfirmVisible(false)}
       />
+
+      {reportDialog}
     </ScrollView>
   );
 }
@@ -803,38 +830,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 12,
   },
   subLine: { fontSize: 14, fontWeight: '700', color: COLORS.textMuted, marginTop: 2 },
-  deckPill: {
-    backgroundColor: COLORS.backgroundAlt,
-    borderColor: COLORS.border,
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'center',
-    minWidth: 64,
-  },
-  deckCount: { color: COLORS.secondary, fontWeight: '900', fontSize: 22 },
-  deckLabel: { color: COLORS.textMuted, fontWeight: '700', fontSize: 10, letterSpacing: 1 },
-
-  headerActions: { flexDirection: 'row', gap: 6 },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: COLORS.backgroundAlt,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnText: { color: COLORS.textMuted, fontSize: 18, fontWeight: '900' },
-  codeLine: {
-    color: COLORS.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
-  codeLineValue: { color: COLORS.primary, fontWeight: '900', letterSpacing: 2 },
 
   cardBox: {
     backgroundColor: COLORS.backgroundAlt,

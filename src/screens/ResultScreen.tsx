@@ -3,7 +3,7 @@
  *
  * UI only - game logic unchanged.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   ScrollView,
@@ -16,9 +16,11 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGame } from '../context/GameContext';
 import { buildPlayerMatchStats } from '../game/stats';
+import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
 import { PressableButton } from '../components/PressableButton';
+import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { GameStackParamList } from '../types/navigation';
@@ -96,6 +98,9 @@ export default function ResultScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { state, dispatch } = useGame();
+  // "Song melden" from a stats item (device holder - no role check needed in
+  // Pass & Play). Snapshot state so the dialog target is stable.
+  const [reportSong, setReportSong] = useState<ReportSongTarget | null>(null);
 
   // Winner is set when someone reaches the target; otherwise (deck ran out) fall
   // back to the highest score as the leader.
@@ -166,6 +171,7 @@ export default function ResultScreen() {
             resolveName={(id) =>
               state.players.find((pl) => pl.id === id)?.name ?? '—'
             }
+            onReportSong={setReportSong}
           >
             <Text style={styles.timeline}>
               {p.timeline.map((c) => c.year).join('   ·   ')}
@@ -177,6 +183,25 @@ export default function ResultScreen() {
       <PressableButton style={styles.btn} onPress={newGame}>
         <Text style={styles.btnText}>NEUES SPIEL</Text>
       </PressableButton>
+
+      <ReportSongDialog
+        visible={reportSong != null}
+        card={reportSong}
+        onClose={() => setReportSong(null)}
+        onSubmit={(reason) =>
+          Online.reportSong({
+            title: reportSong!.title,
+            artist: reportSong!.artist,
+            year: reportSong!.year,
+            trackUri: reportSong!.trackUri,
+            sourceId: state.settings.playlistId,
+            sourceName: state.settings.sourceName ?? null,
+            reason,
+            mode: 'pass_and_play',
+            lobbyId: null,
+          })
+        }
+      />
     </ScrollView>
   );
 }
