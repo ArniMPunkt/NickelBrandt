@@ -438,11 +438,17 @@ export function subscribeToLobbyPlayers(
 // Read-only for the app via the anon key (migration 004 grants SELECT to anon).
 // Used as an alternative deck source to a Spotify playlist (Hot-Seat + Online).
 
-/** Fetch the list of available themed song pools (name + description only). */
+/**
+ * Fetch the list of available themed song pools (name, description, icon).
+ * Deliberately select('*') instead of an explicit column list: icon_url only
+ * exists once migration 010 is applied - an explicit list would break pool
+ * loading on a database that doesn't have the column yet, '*' just omits it
+ * (the UI then shows the 🎵 fallback).
+ */
 export async function getSongPools(): Promise<SongPool[]> {
   const { data, error } = await supabase
     .from('song_pools')
-    .select('id, name, description, created_at')
+    .select('*')
     .order('created_at', { ascending: true });
   if (error) throw new Error(`Themen-Pools konnten nicht geladen werden: ${error.message}`);
   return (data ?? []) as SongPool[];

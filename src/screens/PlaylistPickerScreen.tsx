@@ -25,11 +25,24 @@ import type { PlaylistSummary } from '../services/spotify';
 import type { SongPool } from '../types/online';
 import type { DeckSource } from '../services/deck';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
+import { PoolIcon } from '../components/PoolIcon';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
 type Mode = 'playlist' | 'pool';
+
+/**
+ * Friendly replacement for the raw Spotify 403 ("The user is not registered
+ * for this application..."): the exact cause (Dev-Mode registration vs. the
+ * Feb-2026 playlist-ownership restriction) is not reliably distinguishable, so
+ * the message points to the pools + a screenshot instead of scaring users with
+ * server output. Other errors (429, network, 401) keep their specific texts.
+ */
+const PLAYLIST_403_MESSAGE =
+  'Die Spotify-Playlists lassen sich gerade nicht laden. Probier in der ' +
+  'Zwischenzeit gern einen Themen-Pool — falls es bei Spotify nicht klappen ' +
+  'will, schick uns einfach einen Screenshot davon.';
 
 export function PlaylistPicker({
   visible,
@@ -49,7 +62,9 @@ export function PlaylistPicker({
 }) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const [mode, setMode] = useState<Mode>('playlist');
+  // Themen-Pool is the primary/default source (curated year data); Spotify
+  // playlists stay fully usable on the second tab.
+  const [mode, setMode] = useState<Mode>('pool');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Distinct from `error`: the user simply isn't connected to Spotify yet — a
@@ -104,7 +119,11 @@ export function PlaylistPicker({
         if (showPoolProgress) loadPoolStats(poolList); // fire & forget
       }
     } catch (e: any) {
-      setError(e?.message ?? String(e));
+      if (m === 'playlist' && Spotify.isWebApi403(e)) {
+        setError(PLAYLIST_403_MESSAGE);
+      } else {
+        setError(e?.message ?? String(e));
+      }
     } finally {
       setLoading(false);
     }
@@ -193,9 +212,7 @@ export function PlaylistPicker({
     const remaining = stats ? Math.max(0, stats.total - stats.played) : null;
     return (
       <PressableButton style={styles.row} onPress={() => choosePool(item)}>
-        <View style={[styles.cover, styles.coverFallback]}>
-          <Text style={styles.coverGlyph}>🎵</Text>
-        </View>
+        <PoolIcon iconUrl={item.icon_url} size={56} />
         <View style={styles.rowText}>
           <Text style={styles.rowName} numberOfLines={1}>
             {item.name}
@@ -259,7 +276,9 @@ export function PlaylistPicker({
               {error}
             </Text>
           </View>
-          {mode === 'playlist' && (
+          {/* Not shown for the friendly 403 text: the user IS connected in
+              that case - a reconnect hint would be factually wrong there. */}
+          {mode === 'playlist' && error !== PLAYLIST_403_MESSAGE && (
             <Text style={styles.muted}>Nicht verbunden? Verbinde dich im Tab „Einstellungen".</Text>
           )}
           <PressableButton style={styles.retryBtn} onPress={() => load(mode)}>
@@ -329,9 +348,9 @@ export function PlaylistPicker({
       animationType="slide"
       onRequestClose={onClose}
       onShow={() => {
-        setMode('playlist');
+        setMode('pool');
         setQuery('');
-        load('playlist');
+        load('pool');
       }}
     >
       <View style={[styles.modal, { paddingTop: insets.top + 8 }]}>
@@ -342,22 +361,22 @@ export function PlaylistPicker({
           </PressableButton>
         </View>
 
-        {/* Segmented control: Spotify playlist vs. themed pool */}
+        {/* Segmented control: themed pool (primary/default) vs. Spotify playlist */}
         <View style={styles.segment}>
-          <PressableButton
-            style={[styles.segmentBtn, mode === 'playlist' && styles.segmentBtnActive]}
-            onPress={() => switchMode('playlist')}
-          >
-            <Text style={[styles.segmentText, mode === 'playlist' && styles.segmentTextActive]}>
-              Spotify-Playlist
-            </Text>
-          </PressableButton>
           <PressableButton
             style={[styles.segmentBtn, mode === 'pool' && styles.segmentBtnActive]}
             onPress={() => switchMode('pool')}
           >
             <Text style={[styles.segmentText, mode === 'pool' && styles.segmentTextActive]}>
               Themen-Pool
+            </Text>
+          </PressableButton>
+          <PressableButton
+            style={[styles.segmentBtn, mode === 'playlist' && styles.segmentBtnActive]}
+            onPress={() => switchMode('playlist')}
+          >
+            <Text style={[styles.segmentText, mode === 'playlist' && styles.segmentTextActive]}>
+              Spotify-Playlist
             </Text>
           </PressableButton>
         </View>

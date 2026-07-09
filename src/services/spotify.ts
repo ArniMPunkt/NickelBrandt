@@ -990,17 +990,32 @@ export function subscribePlaybackState(
   };
 }
 
+/**
+ * Machine-readable marker on Web-API 403 errors ("Zugriff verweigert" - e.g.
+ * Spotify's Dev-Mode "user is not registered" / editorial-playlist refusal).
+ * Lets UI surfaces show a friendly message for exactly this case without
+ * matching on the message text (other errors keep their specific texts).
+ */
+export const WEB_API_403_CODE = 'spotify_web_api_403';
+
+/** True when `e` is the 403 "access denied" class of Web-API failure. */
+export function isWebApi403(e: unknown): boolean {
+  return (e as { code?: string } | null)?.code === WEB_API_403_CODE;
+}
+
 /** Build a readable error from an already-read Web API response body. */
 function buildWebApiError(status: number, context: string, body: string): Error {
   if (status === 403) {
-    return new Error(
+    const err = new Error(
       `Spotify Web API 403 (${context}): Zugriff verweigert. Häufigste Ursachen: ` +
         '(1) eine von Spotify erstellte/redaktionelle Playlist (Discover Weekly, ' +
         '"This Is…", Top-Charts) - über die Web API gesperrt; nutze eine selbst ' +
         'erstellte Playlist. (2) Der Token hat die Playlist-Scopes nicht - in den ' +
         'Einstellungen "Verbindung trennen" und neu verbinden. ' +
         `Server-Antwort: ${body}`
-    );
+    ) as Error & { code?: string };
+    err.code = WEB_API_403_CODE;
+    return err;
   }
   if (status === 401) {
     return new Error(

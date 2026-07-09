@@ -307,6 +307,11 @@ export interface SongPool {
   id: string;
   name: string;
   description: string | null;
+  /**
+   * Public URL of the pool's icon (Supabase Storage "pool-icons", maintained
+   * manually in the dashboard - migration 010). Null/absent = 🎵 fallback.
+   */
+  icon_url?: string | null;
   created_at: string;
 }
 

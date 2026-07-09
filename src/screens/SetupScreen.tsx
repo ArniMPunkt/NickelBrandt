@@ -28,6 +28,7 @@ import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { GameRulesSection } from '../components/GameRulesSection';
+import { PoolIcon } from '../components/PoolIcon';
 import { PressableButton } from '../components/PressableButton';
 import { missingRequirements, StartRequirementsHint } from '../components/StartRequirements';
 import { COLORS } from '../theme/colors';
@@ -248,11 +249,13 @@ export default function SetupScreen() {
       <Text style={styles.label}>MUSIK</Text>
       {source ? (
         <View style={styles.selectedCard}>
-          {source.kind === 'playlist' && source.playlist.imageUrl ? (
+          {source.kind === 'pool' ? (
+            <PoolIcon iconUrl={source.pool.icon_url} size={52} />
+          ) : source.playlist.imageUrl ? (
             <Image source={{ uri: source.playlist.imageUrl }} style={styles.selectedCover} />
           ) : (
             <View style={[styles.selectedCover, styles.selectedCoverFallback]}>
-              <Text style={styles.selectedGlyph}>{source.kind === 'pool' ? '🎵' : '💿'}</Text>
+              <Text style={styles.selectedGlyph}>💿</Text>
             </View>
           )}
           <View style={styles.selectedText}>
