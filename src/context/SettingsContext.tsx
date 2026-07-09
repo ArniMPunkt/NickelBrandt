@@ -29,6 +29,10 @@ export interface GameRuleSettings {
   timerEnabled: boolean;
   /** Song duration per turn in seconds (30-120). */
   timerSeconds: number;
+  /** Nickel cap; off = unlimited collecting. Default off. */
+  chipLimitEnabled: boolean;
+  /** The cap when chipLimitEnabled (5-10; original Hitster rule: 5). */
+  chipLimit: number;
 }
 
 export const DEFAULT_SETTINGS: GameRuleSettings = {
@@ -41,6 +45,8 @@ export const DEFAULT_SETTINGS: GameRuleSettings = {
   blindCost: 3,
   timerEnabled: false,
   timerSeconds: 60,
+  chipLimitEnabled: false,
+  chipLimit: 5,
 };
 
 interface SettingsContextValue {

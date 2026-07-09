@@ -10,7 +10,7 @@
  * All timer logic lives here (side-effect); the reducer stays pure. Animations
  * use the built-in Animated API only.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Image,
@@ -35,7 +35,7 @@ import { TurnCountdown } from '../components/TurnCountdown';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
-import { MAX_CHIPS, type GameCard, type LastPlacement, type Player } from '../types/game';
+import type { GameCard, LastPlacement, Player } from '../types/game';
 import type { GameStackParamList } from '../types/navigation';
 
 type Nav = NativeStackNavigationProp<GameStackParamList, 'Game'>;
@@ -199,16 +199,6 @@ export default function GameScreen() {
   const others = state.players.filter((_, i) => i !== state.currentPlayerIndex);
   const eligibleStealers = others.filter((p) => p.chips >= 1);
   const stealer = stealerId ? state.players.find((p) => p.id === stealerId) ?? null : null;
-
-  // A playful line for the "both guessed wrong" reveal, stable per placement.
-  const bothWrongMessage = useMemo(() => {
-    const variants = [
-      'Tja, das war wohl nix für beide! 🙈',
-      'Daneben! Beide haben sich verzockt. 🎲',
-      'Doppelt vorbei – die Karte fliegt raus! 😅',
-    ];
-    return variants[Math.floor(Math.random() * variants.length)];
-  }, [lastPlacement]);
 
   // Start playback when a fresh card arrives (drawn during handoff).
   useEffect(() => {
@@ -443,9 +433,10 @@ export default function GameScreen() {
       } else if (steal.equalYear) {
         feedbackMsg = `🎵 Gleiches Jahr, beide Plätze richtig – die Karte bleibt bei ${player.name}!`;
       } else if (lastPlacement.result === 'correct') {
-        feedbackMsg = `${player.name} hatte recht! Die Karte bleibt.`;
+        // The STEALER burned their chip on a standing placement.
+        feedbackMsg = `${stealerName ?? 'Jemand'} hat sich verBrandt.`;
       } else {
-        feedbackMsg = bothWrongMessage;
+        feedbackMsg = 'Beide haben sich verBrandt.';
       }
     } else {
       feedbackMsg = kept ? '✓  RICHTIG — Karte bleibt' : '✕  FALSCH — Karte abgeworfen';
@@ -453,7 +444,12 @@ export default function GameScreen() {
   }
 
   const showChipQuestion =
-    isRevealed && chipsEnabled && player.chips < MAX_CHIPS && !chipAnswered && !state.winner;
+    isRevealed &&
+    chipsEnabled &&
+    // Configurable Nickel cap: with the Obergrenze off the question always shows.
+    (!state.settings.chipLimitEnabled || player.chips < state.settings.chipLimit) &&
+    !chipAnswered &&
+    !state.winner;
 
   const shakeX = cardShake.interpolate({ inputRange: [-1, 1], outputRange: [-10, 10] });
   const barWidth = barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });

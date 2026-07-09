@@ -20,6 +20,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
@@ -27,8 +28,17 @@ import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 
-const APP_VERSION = 'v0.6.0';
 const SPOTIFY_GREEN = '#1DB954';
+const APP_INFO_TEXT =
+  'NickelBrandt — das Musik-Partyspiel für dich und deine Freunde. Errate Jahre, baue deine Songtimeline und klau dir Karten von Mitspielern. Ob Hitster, Bingo oder Timeline-Quiz, ob Online-Party oder Reihum auf einem Gerät — pass nur auf, dass du dich am Ende nicht verBrandt hast.';
+
+function formatAppVersion(version: string | null | undefined): string {
+  const cleanVersion = version?.trim();
+  if (!cleanVersion) return 'unbekannt';
+  return cleanVersion.startsWith('v') ? cleanVersion : `v${cleanVersion}`;
+}
+
+const APP_VERSION = formatAppVersion(Constants.expoConfig?.version);
 
 // iOS only: the native uncaught-exception handler (plugins/withCrashDiagnostics)
 // persists the last fatal NSException (name/reason/stack) to NSUserDefaults -
@@ -183,10 +193,7 @@ export default function SettingsScreen() {
       <Text style={styles.section}>APP-INFO</Text>
       <View style={styles.card}>
         <Text style={styles.infoRow}>Version {APP_VERSION}</Text>
-        <Text style={styles.about}>
-          NickelBrandt — Musik-Party-Spiel. Errate das Jahr, sammle Nickel und klau dir
-          Karten von Mitspielern. Aber passt auf, dass du dich am Ende nicht VerBrandt hast.
-        </Text>
+        <Text style={styles.about}>{APP_INFO_TEXT}</Text>
       </View>
 
       {/* ---- Crash diagnostics (iOS): last recorded native exception ---- */}

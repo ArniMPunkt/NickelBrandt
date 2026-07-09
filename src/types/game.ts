@@ -35,7 +35,11 @@ export interface Player {
   timeline: PlayerTimeline;
   /** Number of cards placed correctly (the free start card does NOT count). */
   score: number;
-  /** Earned chips ("Nickel"). Max 5. Start: 2 (Hitster-style). */
+  /**
+   * Earned chips ("Nickel"). Start: 2 (Hitster-style). Cap is configurable
+   * via GameSettings.chipLimitEnabled/chipLimit (off = unlimited; the
+   * original Hitster rule is a hard cap of 5).
+   */
   chips: number;
   /** Running count of consecutive correct OWN placements (resets on a miss). */
   currentStreak: number;
@@ -86,9 +90,20 @@ export interface GameSettings {
   timerEnabled: boolean;
   /** Song duration per turn in seconds (30-120). */
   timerSeconds: number;
+  /**
+   * Nickel cap ("Nickel-Obergrenze"). Default false = unlimited collecting.
+   * When true, chipLimit caps the held chips (original Hitster rule: 5).
+   */
+  chipLimitEnabled: boolean;
+  /** The cap when chipLimitEnabled (5-10). */
+  chipLimit: number;
 }
 
-/** The maximum number of chips a player can hold. */
+/**
+ * The original Hitster chip cap: default for the chipLimit slider and the
+ * fallback rule for Online games started before the cap became configurable
+ * (their game_state has no chipLimit fields).
+ */
 export const MAX_CHIPS = 5;
 
 // --- Per-match stats history (post-game statistics) --------------------------

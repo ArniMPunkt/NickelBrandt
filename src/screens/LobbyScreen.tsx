@@ -23,6 +23,7 @@ import { useSettings } from '../context/SettingsContext';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { GameRulesSection } from '../components/GameRulesSection';
+import { PoolIcon } from '../components/PoolIcon';
 import { PressableButton } from '../components/PressableButton';
 import { missingRequirements, StartRequirementsHint } from '../components/StartRequirements';
 import { StepSlider } from '../components/StepSlider';
@@ -280,6 +281,8 @@ export default function LobbyScreen() {
           blindCost: settings.blindCost,
           timerEnabled: settings.timerEnabled,
           timerSeconds: settings.timerSeconds,
+          chipLimitEnabled: settings.chipLimitEnabled,
+          chipLimit: settings.chipLimit,
           ...src,
         });
       }
@@ -386,11 +389,13 @@ export default function LobbyScreen() {
           <Text style={styles.label}>SONGPOOL</Text>
           {source ? (
             <View style={styles.poolCard}>
-              {source.kind === 'playlist' && source.playlist.imageUrl ? (
+              {source.kind === 'pool' ? (
+                <PoolIcon iconUrl={source.pool.icon_url} size={52} />
+              ) : source.playlist.imageUrl ? (
                 <Image source={{ uri: source.playlist.imageUrl }} style={styles.poolCover} />
               ) : (
                 <View style={[styles.poolCover, styles.poolCoverFallback]}>
-                  <Text style={styles.poolGlyph}>{source.kind === 'pool' ? '🎵' : '💿'}</Text>
+                  <Text style={styles.poolGlyph}>💿</Text>
                 </View>
               )}
               <View style={styles.poolText}>
