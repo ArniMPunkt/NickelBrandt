@@ -184,6 +184,13 @@ export interface OnlineGameState {
   timerEnabled?: boolean;
   timerSeconds?: number;
   /**
+   * Nickel cap (host settings). Absent = game started before the cap became
+   * configurable -> the original hard limit of 5 applies (MAX_CHIPS).
+   * chipLimitEnabled false = unlimited collecting.
+   */
+  chipLimitEnabled?: boolean;
+  chipLimit?: number;
+  /**
    * Deck source snapshot at game start ("pool:<id>" / playlist id + display
    * name), so any game screen can attach it to a "Song melden" report.
    * Optional for backward-compat with game_state rows written before this.

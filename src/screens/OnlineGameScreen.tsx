@@ -12,7 +12,7 @@
  *
  * The HOST owns the 5s window timeout (closeHitsterWindow). Only the host plays audio.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -382,17 +382,6 @@ export default function OnlineGameScreen() {
     if (phase !== 'finished') setFinaleDone(false);
   }, [phase, gs?.currentCard?.id]);
 
-  // Stable playful line for the "both wrong" outcome, per card.
-  const bothWrongMessage = useMemo(() => {
-    const variants = [
-      'Tja, das war wohl nix für beide! 🙈',
-      'Daneben! Beide haben sich verzockt. 🎲',
-      'Doppelt vorbei – die Karte fliegt raus! 😅',
-    ];
-    return variants[Math.floor(Math.random() * variants.length)];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gs?.currentCard?.id]);
-
   if (!gs) {
     return (
       <View style={[styles.screen, styles.centered]}>
@@ -458,8 +447,9 @@ export default function OnlineGameScreen() {
       resultMsg = gs.stealEqualYear
         ? `🎵 Gleiches Jahr, beide Plätze richtig – die Karte bleibt bei ${activePlayer?.player_name}!`
         : gs.lastResult === 'correct'
-          ? `${activePlayer?.player_name} hatte recht! Die Karte bleibt.`
-          : bothWrongMessage;
+          ? // The STEALER burned their chip on a standing placement.
+            `${stealerName ?? 'Jemand'} hat sich verBrandt.`
+          : 'Beide haben sich verBrandt.';
     } else {
       resultMsg = gs.lastResult === 'correct' ? '✓  RICHTIG platziert' : '✕  FALSCH platziert';
     }

@@ -281,6 +281,8 @@ export default function LobbyScreen() {
           blindCost: settings.blindCost,
           timerEnabled: settings.timerEnabled,
           timerSeconds: settings.timerSeconds,
+          chipLimitEnabled: settings.chipLimitEnabled,
+          chipLimit: settings.chipLimit,
           ...src,
         });
       }

@@ -556,6 +556,9 @@ export async function startGame(
     blindCost: number;
     timerEnabled: boolean;
     timerSeconds: number;
+    /** Nickel cap: enabled + value (off = unlimited collecting). */
+    chipLimitEnabled: boolean;
+    chipLimit: number;
     /** Deck source snapshot for "Song melden" reports. */
     sourceId?: string;
     sourceName?: string;
@@ -607,6 +610,8 @@ export async function startGame(
     blindCost: opts.blindCost,
     timerEnabled: opts.timerEnabled,
     timerSeconds: opts.timerSeconds,
+    chipLimitEnabled: opts.chipLimitEnabled,
+    chipLimit: opts.chipLimit,
     sourceId: opts.sourceId ?? null,
     sourceName: opts.sourceName ?? null,
     turnStartedAt: serverNow(),
@@ -999,9 +1004,17 @@ export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promis
     const players = await getLobbyPlayers(lobbyId);
     const active = players.find((p) => p.player_id === gs.activePlayerId);
     if (active) {
-      // Stats: log only ACTUALLY received Nickel (capped at MAX_CHIPS = not
+      // Configurable Nickel cap. Legacy in-flight games (fields absent in
+      // game_state) keep the original hard limit of 5; disabled = unlimited.
+      const limit =
+        gs.chipLimitEnabled == null
+          ? MAX_CHIPS
+          : gs.chipLimitEnabled
+            ? (gs.chipLimit ?? MAX_CHIPS)
+            : Number.POSITIVE_INFINITY;
+      // Stats: log only ACTUALLY received Nickel (capped at the limit = not
       // received), together with the song it was earned on.
-      if (active.chips < MAX_CHIPS) {
+      if (active.chips < limit) {
         statsHistory = appendStats(gs, {
           type: 'nickel',
           playerId: active.player_id,
@@ -1010,7 +1023,7 @@ export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promis
       }
       await supabase
         .from('lobby_players')
-        .update({ chips: Math.min(active.chips + 1, MAX_CHIPS) })
+        .update({ chips: Math.min(active.chips + 1, limit) })
         .eq('id', active.id);
     }
   }

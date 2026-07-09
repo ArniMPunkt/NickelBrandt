@@ -62,6 +62,38 @@ export function GameRulesSection() {
 
       <View style={styles.ruleToggleRow}>
         <View style={styles.toggleTextWrap}>
+          <Text style={styles.toggleTitle}>Nickel-Obergrenze</Text>
+          <Text style={styles.toggleHint}>
+            Maximal haltbare Nickel pro Spieler; aus = unbegrenzt sammeln
+            (Original-Hitster-Regel: 5)
+          </Text>
+        </View>
+        <Switch
+          value={settings.chipLimitEnabled}
+          onValueChange={(v) => update({ chipLimitEnabled: v })}
+          trackColor={{ false: COLORS.border, true: COLORS.primary }}
+          thumbColor={COLORS.text}
+          ios_backgroundColor={COLORS.border}
+        />
+      </View>
+      {settings.chipLimitEnabled && (
+        <View style={styles.costBlock}>
+          <View style={styles.winHeader}>
+            <Text style={styles.costLabel}>Obergrenze</Text>
+            <Text style={styles.costValue}>{settings.chipLimit} 🪙</Text>
+          </View>
+          <StepSlider
+            value={settings.chipLimit}
+            min={5}
+            max={10}
+            milestones={[5, 10]}
+            onChange={(v) => update({ chipLimit: v })}
+          />
+        </View>
+      )}
+
+      <View style={styles.ruleToggleRow}>
+        <View style={styles.toggleTextWrap}>
           <Text style={styles.toggleTitle}>Karte überspringen</Text>
           <Text style={styles.toggleHint}>
             Aktuelle Karte gegen Nickel abwerfen und eine neue ziehen

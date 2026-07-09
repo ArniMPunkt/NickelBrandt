@@ -6,7 +6,6 @@
  */
 import { createContext, useContext, useReducer, type ReactNode } from 'react';
 import {
-  MAX_CHIPS,
   toStatsSong,
   type GameCard,
   type GameSettings,
@@ -82,6 +81,8 @@ const initialState: GameState = {
     blindCost: 3,
     timerEnabled: false,
     timerSeconds: 60,
+    chipLimitEnabled: false,
+    chipLimit: 5,
   },
   winner: null,
   lastPlacement: null,
@@ -236,12 +237,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'AWARD_CHIP': {
       const { playerId } = action.payload;
+      // Configurable Nickel cap: Infinity when the Obergrenze setting is off.
+      const limit = state.settings.chipLimitEnabled
+        ? state.settings.chipLimit
+        : Number.POSITIVE_INFINITY;
       const target = state.players.find((p) => p.id === playerId);
-      const received = !!target && target.chips < MAX_CHIPS;
+      const received = !!target && target.chips < limit;
       const players = state.players.map((p) =>
-        p.id === playerId && p.chips < MAX_CHIPS ? { ...p, chips: p.chips + 1 } : p
+        p.id === playerId && p.chips < limit ? { ...p, chips: p.chips + 1 } : p
       );
-      // Log only ACTUALLY received Nickel (capped at MAX_CHIPS = not received).
+      // Log only ACTUALLY received Nickel (capped at the limit = not received).
       // The chip question runs during the reveal, so lastPlacement still holds
       // the song the Nickel was earned on.
       const history: MatchEvent[] = received
