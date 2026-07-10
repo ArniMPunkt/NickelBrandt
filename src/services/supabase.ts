@@ -465,7 +465,7 @@ export async function getPoolSongCount(poolId: string): Promise<number> {
 }
 
 /**
- * Load all songs of a pool as GameCards (to be shuffled like a playlist deck).
+ * Load all songs of a pool as GameCards (shuffled into the deck by the caller).
  * Uses the verified release_year directly (no runtime MusicBrainz). Cover art is
  * not stored in the pool, so coverUrl is left undefined (the UI shows a fallback).
  */
@@ -568,7 +568,7 @@ export async function startGame(
   if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
   if (cards.length < players.length + 1) {
     throw new Error(
-      `Playlist hat nur ${cards.length} Tracks - zu wenige für ${players.length} Spieler.`
+      `Pool hat nur ${cards.length} Tracks - zu wenige für ${players.length} Spieler.`
     );
   }
 

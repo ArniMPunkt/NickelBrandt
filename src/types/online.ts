@@ -191,7 +191,7 @@ export interface OnlineGameState {
   chipLimitEnabled?: boolean;
   chipLimit?: number;
   /**
-   * Deck source snapshot at game start ("pool:<id>" / playlist id + display
+   * Deck source snapshot at game start ("pool:<id>" + display
    * name), so any game screen can attach it to a "Song melden" report.
    * Optional for backward-compat with game_state rows written before this.
    */

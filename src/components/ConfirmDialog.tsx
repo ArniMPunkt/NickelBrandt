@@ -3,7 +3,7 @@
  * a dark card in the existing design vocabulary (backgroundAlt surface,
  * rounded corners, glowing accent border) with a neutral cancel button and a
  * confirm button that turns warn-red for destructive actions. Built on the
- * same RN <Modal> the playlist picker/check screens use, but transparent +
+ * same RN <Modal> the pool picker screen uses, but transparent +
  * fade + centered instead of a full-screen slide.
  */
 import { Modal, StyleSheet, Text, View } from 'react-native';

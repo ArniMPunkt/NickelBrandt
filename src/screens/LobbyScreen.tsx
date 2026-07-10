@@ -1,13 +1,12 @@
 /**
  * LobbyScreen - waiting room. Shows the join code and the live player list.
- * Host connects Spotify + picks a playlist, then starts the game; all devices
+ * Host connects Spotify + picks a themed pool, then starts the game; all devices
  * auto-navigate to OnlineGame once the lobby status becomes 'playing'.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -389,24 +388,14 @@ export default function LobbyScreen() {
           <Text style={styles.label}>SONGPOOL</Text>
           {source ? (
             <View style={styles.poolCard}>
-              {source.kind === 'pool' ? (
-                <PoolIcon iconUrl={source.pool.icon_url} size={52} />
-              ) : source.playlist.imageUrl ? (
-                <Image source={{ uri: source.playlist.imageUrl }} style={styles.poolCover} />
-              ) : (
-                <View style={[styles.poolCover, styles.poolCoverFallback]}>
-                  <Text style={styles.poolGlyph}>💿</Text>
-                </View>
-              )}
+              <PoolIcon iconUrl={source.pool.icon_url} size={52} />
               <View style={styles.poolText}>
                 <Text style={styles.poolLabel}>Ausgewählt</Text>
                 <Text style={styles.poolName} numberOfLines={1}>
-                  {source.kind === 'playlist' ? source.playlist.name : source.pool.name}
+                  {source.pool.name}
                 </Text>
                 <Text style={styles.poolMeta} numberOfLines={1}>
-                  {source.kind === 'playlist'
-                    ? `${source.playlist.trackCount} Songs`
-                    : 'Themen-Pool'}
+                  Themen-Pool
                 </Text>
               </View>
               <PressableButton style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
@@ -558,13 +547,6 @@ const styles = StyleSheet.create({
     padding: 12,
     ...glow(COLORS.accent, { radius: 12, opacity: 0.5 }),
   },
-  poolCover: { width: 52, height: 52, borderRadius: 10 },
-  poolCoverFallback: {
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  poolGlyph: { fontSize: 26, color: COLORS.border },
   poolText: { flex: 1 },
   poolLabel: { color: COLORS.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   poolName: { color: COLORS.text, fontSize: 17, fontWeight: '900' },

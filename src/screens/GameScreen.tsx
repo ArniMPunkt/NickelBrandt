@@ -213,9 +213,11 @@ export default function GameScreen() {
       ]).catch(() => {});
     }
     setPlayError(null);
-    Spotify.playUriGuarded(card.trackUri)
-      .then(() => Spotify.markTrackPlayed(card.id))
-      .catch((e: any) => setPlayError(e?.message ?? String(e)));
+    // (markTrackPlayed fiel mit dem Playlist-Import weg - das Session-Dedup
+    // fütterte nur getPlaylistTracks; Pool-Dedup läuft über PoolProgress oben.)
+    Spotify.playUriGuarded(card.trackUri).catch((e: any) =>
+      setPlayError(e?.message ?? String(e))
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.currentCard?.id]);
 
