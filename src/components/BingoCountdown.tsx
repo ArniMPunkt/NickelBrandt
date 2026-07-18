@@ -18,10 +18,10 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 // Shared server clock (see CategoryWheel): device clock skew must not shift
 // the countdown relative to the other devices.
 import { serverNow } from '../services/supabase';
-import { BINGO_CATEGORY_LABEL, BINGO_COUNTDOWN_MS } from '../game/bingo';
+import { bingoCategoryLabel, BINGO_COUNTDOWN_MS } from '../game/bingo';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
-import type { BingoCategoryType } from '../types/online';
+import type { BingoCategoryType, BingoDifficulty } from '../types/online';
 
 const secondsLeft = (startAt: number) =>
   Math.max(0, Math.ceil((startAt + BINGO_COUNTDOWN_MS - serverNow()) / 1000));
@@ -29,11 +29,14 @@ const secondsLeft = (startAt: number) =>
 export function BingoCountdown({
   startAt,
   category,
+  difficulty,
   onDone,
 }: {
   /** Absolute ms when the countdown began (spinStartedAt + BINGO_SPIN_MS). */
   startAt: number;
   category: BingoCategoryType;
+  /** Game difficulty - two categories label differently in 'hard'. */
+  difficulty?: BingoDifficulty;
   onDone?: () => void;
 }) {
   const [remaining, setRemaining] = useState(() => secondsLeft(startAt));
@@ -76,7 +79,7 @@ export function BingoCountdown({
     <View style={styles.wrap}>
       <Text style={styles.ready}>GLEICH GEHT'S LOS</Text>
       <View style={[styles.categoryPill, { borderColor: color }, glow(color, { radius: 12, opacity: 0.7 })]}>
-        <Text style={[styles.categoryText, { color }]}>{BINGO_CATEGORY_LABEL[category]}</Text>
+        <Text style={[styles.categoryText, { color }]}>{bingoCategoryLabel(category, difficulty)}</Text>
       </View>
       <Animated.Text
         style={[

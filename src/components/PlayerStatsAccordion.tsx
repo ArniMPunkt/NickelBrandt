@@ -19,7 +19,8 @@ import type {
   StealEntry,
 } from '../game/stats';
 import { isEmptyBingoStats, isEmptyQuizStats, isEmptyStats } from '../game/stats';
-import { BINGO_CATEGORY_LABEL } from '../game/bingo';
+import { bingoCategoryLabel } from '../game/bingo';
+import type { BingoDifficulty } from '../types/online';
 import { PressableButton } from './PressableButton';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -235,12 +236,16 @@ export function PlayerStatsAccordion({
 // --- Bingo ---------------------------------------------------------------------
 
 /** "● Jahrzehnt" subline in the category's cell color. */
-const bingoRows = (entries: BingoStatEntry[], onReportSong?: ReportStatsSong) =>
+const bingoRows = (
+  entries: BingoStatEntry[],
+  difficulty?: BingoDifficulty,
+  onReportSong?: ReportStatsSong
+) =>
   entries.map((e, i) => (
     <SongRow
       key={`${e.song.title}-${i}`}
       song={e.song}
-      subline={`● ${BINGO_CATEGORY_LABEL[e.category]}`}
+      subline={`● ${bingoCategoryLabel(e.category, difficulty)}`}
       sublineColor={BINGO_CATEGORY_COLOR[e.category]}
       onReportSong={onReportSong}
     />
@@ -251,6 +256,7 @@ export function PlayerBingoStatsAccordion({
   isWinner,
   headerRight,
   stats,
+  difficulty,
   onReportSong,
 }: {
   name: string;
@@ -258,6 +264,8 @@ export function PlayerBingoStatsAccordion({
   /** Short right-aligned header info, e.g. "9 / 16 markiert". */
   headerRight?: string;
   stats: PlayerBingoStats;
+  /** Game difficulty - two categories label differently in 'hard'. */
+  difficulty?: BingoDifficulty;
   /** "Song melden" flag on every song item (host only). */
   onReportSong?: ReportStatsSong;
 }) {
@@ -266,10 +274,10 @@ export function PlayerBingoStatsAccordion({
   ) : (
     <View style={styles.body}>
       <Section icon="✅" label="Erfüllt" count={stats.fulfilled.length}>
-        {bingoRows(stats.fulfilled, onReportSong)}
+        {bingoRows(stats.fulfilled, difficulty, onReportSong)}
       </Section>
       <Section icon="❌" label="Nicht erfüllt" count={stats.missed.length}>
-        {bingoRows(stats.missed, onReportSong)}
+        {bingoRows(stats.missed, difficulty, onReportSong)}
       </Section>
     </View>
   );

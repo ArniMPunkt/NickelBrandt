@@ -14,6 +14,7 @@ import {
   AppState,
   Image,
   InteractionManager,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,7 +28,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import {
-  BINGO_CATEGORY_LABEL,
+  bandAnswerGroup,
+  bingoCategoryLabel,
+  BINGO_CATEGORIES,
   BINGO_COUNTDOWN_MS,
   BINGO_YEAR_MAX,
   BINGO_YEAR_MIN,
@@ -39,6 +42,7 @@ import {
   titleAnswerText,
   type BingoAnswer,
 } from '../game/bingo';
+import * as MusicBrainz from '../services/musicbrainz';
 import { buildPlayerBingoStats } from '../game/stats';
 import { BingoCountdown } from '../components/BingoCountdown';
 import { CategoryWheel } from '../components/CategoryWheel';
@@ -55,7 +59,6 @@ import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type {
   BingoBoard,
-  BingoCategoryType,
   Lobby,
   LobbyPlayer,
   RoundAnswer,
@@ -171,6 +174,12 @@ export default function BingoGameScreen() {
   // Host's local verdict map during the title_artist review (source of truth
   // on the host device; pushed as a full map on every tap).
   const [hostVerdicts, setHostVerdicts] = useState<Record<string, boolean>>({});
+  // MusicBrainz Person/Group suggestion for the band_or_solo review (host
+  // device only). 'pending' until the lookup settles; null = no usable hint,
+  // the review then shows the manual search link instead.
+  const [mbSuggestion, setMbSuggestion] = useState<MusicBrainz.ArtistKind | null | 'pending'>(
+    'pending'
+  );
   const [endedHandled, setEndedHandled] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   // Win-line interstitial shown once before the victory celebration.
@@ -274,6 +283,14 @@ export default function BingoGameScreen() {
   const round = gs?.bingoRound ?? null;
   const roundPhase = gs?.roundPhase ?? null;
   const size = gs?.modeConfig?.bingoGridSize ?? 4;
+  // Difficulty only changes LABELS here - the question mechanics live in the
+  // synced round spec (tolerance), see drawBingoRound.
+  const difficulty = gs?.modeConfig?.bingoDifficulty ?? 'easy';
+  // Hard pink variant: the spec carries a tolerance -> the question is a
+  // numeric year guess (same input + payload as year_guess).
+  const yearInput =
+    round?.type === 'year_guess' ||
+    (round?.type === 'before_after_2000' && round?.tolerance != null);
   // Stale-tagged answers (from a previous round) count as "none yet".
   const answers = answersFor.round === gs?.roundNumber ? answersFor.list : [];
   const iAnswered = answers.some((a) => a.player_id === myId);
@@ -538,6 +555,37 @@ export default function BingoGameScreen() {
       .catch((e: any) => setError(e?.message ?? String(e)));
   };
 
+  // Host taps the band_or_solo truth (Gruppe/Solo): write it, then resolve -
+  // same await order as onVerdict so the resolve never races the truth write.
+  const onTruth = (group: boolean) => {
+    Online.setBingoTruth(lobbyId, group)
+      .then(() => Online.resolveBingoRound(lobbyId))
+      .catch((e: any) => setError(e?.message ?? String(e)));
+  };
+
+  // Review assist for band_or_solo: ONE targeted MusicBrainz lookup for the
+  // current song's first credited artist, fired on the HOST device as soon as
+  // the round's category is known - the result is long settled when the review
+  // opens. Only a hint (the host's one-tap truth decides); any failure just
+  // means the review shows the manual search link instead. Never blocks.
+  useEffect(() => {
+    if (!isHost || round?.type !== 'band_or_solo' || !card) return;
+    let live = true;
+    setMbSuggestion('pending');
+    MusicBrainz.lookupArtistKind(card.artist).then(
+      (kind) => {
+        if (live) setMbSuggestion(kind);
+      },
+      () => {
+        if (live) setMbSuggestion(null);
+      }
+    );
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, round?.type, card?.id]);
+
   const submit = (answer: BingoAnswer) => {
     setError(null);
     Online.submitRoundAnswer(lobbyId, myId, answer)
@@ -660,6 +708,7 @@ export default function BingoGameScreen() {
               isWinner={winnerIds.includes(p.player_id)}
               headerRight={`${markedCount(p.bingo_board)} / ${size * size} markiert`}
               stats={buildPlayerBingoStats(gs.bingoStatsHistory ?? [], p.player_id)}
+              difficulty={difficulty}
               onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
@@ -770,6 +819,7 @@ export default function BingoGameScreen() {
           <BingoCountdown
             startAt={gs.spinStartedAt + BINGO_SPIN_MS}
             category={round.type}
+            difficulty={difficulty}
             onDone={() => setCountdownFinished(true)}
           />
         </View>
@@ -787,7 +837,7 @@ export default function BingoGameScreen() {
           <View style={[styles.categoryBox, { borderColor: categoryColor }]}>
             <Text style={styles.categoryLabel}>KATEGORIE</Text>
             <Text style={[styles.categoryName, { color: categoryColor }]}>
-              {BINGO_CATEGORY_LABEL[round.type]}
+              {bingoCategoryLabel(round.type, difficulty)}
             </Text>
 
             {iAnswered ? (
@@ -810,7 +860,7 @@ export default function BingoGameScreen() {
                     ))}
                   </View>
                 )}
-                {round.type === 'before_after_2000' && (
+                {round.type === 'before_after_2000' && round.tolerance == null && (
                   <View style={styles.choiceWrap}>
                     <PressableButton
                       style={styles.choiceBtn}
@@ -826,7 +876,7 @@ export default function BingoGameScreen() {
                     </PressableButton>
                   </View>
                 )}
-                {round.type === 'year_guess' && (
+                {yearInput && (
                   <>
                     <View style={styles.yearHeader}>
                       <Text style={styles.hint}>Dein Tipp:</Text>
@@ -850,12 +900,13 @@ export default function BingoGameScreen() {
                 {round.type === 'title_artist' && (
                   <>
                     <Text style={styles.hint}>
-                      Schreib auf, was du hörst — Titel + Interpret. Danach bewertet
-                      der Host alle Antworten.
+                      {difficulty === 'hard'
+                        ? 'Schreib auf, was du hörst — Titel + Interpret. Danach bewertet der Host alle Antworten.'
+                        : 'Schreib auf, wen du hörst — der Interpret reicht. Danach bewertet der Host alle Antworten.'}
                     </Text>
                     <TextInput
                       style={styles.titleInput}
-                      placeholder="Titel + Interpret"
+                      placeholder={difficulty === 'hard' ? 'Titel + Interpret' : 'Interpret'}
                       placeholderTextColor={COLORS.textMuted}
                       value={titleText}
                       onChangeText={setTitleText}
@@ -870,6 +921,22 @@ export default function BingoGameScreen() {
                     </PressableButton>
                   </>
                 )}
+                {round.type === 'band_or_solo' && (
+                  <View style={styles.choiceWrap}>
+                    <PressableButton
+                      style={styles.choiceBtn}
+                      onPress={() => submit({ kind: 'band_or_solo', group: true })}
+                    >
+                      <Text style={styles.choiceText}>Gruppe / Band</Text>
+                    </PressableButton>
+                    <PressableButton
+                      style={styles.choiceBtn}
+                      onPress={() => submit({ kind: 'band_or_solo', group: false })}
+                    >
+                      <Text style={styles.choiceText}>Solokünstler</Text>
+                    </PressableButton>
+                  </View>
+                )}
               </>
             )}
           </View>
@@ -880,13 +947,16 @@ export default function BingoGameScreen() {
         </>
       )}
 
-      {/* ---- reviewing: everyone sees all texts, ONLY the host grades ---- */}
-      {roundPhase === 'reviewing' && round && (
+      {/* ---- reviewing: everyone sees all answers, ONLY the host grades.
+              title_artist: per-player ✓/✕ verdicts on the free texts.
+              band_or_solo: the host sets the TRUTH once (Gruppe/Solo, assisted
+              by the MusicBrainz suggestion); grading follows automatically. ---- */}
+      {roundPhase === 'reviewing' && round && round.type !== 'band_or_solo' && (
         <>
           <View style={[styles.categoryBox, { borderColor: categoryColor }]}>
             <Text style={styles.categoryLabel}>HOST-BEWERTUNG</Text>
             <Text style={[styles.categoryName, { color: categoryColor }]}>
-              {BINGO_CATEGORY_LABEL[round.type]}
+              {bingoCategoryLabel(round.type, difficulty)}
             </Text>
             <Text style={styles.hint}>
               {isHost
@@ -958,6 +1028,76 @@ export default function BingoGameScreen() {
                       {verdict === true ? '✓' : verdict === false ? '✕' : '…'}
                     </Text>
                   ))}
+              </View>
+            );
+          })}
+        </>
+      )}
+      {roundPhase === 'reviewing' && round && round.type === 'band_or_solo' && (
+        <>
+          <View style={[styles.categoryBox, { borderColor: categoryColor }]}>
+            <Text style={styles.categoryLabel}>HOST-BEWERTUNG</Text>
+            <Text style={[styles.categoryName, { color: categoryColor }]}>
+              {bingoCategoryLabel(round.type, difficulty)}
+            </Text>
+            <Text style={styles.hint}>
+              {isHost
+                ? 'Sag an, was richtig ist — deine Wahl bewertet alle Antworten.'
+                : 'Alle Antworten liegen auf dem Tisch — der Host entscheidet.'}
+            </Text>
+            {/* Artist is public during the review (answers are locked); the
+                title reveal stays where it belongs, in the resolved view. */}
+            {card && <Text style={styles.reviewTruth}>Interpret: {card.artist}</Text>}
+            {isHost && card && (
+              <>
+                {mbSuggestion === 'person' || mbSuggestion === 'group' ? (
+                  <Text style={styles.mbHint}>
+                    MusicBrainz: vermutlich{' '}
+                    {mbSuggestion === 'group' ? 'Gruppe/Band' : 'Solokünstler'}
+                  </Text>
+                ) : (
+                  // Lookup failed/inconclusive (or still pending after the
+                  // timeout window): the host checks manually instead.
+                  <Text
+                    style={styles.mbLink}
+                    onPress={() => {
+                      Linking.openURL(MusicBrainz.artistSearchUrl(card.artist)).catch(() => {});
+                    }}
+                  >
+                    Auf MusicBrainz nachsehen ↗
+                  </Text>
+                )}
+                <View style={styles.choiceWrap}>
+                  <PressableButton style={styles.choiceBtn} onPress={() => onTruth(true)}>
+                    <Text style={styles.choiceText}>Gruppe / Band</Text>
+                  </PressableButton>
+                  <PressableButton style={styles.choiceBtn} onPress={() => onTruth(false)}>
+                    <Text style={styles.choiceText}>Solokünstler</Text>
+                  </PressableButton>
+                </View>
+              </>
+            )}
+            {gs.reviewDeadline != null && <RoundCountdown deadlineMs={gs.reviewDeadline} />}
+          </View>
+
+          {players.map((p) => {
+            const ans = answers.find((a) => a.player_id === p.player_id);
+            const claim = ans ? bandAnswerGroup(ans.answer) : null;
+            const text = claim == null ? null : claim ? 'Gruppe / Band' : 'Solokünstler';
+            return (
+              <View key={p.id} style={styles.reviewRow}>
+                <View style={styles.reviewTextWrap}>
+                  <Text style={styles.scoreName} numberOfLines={1}>
+                    {p.player_name}
+                    {p.player_id === myId ? ' (du)' : ''}
+                  </Text>
+                  <Text
+                    style={text != null ? styles.reviewAnswer : styles.reviewNoAnswer}
+                    numberOfLines={1}
+                  >
+                    {text ?? '— keine Antwort'}
+                  </Text>
+                </View>
               </View>
             );
           })}
@@ -1057,10 +1197,10 @@ export default function BingoGameScreen() {
         <Text style={styles.muted}>Board wird geladen…</Text>
       )}
       <View style={styles.legend}>
-        {(Object.keys(BINGO_CATEGORY_LABEL) as BingoCategoryType[]).map((t) => (
+        {BINGO_CATEGORIES.map((t) => (
           <View key={t} style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: CATEGORY_COLOR[t] }]} />
-            <Text style={styles.legendText}>{BINGO_CATEGORY_LABEL[t]}</Text>
+            <Text style={styles.legendText}>{bingoCategoryLabel(t, difficulty)}</Text>
           </View>
         ))}
       </View>
@@ -1239,6 +1379,15 @@ const styles = StyleSheet.create({
   reviewTextWrap: { flex: 1, gap: 2 },
   reviewAnswer: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
   reviewNoAnswer: { color: COLORS.textMuted, fontSize: 14, fontStyle: 'italic' },
+  // MusicBrainz suggestion / manual fallback link in the band_or_solo review:
+  // deliberately quiet (a hint, not a primary action).
+  mbHint: { color: COLORS.textMuted, fontSize: 13, fontStyle: 'italic' },
+  mbLink: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    fontStyle: 'italic',
+    textDecorationLine: 'underline',
+  },
   verdictBtns: { flexDirection: 'row', gap: 8 },
   verdictBtn: {
     width: 44,

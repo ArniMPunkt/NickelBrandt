@@ -25,6 +25,7 @@ import {
   BINGO_ROUND_SECONDS,
   BINGO_SPIN_MS,
   BINGO_SPIN_OPEN_ALL_MS,
+  bandAnswerGroup,
   countMarked,
   decadeRange,
   yearBounds,
@@ -44,6 +45,7 @@ import {
 } from '../game/timelineQuiz';
 import { MAX_CHIPS, toStatsSong } from '../types/game';
 import type {
+  BingoDifficulty,
   GameCard,
   GameMode,
   Lobby,
@@ -1362,7 +1364,13 @@ export async function resolveSimulRound(
 export async function startBingoGame(
   lobbyId: string,
   cards: GameCard[],
-  config: { bingoGridSize: 4 | 5; sourceId?: string; sourceName?: string }
+  config: {
+    bingoGridSize: 4 | 5;
+    bingoDifficulty: BingoDifficulty;
+    bingoSongSeconds: number;
+    sourceId?: string;
+    sourceName?: string;
+  }
 ): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
   if (players.length < 2) throw new Error('Mindestens 2 Spieler nötig.');
@@ -1399,7 +1407,13 @@ export async function startBingoGame(
     hideCoverUntilRevealed: true,
     winnerId: null,
     gameMode: 'bingo',
-    modeConfig: { bingoGridSize: config.bingoGridSize },
+    // Difficulty + Song-Zeit ride along in modeConfig (synced to every client
+    // via game_state, same as the grid size).
+    modeConfig: {
+      bingoGridSize: config.bingoGridSize,
+      bingoDifficulty: config.bingoDifficulty,
+      bingoSongSeconds: config.bingoSongSeconds,
+    },
     sourceId: config.sourceId ?? null,
     sourceName: config.sourceName ?? null,
     // Decade MC options are cut from the pool's real span (fixed at start, so
@@ -1409,7 +1423,7 @@ export async function startBingoGame(
     // ±tolerance grading is independent of these bounds).
     bingoYearMin: yearBounds(cards).min,
     bingoYearMax: yearBounds(cards).max,
-    bingoRound: drawBingoRound(first, decadeRange(cards)),
+    bingoRound: drawBingoRound(first, decadeRange(cards), config.bingoDifficulty),
     bingoStatsHistory: [],
     // Round 1 opens in the SPIN stage: the first player (join order) presses
     // the wheel button; the answer deadline is only set on the press.
@@ -1466,8 +1480,13 @@ export async function triggerBingoSpin(lobbyId: string): Promise<void> {
         spinStartedAt: now,
         // Answer window begins only after the wheel AND the 3-2-1 countdown, so
         // the new song (which starts at the end of the countdown) plays for the
-        // full BINGO_ROUND_SECONDS.
-        roundDeadline: now + BINGO_SPIN_MS + BINGO_COUNTDOWN_MS + BINGO_ROUND_SECONDS * 1000,
+        // full configured Song-Zeit (fallback: BINGO_ROUND_SECONDS for games
+        // started before the setting existed).
+        roundDeadline:
+          now +
+          BINGO_SPIN_MS +
+          BINGO_COUNTDOWN_MS +
+          (gs.modeConfig?.bingoSongSeconds ?? BINGO_ROUND_SECONDS) * 1000,
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
@@ -1499,8 +1518,12 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
   const { game_state: pre } = await getLobby(lobbyId);
   if (!pre || pre.gameMode !== 'bingo' || pre.roundNumber == null) return;
   const isTitleRound = pre.bingoRound?.type === 'title_artist';
+  const isBandRound = pre.bingoRound?.type === 'band_or_solo';
+  // Both host-reviewed categories share the reviewing phase: title_artist with
+  // per-player verdicts, band_or_solo with a single one-tap truth.
+  const needsReview = isTitleRound || isBandRound;
 
-  if (pre.roundPhase === 'collecting' && isTitleRound) {
+  if (pre.roundPhase === 'collecting' && needsReview) {
     const answers = await getRoundAnswers(lobbyId, pre.roundNumber);
     if (answers.length > 0) {
       await openBingoReview(lobbyId, pre, answers.length);
@@ -1510,13 +1533,18 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
   }
 
   if (pre.roundPhase === 'reviewing') {
-    if (!isTitleRound) return; // defensive: reviewing only exists for title rounds
-    const answers = await getRoundAnswers(lobbyId, pre.roundNumber);
-    const verdicts = pre.reviewVerdicts ?? {};
-    const allJudged = answers.every((a) => typeof verdicts[a.player_id] === 'boolean');
+    if (!needsReview) return; // defensive: reviewing only exists for review rounds
     const deadlinePassed =
       pre.reviewDeadline == null || serverNow() >= pre.reviewDeadline;
-    if (!allJudged && !deadlinePassed) return;
+    if (isBandRound) {
+      const truthSet = typeof pre.reviewTruthGroup === 'boolean';
+      if (!truthSet && !deadlinePassed) return;
+    } else {
+      const answers = await getRoundAnswers(lobbyId, pre.roundNumber);
+      const verdicts = pre.reviewVerdicts ?? {};
+      const allJudged = answers.every((a) => typeof verdicts[a.player_id] === 'boolean');
+      if (!allJudged && !deadlinePassed) return;
+    }
   }
 
   await resolveSimulRound(
@@ -1537,6 +1565,19 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
                   ? 'correct'
                   : 'incorrect'
                 : titleAnswerText(a.answer).trim().length > 0
+                  ? 'correct'
+                  : 'incorrect';
+          } else if (round.type === 'band_or_solo') {
+            // Graded against the host's one-tap truth; without one (host gone
+            // / timeout) the honor fallback counts every claim as correct.
+            const truth = gs.reviewTruthGroup;
+            const claim = bandAnswerGroup(a.answer);
+            results[a.player_id] =
+              typeof truth === 'boolean'
+                ? claim === truth
+                  ? 'correct'
+                  : 'incorrect'
+                : claim != null
                   ? 'correct'
                   : 'incorrect';
           } else {
@@ -1585,6 +1626,7 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
           expectedMarks,
           reviewDeadline: null,
           reviewVerdicts: null,
+          reviewTruthGroup: null,
           bingoStatsHistory,
         },
       };
@@ -1594,9 +1636,10 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
 }
 
 /**
- * Open the host-review phase for a title_artist round: collecting ->
- * reviewing (atomic; parallel deadline/all-answered triggers dedupe on the
- * filter). Applies the same premature-trigger defense as normal resolution.
+ * Open the host-review phase for a title_artist or band_or_solo round:
+ * collecting -> reviewing (atomic; parallel deadline/all-answered triggers
+ * dedupe on the filter). Applies the same premature-trigger defense as normal
+ * resolution.
  */
 async function openBingoReview(
   lobbyId: string,
@@ -1616,6 +1659,7 @@ async function openBingoReview(
         roundPhase: 'reviewing',
         reviewDeadline: serverNow() + BINGO_REVIEW_SECONDS * 1000,
         reviewVerdicts: {},
+        reviewTruthGroup: null,
       } as OnlineGameState,
     })
     .eq('id', lobbyId)
@@ -1645,6 +1689,30 @@ export async function setBingoVerdicts(
   const { error } = await supabase
     .from('lobbies')
     .update({ game_state: { ...gs, reviewVerdicts: verdicts } as OnlineGameState })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'reviewing')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+  if (error) throw new Error(`Bewertung konnte nicht gespeichert werden: ${error.message}`);
+}
+
+/**
+ * Host sets the band_or_solo truth (true = Gruppe/Band) in the review phase;
+ * all submitted claims are then graded against it on resolve. Same
+ * single-writer + phase/round guards as setBingoVerdicts.
+ */
+export async function setBingoTruth(lobbyId: string, group: boolean): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    gs.gameMode !== 'bingo' ||
+    gs.roundPhase !== 'reviewing' ||
+    gs.roundNumber == null
+  ) {
+    return;
+  }
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ game_state: { ...gs, reviewTruthGroup: group } as OnlineGameState })
     .eq('id', lobbyId)
     .filter('game_state->>roundPhase', 'eq', 'reviewing')
     .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
@@ -1738,6 +1806,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
           expectedMarks: null,
           reviewDeadline: null,
           reviewVerdicts: null,
+          reviewTruthGroup: null,
         } as OnlineGameState,
       })
       .eq('id', lobbyId)
@@ -1758,6 +1827,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
       expectedMarks: null,
       reviewDeadline: null,
       reviewVerdicts: null,
+      reviewTruthGroup: null,
     });
     await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
     return;
@@ -1774,7 +1844,11 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         ...gs,
         deck: rest,
         currentCard: Spotify.withCachedCover(next),
-        bingoRound: drawBingoRound(next, gs.bingoDecades ?? undefined),
+        bingoRound: drawBingoRound(
+          next,
+          gs.bingoDecades ?? undefined,
+          gs.modeConfig?.bingoDifficulty ?? 'easy'
+        ),
         roundNumber: gs.roundNumber + 1,
         roundDeadline: null,
         roundPhase: 'spinning',
@@ -1783,6 +1857,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         expectedMarks: null,
         reviewDeadline: null,
         reviewVerdicts: null,
+        reviewTruthGroup: null,
         spinnerId: spinner?.player_id ?? null,
         spinArmedAt: serverNow(),
         spinStartedAt: null,

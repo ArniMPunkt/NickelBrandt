@@ -36,13 +36,15 @@ export type AppColors = typeof COLORS;
 import type { BingoCategoryType } from '../types/online';
 
 /**
- * Bingo cell/category colors (4 categories -> 4 theme colors). Lives here so
+ * Bingo cell/category colors (one theme color per category). Lives here so
  * the game screen AND the win-line reveal share one mapping without a
- * screen<->component import cycle.
+ * screen<->component import cycle. band_or_solo gets its own violet: the four
+ * accents are taken, red reads as "wrong" and purple is the background family.
  */
 export const BINGO_CATEGORY_COLOR: Record<BingoCategoryType, string> = {
   decade: COLORS.secondary,
   before_after_2000: COLORS.primary,
   year_guess: COLORS.accent,
   title_artist: COLORS.correct,
+  band_or_solo: '#B14CFF',
 };
