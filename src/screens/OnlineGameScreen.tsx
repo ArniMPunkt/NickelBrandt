@@ -201,6 +201,8 @@ export default function OnlineGameScreen() {
   const barAnim = useRef(new Animated.Value(1)).current;
   // Handle a host-ended lobby exactly once.
   const endedRef = useRef(false);
+  // Handle a host-reopened lobby (rematch) exactly once.
+  const rematchRef = useRef(false);
   const [endConfirmVisible, setEndConfirmVisible] = useState(false);
   // Victory screen shows first when the game finishes (server-driven phase, so all
   // devices show it together); each player then taps through to the stats locally.
@@ -226,6 +228,14 @@ export default function OnlineGameScreen() {
         Online.clearLastLobbyId().catch(() => {});
         Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
         navigation.navigate('OnlineHome');
+        return;
+      }
+      // Rematch: the host reopened the lobby (status back to 'waiting') ->
+      // every connected device returns to the waiting room automatically
+      // (same code, no re-join). Navigate exactly once.
+      if (lb.status === 'waiting' && !rematchRef.current) {
+        rematchRef.current = true;
+        navigation.navigate('Lobby', { lobbyId, code: lb.code });
         return;
       }
       setLobby(lb);
@@ -529,15 +539,27 @@ export default function OnlineGameScreen() {
               onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
+        {isHost && (
+          <PressableButton
+            style={styles.primaryBtn}
+            onPress={() => Online.reopenLobby(lobbyId).catch((e: any) => setError(e?.message ?? String(e)))}
+          >
+            <Text style={styles.primaryBtnText}>Nochmal spielen</Text>
+          </PressableButton>
+        )}
         <PressableButton
-          style={styles.primaryBtn}
+          style={styles.secondaryBtn}
           onPress={() => {
-            Online.clearLastLobbyId().catch(() => {});
+            // Leaving the result screen = leaving the lobby: delete the own
+            // roster row so a rematch can't deal ghost players into the next
+            // game (fire-and-forget; leaveLobby clears the stored id too).
+            Online.leaveLobby(lobbyId).catch(() => {});
             navigation.navigate('OnlineHome');
           }}
         >
-          <Text style={styles.primaryBtnText}>Zurück</Text>
+          <Text style={styles.secondaryBtnText}>Zurück</Text>
         </PressableButton>
+        {error && <Text style={styles.error}>{error}</Text>}
         {reportDialog}
       </ScrollView>
     );
@@ -1034,4 +1056,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  secondaryBtn: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '800' },
 });

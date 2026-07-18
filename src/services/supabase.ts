@@ -27,6 +27,7 @@ import {
   BINGO_SPIN_OPEN_ALL_MS,
   countMarked,
   decadeRange,
+  yearBounds,
   drawBingoRound,
   evaluateBingoAnswer,
   freeCellIndices,
@@ -391,6 +392,26 @@ export async function endLobby(lobbyId: string): Promise<void> {
   if (error) throw new Error(`Lobby konnte nicht beendet werden: ${error.message}`);
   await clearLastLobbyId();
   dismissResumableLobby();
+}
+
+/**
+ * Host: reopen a finished lobby for a rematch - status 'finished' -> 'waiting'
+ * (same code, same lobby_players roster; connected devices watch the status
+ * and return to the waiting room automatically, no re-join). game_state is
+ * deliberately left untouched: the finished match's stats history stays
+ * readable until the next start overwrites it wholesale (every start function
+ * writes a complete fresh game_state, and the simul modes additionally clear
+ * leftover round_answers). Guarded on status='finished' so a double tap or a
+ * stale client can never clobber an ended lobby or a game that already
+ * restarted.
+ */
+export async function reopenLobby(lobbyId: string): Promise<void> {
+  const { error } = await supabase
+    .from('lobbies')
+    .update({ status: 'waiting' })
+    .eq('id', lobbyId)
+    .eq('status', 'finished');
+  if (error) throw new Error(`Lobby konnte nicht neu geöffnet werden: ${error.message}`);
 }
 
 /** Fetch the current players of a lobby (ordered by join time). */
@@ -1384,6 +1405,10 @@ export async function startBingoGame(
     // Decade MC options are cut from the pool's real span (fixed at start, so
     // the shrinking deck can't narrow the choices over the game).
     bingoDecades: decadeRange(cards),
+    // Year-guess slider range = the pool's real span (display only; the
+    // ±tolerance grading is independent of these bounds).
+    bingoYearMin: yearBounds(cards).min,
+    bingoYearMax: yearBounds(cards).max,
     bingoRound: drawBingoRound(first, decadeRange(cards)),
     bingoStatsHistory: [],
     // Round 1 opens in the SPIN stage: the first player (join order) presses

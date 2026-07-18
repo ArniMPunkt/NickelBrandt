@@ -40,9 +40,31 @@ export const BINGO_DECADE_OPTIONS_MAX = 8;
 /** Allowed deviation for the year-guess category. */
 export const BINGO_YEAR_TOLERANCE = 3;
 
-/** Slider bounds for the year-guess input. */
+/**
+ * Fallback slider bounds for the year-guess input - only used for games whose
+ * game_state predates the pool-derived bounds (bingoYearMin/Max, see
+ * yearBounds). New games always show the pool's real min/max year instead.
+ */
 export const BINGO_YEAR_MIN = 1950;
 export const BINGO_YEAR_MAX = 2025;
+
+/**
+ * Min/max song year of a card set - the year-guess slider's VISIBLE range,
+ * computed once at game start and synced via game_state (same idea as
+ * decadeRange: a scale reaching back to the 1950s is pointless/misleading on
+ * a 1995+ pool). Display only - the ±tolerance grading in evaluateBingoAnswer
+ * is untouched by these bounds.
+ */
+export function yearBounds(cards: GameCard[]): { min: number; max: number } {
+  if (cards.length === 0) return { min: BINGO_YEAR_MIN, max: BINGO_YEAR_MAX };
+  let min = Infinity;
+  let max = -Infinity;
+  for (const c of cards) {
+    if (c.year < min) min = c.year;
+    if (c.year > max) max = c.year;
+  }
+  return { min, max };
+}
 
 export const BINGO_CATEGORY_LABEL: Record<BingoCategoryType, string> = {
   decade: 'Jahrzehnt',

@@ -262,6 +262,10 @@ export default function BingoGameScreen() {
   );
 
   const gs = lobby?.game_state ?? null;
+  // Year-guess slider range: the pool's real span (synced at game start);
+  // fallback constants only for games started before the bounds existed.
+  const yearMin = gs?.bingoYearMin ?? BINGO_YEAR_MIN;
+  const yearMax = gs?.bingoYearMax ?? BINGO_YEAR_MAX;
   const me = players.find((p) => p.player_id === myId);
   const isHost = !!me?.is_host;
   // Host plays audio -> silently reconnect Spotify after a background/foreground.
@@ -365,6 +369,16 @@ export default function BingoGameScreen() {
     navigation.navigate('OnlineHome');
   }, [lobby?.status, endedHandled, navigation]);
 
+  // Rematch: the host reopened the lobby (status back to 'waiting') -> every
+  // connected device returns to the waiting room automatically (same code, no
+  // re-join). Navigate exactly once.
+  const rematchRef = useRef(false);
+  useEffect(() => {
+    if (lobby?.status !== 'waiting' || rematchRef.current) return;
+    rematchRef.current = true;
+    navigation.navigate('Lobby', { lobbyId, code: lobby.code });
+  }, [lobby?.status, lobby?.code, lobbyId, navigation]);
+
   // Host-only audio. The round's song starts only AFTER the wheel lands AND the
   // 3-2-1 countdown ends (spinStartedAt + spin + countdown), so the PREVIOUS song
   // keeps playing through the draw and the new song never changes before the
@@ -442,7 +456,8 @@ export default function BingoGameScreen() {
 
   // Reset the per-round inputs for each new round.
   useEffect(() => {
-    setYearGuess(1990);
+    // Fresh round -> park the slider mid-range of the pool's visible span.
+    setYearGuess(Math.round((yearMin + yearMax) / 2));
     setTitleText('');
     setHostVerdicts({});
     setSpinFinished(false);
@@ -648,15 +663,27 @@ export default function BingoGameScreen() {
               onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
+        {isHost && (
+          <PressableButton
+            style={styles.primaryBtn}
+            onPress={() => Online.reopenLobby(lobbyId).catch((e: any) => setError(e?.message ?? String(e)))}
+          >
+            <Text style={styles.primaryBtnText}>Nochmal spielen</Text>
+          </PressableButton>
+        )}
         <PressableButton
-          style={styles.primaryBtn}
+          style={styles.secondaryBtn}
           onPress={() => {
-            Online.clearLastLobbyId().catch(() => {});
+            // Leaving the result screen = leaving the lobby: delete the own
+            // roster row so a rematch can't deal ghost players into the next
+            // game (fire-and-forget; leaveLobby clears the stored id too).
+            Online.leaveLobby(lobbyId).catch(() => {});
             navigation.navigate('OnlineHome');
           }}
         >
-          <Text style={styles.primaryBtnText}>Zurück</Text>
+          <Text style={styles.secondaryBtnText}>Zurück</Text>
         </PressableButton>
+        {error && <Text style={styles.error}>{error}</Text>}
         {reportDialog}
       </ScrollView>
     );
@@ -807,9 +834,9 @@ export default function BingoGameScreen() {
                     </View>
                     <StepSlider
                       value={yearGuess}
-                      min={BINGO_YEAR_MIN}
-                      max={BINGO_YEAR_MAX}
-                      milestones={[1960, 1980, 2000, 2020]}
+                      min={yearMin}
+                      max={yearMax}
+                      milestones={[yearMin, Math.round((yearMin + yearMax) / 2), yearMax]}
                       onChange={setYearGuess}
                     />
                     <PressableButton
@@ -1324,5 +1351,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  secondaryBtn: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '800' },
   primaryBtnDisabled: { opacity: 0.5 },
 });

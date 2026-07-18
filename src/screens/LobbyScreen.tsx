@@ -108,6 +108,11 @@ export default function LobbyScreen() {
         navigation.navigate('OnlineHome');
         return;
       }
+      // Rematch flow: the lobby was reopened ('waiting' again) - re-arm the
+      // one-shot start navigation so the NEXT game start navigates again.
+      if (lobby.status === 'waiting') {
+        navigatedRef.current = false;
+      }
       if (lobby.status === 'playing' && !navigatedRef.current) {
         navigatedRef.current = true;
         // Route by mode: the simultaneous modes have no start cards -> no intro.

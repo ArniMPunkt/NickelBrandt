@@ -247,6 +247,13 @@ export interface OnlineGameState {
   /** Bingo: the pool's decade span, fixed at game start (decade MC options). */
   bingoDecades?: number[] | null;
   /**
+   * Bingo: the pool's real min/max song year, fixed at game start - the
+   * VISIBLE range of the year-guess slider (grading is unaffected). Absent =
+   * game started before these existed -> fallback constants.
+   */
+  bingoYearMin?: number | null;
+  bingoYearMax?: number | null;
+  /**
    * Bingo: cell-pick window after a resolution. Correct players choose which
    * free cell of the round color to mark (their own client auto-picks on
    * timeout). expectedMarks = per player the marked-cell count AFTER their
