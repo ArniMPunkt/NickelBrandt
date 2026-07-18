@@ -17,6 +17,8 @@
  *   - report: "Song melden" (host / device holder). Disabled with a hint
  *     until the current song is revealed - before the reveal it would be
  *     ambiguous which song is meant. Opens the screen's ReportSongDialog.
+ *   - nickelFix: "Nickel korrigieren" (host / device holder, hitster modes).
+ *     Opens the screen's NickelFixDialog for manual chip corrections.
  *   - code: the lobby code (info row, formerly behind the ⓘ button)
  *   - deckCount: the "im Deck" counter (info row, formerly a header pill)
  *   - action: leave/end lobby (destructive row; the screen keeps its own
@@ -59,12 +61,15 @@ export interface HeaderMenuReport {
 export function HeaderMenu({
   playback,
   report,
+  nickelFix,
   code,
   deckCount,
   action,
 }: {
   playback?: HeaderMenuPlayback;
   report?: HeaderMenuReport;
+  /** "Nickel korrigieren" row (host / device holder); opens the screen's dialog. */
+  nickelFix?: { onPress: () => void };
   code?: string | null;
   deckCount?: number;
   action?: HeaderMenuAction;
@@ -174,6 +179,18 @@ export function HeaderMenu({
                 {!report.enabled && (
                   <Text style={styles.reportHint}>erst nach Aufdeckung</Text>
                 )}
+              </PressableButton>
+            )}
+
+            {nickelFix && (
+              <PressableButton
+                style={styles.reportRow}
+                onPress={() => {
+                  setOpen(false);
+                  nickelFix.onPress();
+                }}
+              >
+                <Text style={styles.reportText}>🪙 Nickel korrigieren</Text>
               </PressableButton>
             )}
 

@@ -1053,6 +1053,37 @@ export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promis
   await writeGameState(lobbyId, { ...gs, phase: 'finished', statsHistory });
 }
 
+/**
+ * Manual Nickel correction (host, "Nickel korrigieren" dialog): ±1 on one
+ * player's chip count, clamped to [0, limit] (limit null = unbegrenzt).
+ * Deliberately NO statsHistory append: a manual fix has no song context, and
+ * the "Erhaltene Nickel" list requires one.
+ *
+ * Race-safe against the regular award/steal writes via optimistic
+ * concurrency: the update is guarded on the CURRENT count, so if a round
+ * write lands in between it matches zero rows and we throw a retry error
+ * instead of silently overwriting the newer count.
+ */
+export async function adjustPlayerChips(
+  playerRowId: string,
+  currentChips: number,
+  delta: 1 | -1,
+  limit: number | null
+): Promise<void> {
+  const next = Math.max(0, Math.min(currentChips + delta, limit ?? Number.POSITIVE_INFINITY));
+  if (next === currentChips) return; // already at a bound - nothing to write
+  const { data, error } = await supabase
+    .from('lobby_players')
+    .update({ chips: next })
+    .eq('id', playerRowId)
+    .eq('chips', currentChips)
+    .select('id');
+  if (error) throw new Error(`Nickel-Korrektur fehlgeschlagen: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error('Nickel-Stand hat sich gerade geändert — bitte nochmal tippen.');
+  }
+}
+
 /** Host draws the next card + rotates to the next player (or finishes). */
 export async function drawNextCard(lobbyId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
