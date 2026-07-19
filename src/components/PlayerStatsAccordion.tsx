@@ -20,7 +20,8 @@ import type {
 } from '../game/stats';
 import { isEmptyBingoStats, isEmptyQuizStats, isEmptyStats } from '../game/stats';
 import { bingoCategoryLabel } from '../game/bingo';
-import type { BingoDifficulty } from '../types/online';
+import { BingoGrid } from './BingoGrid';
+import type { BingoBoard, BingoDifficulty } from '../types/online';
 import { PressableButton } from './PressableButton';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -256,6 +257,7 @@ export function PlayerBingoStatsAccordion({
   isWinner,
   headerRight,
   stats,
+  board,
   difficulty,
   onReportSong,
 }: {
@@ -264,21 +266,34 @@ export function PlayerBingoStatsAccordion({
   /** Short right-aligned header info, e.g. "9 / 16 markiert". */
   headerRight?: string;
   stats: PlayerBingoStats;
+  /** THIS player's final board, shown above the category list when expanded. */
+  board?: { cells: BingoBoard; size: number };
   /** Game difficulty - two categories label differently in 'hard'. */
   difficulty?: BingoDifficulty;
   /** "Song melden" flag on every song item (host only). */
   onReportSong?: ReportStatsSong;
 }) {
-  const body = isEmptyBingoStats(stats) ? (
-    <Text style={styles.emptyLine}>Keine Runden in dieser Partie.</Text>
-  ) : (
+  const body = (
     <View style={styles.body}>
-      <Section icon="✅" label="Erfüllt" count={stats.fulfilled.length}>
-        {bingoRows(stats.fulfilled, difficulty, onReportSong)}
-      </Section>
-      <Section icon="❌" label="Nicht erfüllt" count={stats.missed.length}>
-        {bingoRows(stats.missed, difficulty, onReportSong)}
-      </Section>
+      {/* Display-only board (smaller cells than in-game, so 5x5 fits the
+          padded card width). */}
+      {board && (
+        <View style={styles.boardWrap}>
+          <BingoGrid board={board.cells} size={board.size} cellSize={44} />
+        </View>
+      )}
+      {isEmptyBingoStats(stats) ? (
+        <Text style={styles.emptyLine}>Keine Runden in dieser Partie.</Text>
+      ) : (
+        <>
+          <Section icon="✅" label="Erfüllt" count={stats.fulfilled.length}>
+            {bingoRows(stats.fulfilled, difficulty, onReportSong)}
+          </Section>
+          <Section icon="❌" label="Nicht erfüllt" count={stats.missed.length}>
+            {bingoRows(stats.missed, difficulty, onReportSong)}
+          </Section>
+        </>
+      )}
     </View>
   );
 
@@ -362,6 +377,7 @@ const styles = StyleSheet.create({
   chevron: { color: COLORS.secondary, fontSize: 13, fontWeight: '900' },
 
   body: { gap: 12, marginTop: 4 },
+  boardWrap: { alignItems: 'center', paddingVertical: 4 },
   section: { gap: 6 },
   sectionTitle: {
     color: COLORS.secondary,

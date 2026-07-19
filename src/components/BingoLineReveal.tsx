@@ -22,7 +22,8 @@ const GAP = 6;
 const PULSE_STAGGER_MS = 110;
 const PULSE_MS = 260;
 const LINE_MS = 550;
-const HOLD_MS = 800;
+/** Rest on the fully traced line before advancing (was 800 - felt too short). */
+const HOLD_MS = 1300;
 
 export interface BingoRevealWinner {
   name: string;

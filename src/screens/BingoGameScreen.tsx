@@ -45,6 +45,7 @@ import {
 import * as MusicBrainz from '../services/musicbrainz';
 import { buildPlayerBingoStats } from '../game/stats';
 import { BingoCountdown } from '../components/BingoCountdown';
+import { BingoGrid } from '../components/BingoGrid';
 import { CategoryWheel } from '../components/CategoryWheel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BingoLineReveal } from '../components/BingoLineReveal';
@@ -73,59 +74,6 @@ const RESOLVE_GRACE_MS = 1000;
 
 /** Cell/category colors: shared with the win-line reveal (see colors.ts). */
 const CATEGORY_COLOR = BINGO_CATEGORY_COLOR;
-
-function BingoGrid({
-  board,
-  size,
-  selectable,
-  onPickCell,
-}: {
-  board: BingoBoard;
-  size: number;
-  /** Indices the owner may tap during the pick window (glowing "+" cells). */
-  selectable?: number[];
-  onPickCell?: (index: number) => void;
-}) {
-  const rows = Array.from({ length: size }, (_, r) =>
-    board.slice(r * size, (r + 1) * size)
-  );
-  return (
-    <View style={styles.grid}>
-      {rows.map((cells, r) => (
-        <View key={`row-${r}`} style={styles.gridRow}>
-          {cells.map((cell, c) => {
-            const idx = r * size + c;
-            const color = CATEGORY_COLOR[cell.color];
-            const pickable = !!onPickCell && !!selectable?.includes(idx);
-            if (pickable) {
-              return (
-                <PressableButton
-                  key={`cell-${r}-${c}`}
-                  style={[styles.cell, { borderColor: color }, glow(color, { radius: 10, opacity: 0.9 })]}
-                  onPress={() => onPickCell(idx)}
-                >
-                  <Text style={[styles.cellPick, { color }]}>+</Text>
-                </PressableButton>
-              );
-            }
-            return (
-              <View
-                key={`cell-${r}-${c}`}
-                style={[
-                  styles.cell,
-                  { borderColor: color },
-                  cell.marked && { backgroundColor: color, ...glow(color, { radius: 8, opacity: 0.8 }) },
-                ]}
-              >
-                {cell.marked && <Text style={styles.cellCheck}>✓</Text>}
-              </View>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
-}
 
 /** Local per-second countdown from the synced round deadline (cosmetic). */
 function RoundCountdown({ deadlineMs }: { deadlineMs: number }) {
@@ -708,6 +656,7 @@ export default function BingoGameScreen() {
               isWinner={winnerIds.includes(p.player_id)}
               headerRight={`${markedCount(p.bingo_board)} / ${size * size} markiert`}
               stats={buildPlayerBingoStats(gs.bingoStatsHistory ?? [], p.player_id)}
+              board={p.bingo_board ? { cells: p.bingo_board, size } : undefined}
               difficulty={difficulty}
               onReportSong={isHost ? setReportCard : undefined}
             />
@@ -1435,20 +1384,6 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: { fontSize: 13, fontWeight: '800', color: COLORS.secondary, letterSpacing: 2, marginTop: 10 },
-
-  grid: { gap: 6, alignSelf: 'center' },
-  gridRow: { flexDirection: 'row', gap: 6 },
-  cell: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 3,
-    backgroundColor: COLORS.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cellCheck: { color: COLORS.background, fontSize: 26, fontWeight: '900' },
-  cellPick: { fontSize: 26, fontWeight: '900' },
 
   pickBox: {
     backgroundColor: COLORS.backgroundAlt,
