@@ -11,20 +11,30 @@ import type { GameCard } from '../types/game';
 import type {
   BingoBoard,
   BingoCategoryType,
+  BingoDifficulty,
   BingoRoundSpec,
 } from '../types/online';
 
-/** Active category rotation = the four cell colors. See BingoCategoryType for
- *  why 'band_or_solo' is not (yet) part of it. */
+/** Active category rotation = the five cell colors. */
 export const BINGO_CATEGORIES: BingoCategoryType[] = [
   'decade',
   'before_after_2000',
   'year_guess',
   'title_artist',
+  'band_or_solo',
 ];
 
-/** Answer window per round (all clients arm the resolve trigger on this). */
+/**
+ * Default answer window per round (all clients arm the resolve trigger on
+ * this). Configurable per game via the lobby's Song-Zeit slider
+ * (mode_config.bingoSongSeconds); this constant doubles as the fallback for
+ * game_state rows written before the setting existed.
+ */
 export const BINGO_ROUND_SECONDS = 30;
+
+/** Song-Zeit slider bounds (lobby config). */
+export const BINGO_SONG_SECONDS_MIN = 30;
+export const BINGO_SONG_SECONDS_MAX = 75;
 
 /**
  * Window after resolution in which correct players PICK the cell to mark
@@ -37,28 +47,76 @@ export const BINGO_PICK_SECONDS = 15;
 /** Layout cap for decade multiple-choice buttons (2 rows of 4). */
 export const BINGO_DECADE_OPTIONS_MAX = 8;
 
-/** Allowed deviation for the year-guess category. */
+/** Allowed deviation for the year-guess category (easy difficulty). */
 export const BINGO_YEAR_TOLERANCE = 3;
+/** Hard difficulty: before_after_2000 becomes a numeric year guess with this
+ *  tolerance (the binary question would be too easy for a hard game). */
+export const BINGO_HARD_EPOCH_TOLERANCE = 2;
 
-/** Slider bounds for the year-guess input. */
+/**
+ * Fallback slider bounds for the year-guess input - only used for games whose
+ * game_state predates the pool-derived bounds (bingoYearMin/Max, see
+ * yearBounds). New games always show the pool's real min/max year instead.
+ */
 export const BINGO_YEAR_MIN = 1950;
 export const BINGO_YEAR_MAX = 2025;
 
-export const BINGO_CATEGORY_LABEL: Record<BingoCategoryType, string> = {
-  decade: 'Jahrzehnt',
-  before_after_2000: 'Vor oder ab 2000?',
-  year_guess: `Jahr schätzen (±${BINGO_YEAR_TOLERANCE})`,
-  title_artist: 'Titel + Interpret',
-};
+/**
+ * Min/max song year of a card set - the year-guess slider's VISIBLE range,
+ * computed once at game start and synced via game_state (same idea as
+ * decadeRange: a scale reaching back to the 1950s is pointless/misleading on
+ * a 1995+ pool). Display only - the ±tolerance grading in evaluateBingoAnswer
+ * is untouched by these bounds.
+ */
+export function yearBounds(cards: GameCard[]): { min: number; max: number } {
+  if (cards.length === 0) return { min: BINGO_YEAR_MIN, max: BINGO_YEAR_MAX };
+  let min = Infinity;
+  let max = -Infinity;
+  for (const c of cards) {
+    if (c.year < min) min = c.year;
+    if (c.year > max) max = c.year;
+  }
+  return { min, max };
+}
+
+/**
+ * Category display name, difficulty-aware: two slots ask a different question
+ * in 'hard' (pink -> year ±2, orange -> exact year) and the green slot relaxes
+ * to artist-only in 'easy'. Every display site (round header, review, legend,
+ * stats) goes through this so labels always match what was actually asked.
+ */
+export function bingoCategoryLabel(
+  type: BingoCategoryType,
+  difficulty: BingoDifficulty = 'easy'
+): string {
+  const hard = difficulty === 'hard';
+  switch (type) {
+    case 'decade':
+      return 'Jahrzehnt';
+    case 'before_after_2000':
+      return hard ? `Jahr schätzen (±${BINGO_HARD_EPOCH_TOLERANCE})` : 'Vor oder ab 2000?';
+    case 'year_guess':
+      return hard ? 'Genaues Jahr' : `Jahr schätzen (±${BINGO_YEAR_TOLERANCE})`;
+    case 'title_artist':
+      return hard ? 'Titel + Interpret' : 'Interpret';
+    case 'band_or_solo':
+      return 'Gruppe oder Solo?';
+  }
+}
 
 /** The answer payloads stored in round_answers.answer (jsonb). */
 export type BingoAnswer =
   | { kind: 'decade'; decade: number }
   | { kind: 'before_after_2000'; after2000: boolean }
+  // Also submitted for the HARD before_after_2000 variant (the question IS a
+  // year guess there; grading keys off the round spec, not the kind).
   | { kind: 'year_guess'; year: number }
-  // Free text (what the player believes title + artist are); graded by the
+  // Free text (what the player believes title/artist are); graded by the
   // HOST in the review phase, not automatically.
-  | { kind: 'title_artist'; text: string };
+  | { kind: 'title_artist'; text: string }
+  // Binary claim (true = Gruppe/Band); graded against the host's one-tap
+  // truth in the review phase.
+  | { kind: 'band_or_solo'; group: boolean };
 
 /**
  * Total duration of the spin stage animation ("digitale Discokugel"): the
@@ -100,14 +158,24 @@ export function titleAnswerText(answer: unknown): string {
   return typeof t === 'string' ? t : '';
 }
 
+/** Defensive claim extraction from a band_or_solo answer payload (jsonb);
+ *  null when the payload is missing/malformed (counts as no answer). */
+export function bandAnswerGroup(answer: unknown): boolean | null {
+  const g = (answer as { group?: unknown } | null)?.group;
+  return typeof g === 'boolean' ? g : null;
+}
+
 /**
- * One individually randomized board: the four colors repeated to fill size²
- * cells (16 -> exactly 4 each; 25 -> 6/6/6/7), then shuffled.
+ * One individually randomized board: the five colors repeated to fill size²
+ * cells (25 -> exactly 5 each; 16 -> 4/3/3/3/3), then shuffled. The category
+ * ORDER is shuffled per board first, so on 4×4 which color gets the fourth
+ * cell differs from player to player instead of always favoring the same one.
  */
 export function generateBingoBoard(size: 4 | 5): BingoBoard {
+  const order = shuffle([...BINGO_CATEGORIES]);
   const pool: BingoCategoryType[] = [];
   for (let i = 0; i < size * size; i++) {
-    pool.push(BINGO_CATEGORIES[i % BINGO_CATEGORIES.length]);
+    pool.push(order[i % order.length]);
   }
   return shuffle(pool).map((color) => ({ color, marked: false }));
 }
@@ -167,14 +235,24 @@ function decadeOptionsFor(correct: number, decadePool?: number[]): number[] {
  * Draw the round's category for a card. For 'decade' the multiple-choice
  * options are generated here and synced via game_state, so every client shows
  * the same choices. `decadePool` is the game's pool decade span (decadeRange).
+ * The difficulty is baked into the spec as a tolerance (hard: pink becomes a
+ * year guess ±2, orange demands the exact year), so answer UI and grading key
+ * off the synced spec alone - a mid-game version skew can't split the rules.
  */
-export function drawBingoRound(card: GameCard, decadePool?: number[]): BingoRoundSpec {
+export function drawBingoRound(
+  card: GameCard,
+  decadePool?: number[],
+  difficulty: BingoDifficulty = 'easy'
+): BingoRoundSpec {
   const type = BINGO_CATEGORIES[Math.floor(Math.random() * BINGO_CATEGORIES.length)];
   if (type === 'decade') {
     return { type, decadeOptions: decadeOptionsFor(decadeOf(card.year), decadePool) };
   }
+  if (type === 'before_after_2000' && difficulty === 'hard') {
+    return { type, tolerance: BINGO_HARD_EPOCH_TOLERANCE };
+  }
   if (type === 'year_guess') {
-    return { type, tolerance: BINGO_YEAR_TOLERANCE };
+    return { type, tolerance: difficulty === 'hard' ? 0 : BINGO_YEAR_TOLERANCE };
   }
   return { type };
 }
@@ -195,6 +273,12 @@ export function evaluateBingoAnswer(
     case 'decade':
       return (a as { decade?: unknown }).decade === decadeOf(card.year);
     case 'before_after_2000': {
+      // Hard variant (spec carries a tolerance): the question was a numeric
+      // year guess, graded exactly like year_guess.
+      if (round.tolerance != null) {
+        const y = (a as { year?: unknown }).year;
+        return typeof y === 'number' && Math.abs(y - card.year) <= round.tolerance;
+      }
       const v = (a as { after2000?: unknown }).after2000;
       return typeof v === 'boolean' && v === (card.year >= 2000);
     }
@@ -209,6 +293,10 @@ export function evaluateBingoAnswer(
       // Not auto-gradable anymore (host review decides); this fallback mirrors
       // the honor rule and is only hit when a title round bypasses the review.
       return titleAnswerText(a).trim().length > 0;
+    case 'band_or_solo':
+      // Same situation: the host's truth decides in resolveBingoRound; this
+      // honor fallback only fires when a band round bypasses the review.
+      return bandAnswerGroup(a) != null;
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * Spotify integration: App Remote playback (react-native-spotify-remote) +
- * Web API access via a PKCE token (playlists, display name).
+ * Web API access via a PKCE token (pool cover art, display name).
  *
  * Playback connects app-to-app via connectWithoutAuth() (Android ignores the
  * token arg). Web API reads use a separate PKCE token (expo-auth-session),
@@ -105,8 +105,6 @@ let connected = false;
  * app without an interactive app switch - only authorize() switches apps).
  */
 let iosAppRemoteToken: string | null = null;
-/** Track ids already used this session, so the deck never repeats a track. */
-const playedTrackIds = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // Live connection status (Baustein a)
@@ -389,7 +387,8 @@ async function connectInternal(): Promise<void> {
  * grant, and the Android App Remote path does not use that token. iOS still needs
  * the library's authorize() result because its native bridge only exposes
  * connect(accessToken), not connectWithoutAuth(). The PKCE token also powers the
- * Web API (playlists). Throws on missing config / cancel / Spotify app unreachable.
+ * Web API (pool cover art, display name). Throws on missing config / cancel /
+ * Spotify app unreachable.
  *
  * SELF-HEAL (the Android dead-end): after an app restart the in-memory `connected`
  * flag is false while the persisted refresh token still exists, so the Settings
@@ -459,11 +458,11 @@ export async function disconnect(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Web API authorization (Authorization Code + PKCE)
 //
-// The App Remote login returns a playback-only token with NO Web API playlist
-// scopes (grantedScope was undefined -> 403 on /v1/playlists). So playlist reads
-// use a separate PKCE token obtained via expo-auth-session. PKCE needs no client
-// secret, so there is still no backend. The App Remote / playback path is
-// unchanged - this only powers getPlaylistTracks.
+// A separate PKCE token obtained via expo-auth-session (no client secret, so
+// still no backend). Deliberately kept after the Spotify-playlist import was
+// removed - it still powers: the Android App-Remote pre-authorization (its
+// consent carries the playback scopes below), the pool cover-art fetch
+// (getWebApiToken), getDisplayName, and isReadyToPlay().
 // ---------------------------------------------------------------------------
 
 const SPOTIFY_DISCOVERY: AuthSession.DiscoveryDocument = {
@@ -474,16 +473,11 @@ const SPOTIFY_DISCOVERY: AuthSession.DiscoveryDocument = {
 /** Must be registered EXACTLY in the Spotify Dashboard under Redirect URIs. */
 const WEB_API_REDIRECT_URI = 'nickelbrandt://spotify-web-callback';
 
-// Web API playlist reads + the playback scopes. Requesting app-remote-control /
-// streaming here means the PKCE consent ALSO pre-authorizes the user for the App
-// Remote connection (connectWithoutAuth requires prior authorization, since it
-// can't show a consent dialog itself).
-const WEB_API_SCOPES = [
-  'playlist-read-private',
-  'playlist-read-collaborative',
-  'app-remote-control',
-  'streaming',
-];
+// The playback scopes: requesting app-remote-control / streaming here means
+// the PKCE consent ALSO pre-authorizes the user for the App Remote connection
+// (connectWithoutAuth requires prior authorization, since it can't show a
+// consent dialog itself). Track reads (pool cover art) need no extra scope.
+const WEB_API_SCOPES = ['app-remote-control', 'streaming'];
 
 let webApiToken: string | null = null;
 let webApiRefreshToken: string | null = null;
@@ -641,8 +635,8 @@ export async function ensureWebApiAuthorized(): Promise<void> {
 
 /**
  * Web API token WITHOUT an interactive login: returns the cached token, silently
- * refreshes it, or throws if neither is possible. Used at game start so loading
- * a playlist never triggers a browser popup.
+ * refreshes it, or throws if neither is possible. Used at game start (pool
+ * cover art) so starting never triggers a browser popup.
  */
 async function getWebApiToken(): Promise<string> {
   await ensureLoaded();
@@ -990,32 +984,14 @@ export function subscribePlaybackState(
   };
 }
 
-/**
- * Machine-readable marker on Web-API 403 errors ("Zugriff verweigert" - e.g.
- * Spotify's Dev-Mode "user is not registered" / editorial-playlist refusal).
- * Lets UI surfaces show a friendly message for exactly this case without
- * matching on the message text (other errors keep their specific texts).
- */
-export const WEB_API_403_CODE = 'spotify_web_api_403';
-
-/** True when `e` is the 403 "access denied" class of Web-API failure. */
-export function isWebApi403(e: unknown): boolean {
-  return (e as { code?: string } | null)?.code === WEB_API_403_CODE;
-}
-
 /** Build a readable error from an already-read Web API response body. */
 function buildWebApiError(status: number, context: string, body: string): Error {
   if (status === 403) {
-    const err = new Error(
-      `Spotify Web API 403 (${context}): Zugriff verweigert. Häufigste Ursachen: ` +
-        '(1) eine von Spotify erstellte/redaktionelle Playlist (Discover Weekly, ' +
-        '"This Is…", Top-Charts) - über die Web API gesperrt; nutze eine selbst ' +
-        'erstellte Playlist. (2) Der Token hat die Playlist-Scopes nicht - in den ' +
-        'Einstellungen "Verbindung trennen" und neu verbinden. ' +
+    return new Error(
+      `Spotify Web API 403 (${context}): Zugriff verweigert - dieser Spotify-Account ` +
+        'ist vermutlich nicht für die App freigeschaltet (Dev-Mode-Registrierung). ' +
         `Server-Antwort: ${body}`
-    ) as Error & { code?: string };
-    err.code = WEB_API_403_CODE;
-    return err;
+    );
   }
   if (status === 401) {
     return new Error(
@@ -1030,91 +1006,6 @@ function buildWebApiError(status: number, context: string, body: string): Error 
 async function webApiError(res: Response, context: string): Promise<Error> {
   const body = await res.text().catch(() => '');
   return buildWebApiError(res.status, context, body);
-}
-
-// ---------------------------------------------------------------------------
-// Game helpers
-// ---------------------------------------------------------------------------
-
-/** Mark a track as played so it is not offered again (cross-game dedup). */
-export function markTrackPlayed(trackId: string): void {
-  playedTrackIds.add(trackId);
-}
-
-/**
- * Accepts a raw playlist id, a `spotify:playlist:<id>` uri, or an
- * `https://open.spotify.com/playlist/<id>?si=...` url and returns the bare id.
- */
-export function parsePlaylistId(input: string): string {
-  const s = input.trim();
-  const match = s.match(/playlist[:/]([a-zA-Z0-9]+)/);
-  return match ? match[1] : s;
-}
-
-/**
- * Load all playable tracks of a playlist as GameCards (paginated, max 500).
- * Skips local tracks, episodes, and tracks without a parseable release year.
- *
- * @param excludePlayed when true, omits tracks already marked as played.
- */
-export async function getPlaylistTracks(
-  playlistIdOrUrl: string,
-  { excludePlayed = false }: { excludePlayed?: boolean } = {}
-): Promise<GameCard[]> {
-  // Playlist reads need the PKCE Web-API token (the remote token lacks scopes).
-  const token = await getWebApiToken();
-  const playlistId = parsePlaylistId(playlistIdOrUrl);
-  const PAGE = 100;
-  const MAX = 500;
-
-  const seen = new Set<string>();
-  const cards: GameCard[] = [];
-
-  for (let offset = 0; offset < MAX; offset += PAGE) {
-    // Spotify Feb 2026 migration: GET /playlists/{id}/tracks was disabled for
-    // Development Mode apps (2026-03-09). The replacement is /playlists/{id}/items,
-    // where each entry exposes the track under `.item` (was `.track`). The paging
-    // object still has `.items` (the array) and `.next` (pagination).
-    const url =
-      `https://api.spotify.com/v1/playlists/${playlistId}/items` +
-      `?limit=${PAGE}&offset=${offset}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw buildWebApiError(res.status, 'playlist', body);
-    }
-    const data = await res.json();
-    const items: any[] = data?.items ?? [];
-
-    for (const item of items) {
-      // New /items endpoint nests the track under `.item` (was `.track`).
-      const t = item?.item;
-      if (!t || t.is_local || t.type !== 'track' || !t.uri) continue;
-      if (seen.has(t.uri)) continue;
-      if (excludePlayed && playedTrackIds.has(t.uri)) continue;
-
-      const year = parseInt(String(t.album?.release_date ?? '').slice(0, 4), 10);
-      if (!Number.isFinite(year) || year <= 0) continue;
-
-      seen.add(t.uri);
-      cards.push({
-        id: t.uri,
-        trackUri: t.uri,
-        title: t.name ?? 'Unknown',
-        artist: t.artists?.[0]?.name ?? 'Unknown',
-        year,
-        coverUrl: t.album?.images?.[0]?.url,
-        // For the MusicBrainz year check (external_ids comes with the full track).
-        isrc: t.external_ids?.isrc,
-      });
-    }
-
-    if (items.length < PAGE || !data?.next) break;
-  }
-
-  return cards;
 }
 
 // ---------------------------------------------------------------------------
@@ -1412,49 +1303,3 @@ export function startCoverArtPrefetch(
   });
 }
 
-/** Summary of one of the user's playlists, for the in-app picker. */
-export interface PlaylistSummary {
-  id: string;
-  name: string;
-  imageUrl: string | null;
-  trackCount: number;
-  ownerName: string;
-}
-
-/**
- * Load the connected user's playlists (owned + followed/collaborative), paginated.
- * Reuses the PKCE Web API token. GET /me/playlists is known to work (200).
- */
-export async function getUserPlaylists(): Promise<PlaylistSummary[]> {
-  const token = await getWebApiToken();
-  const PAGE = 50;
-  const MAX = 300; // safety cap (6 pages)
-  const out: PlaylistSummary[] = [];
-
-  for (let offset = 0; offset < MAX; offset += PAGE) {
-    const url = `https://api.spotify.com/v1/me/playlists?limit=${PAGE}&offset=${offset}`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) {
-      throw await webApiError(res, 'playlists');
-    }
-    const data = await res.json();
-    const items: any[] = data?.items ?? [];
-    for (const pl of items) {
-      if (!pl || !pl.id) continue;
-      // Track count container: the Feb/Mar-2026 API migration renamed the
-      // playlist-items container `tracks`->`items` (verified: `tracks` is now
-      // undefined, `items.total` holds the count). `tracks.total` is kept as a
-      // cheap guard in case Spotify reverts/varies the field again.
-      const trackCount = pl.items?.total ?? pl.tracks?.total ?? 0;
-      out.push({
-        id: pl.id,
-        name: pl.name ?? 'Unbenannte Playlist',
-        imageUrl: pl.images?.[0]?.url ?? null,
-        trackCount,
-        ownerName: pl.owner?.display_name ?? '',
-      });
-    }
-    if (items.length < PAGE || !data?.next) break;
-  }
-  return out;
-}

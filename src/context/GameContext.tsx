@@ -49,6 +49,7 @@ export type GameAction =
   | { type: 'SKIP_CARD' }
   | { type: 'BLIND_DRAW' }
   | { type: 'AWARD_CHIP'; payload: { playerId: string } }
+  | { type: 'ADJUST_CHIPS'; payload: { playerId: string; delta: 1 | -1 } }
   | {
       type: 'ATTEMPT_STEAL';
       payload: {
@@ -260,6 +261,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ]
         : state.history;
       return { ...state, players, history };
+    }
+
+    // Manual correction via the "Nickel korrigieren" dialog: same clamp as
+    // AWARD_CHIP above plus the 0 floor, but deliberately NO history append -
+    // a manual fix has no song context, and the stats "Erhaltene Nickel" list
+    // requires one.
+    case 'ADJUST_CHIPS': {
+      const { playerId, delta } = action.payload;
+      const limit = state.settings.chipLimitEnabled
+        ? state.settings.chipLimit
+        : Number.POSITIVE_INFINITY;
+      const players = state.players.map((p) =>
+        p.id === playerId
+          ? { ...p, chips: Math.max(0, Math.min(p.chips + delta, limit)) }
+          : p
+      );
+      return { ...state, players };
     }
 
     case 'ATTEMPT_STEAL': {

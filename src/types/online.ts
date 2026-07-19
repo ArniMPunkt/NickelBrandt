@@ -15,6 +15,10 @@ export type GameMode = 'hitster' | 'bingo' | 'timeline_quiz';
 export interface ModeConfig {
   /** Bingo: grid edge length. */
   bingoGridSize?: 4 | 5;
+  /** Bingo: question difficulty (absent = 'easy', for configs predating it). */
+  bingoDifficulty?: BingoDifficulty;
+  /** Bingo: song/answer window seconds (absent = BINGO_ROUND_SECONDS). */
+  bingoSongSeconds?: number;
   /** Timeline-Quiz: number of cards to play. */
   timelineCardCount?: number;
 }
@@ -90,18 +94,26 @@ export interface QuizTimelineEntry {
 // --- Bingo mode --------------------------------------------------------------
 
 /**
- * The bingo categories = the cell colors. Only digitally verifiable checks:
- * decade / before-after-2000 / year±N grade against GameCard.year; title_artist
- * uses the Nickel honor pattern (the player's own claim counts).
- * 'band_or_solo' is deliberately NOT here yet: Band vs. Solo is not derivable
- * from GameCard data - it needs artist-type enrichment first (e.g. MusicBrainz
- * artist type Person/Group in the song-pool pipeline).
+ * The bingo categories = the cell colors. decade / before-after-2000 / year±N
+ * grade against GameCard.year; title_artist and band_or_solo are host-reviewed
+ * (free text verdicts resp. a one-tap truth), with the honor pattern as the
+ * absent-host fallback. band_or_solo has no verified truth in the pool data -
+ * the host decides, assisted by a live MusicBrainz artist-type suggestion
+ * (services/musicbrainz).
  */
 export type BingoCategoryType =
   | 'decade'
   | 'before_after_2000'
   | 'year_guess'
-  | 'title_artist';
+  | 'title_artist'
+  | 'band_or_solo';
+
+/**
+ * Bingo difficulty, chosen by the host in the lobby. Same five colors in both;
+ * two slots sharpen their question in 'hard' (before_after_2000 -> year ±2,
+ * year_guess -> exact year) and title_artist relaxes to artist-only in 'easy'.
+ */
+export type BingoDifficulty = 'easy' | 'hard';
 
 export interface BingoCell {
   color: BingoCategoryType;
@@ -191,7 +203,7 @@ export interface OnlineGameState {
   chipLimitEnabled?: boolean;
   chipLimit?: number;
   /**
-   * Deck source snapshot at game start ("pool:<id>" / playlist id + display
+   * Deck source snapshot at game start ("pool:<id>" + display
    * name), so any game screen can attach it to a "Song melden" report.
    * Optional for backward-compat with game_state rows written before this.
    */
@@ -247,6 +259,13 @@ export interface OnlineGameState {
   /** Bingo: the pool's decade span, fixed at game start (decade MC options). */
   bingoDecades?: number[] | null;
   /**
+   * Bingo: the pool's real min/max song year, fixed at game start - the
+   * VISIBLE range of the year-guess slider (grading is unaffected). Absent =
+   * game started before these existed -> fallback constants.
+   */
+  bingoYearMin?: number | null;
+  bingoYearMax?: number | null;
+  /**
    * Bingo: cell-pick window after a resolution. Correct players choose which
    * free cell of the round color to mark (their own client auto-picks on
    * timeout). expectedMarks = per player the marked-cell count AFTER their
@@ -265,6 +284,13 @@ export interface OnlineGameState {
    */
   reviewDeadline?: number | null;
   reviewVerdicts?: Record<string, boolean> | null;
+  /**
+   * Bingo band_or_solo review: the host's one-tap truth (true = Gruppe/Band,
+   * false = Solokünstler); all submitted answers are graded against it. Written
+   * only by the host (setBingoTruth); null while undecided - after
+   * reviewDeadline the honor fallback grades every answered player as correct.
+   */
+  reviewTruthGroup?: boolean | null;
   /**
    * Bingo spin stage: the player who must press the spin button this round
    * (round-robin over the live roster by join order, fixed at round start).

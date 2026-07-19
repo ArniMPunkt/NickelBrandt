@@ -18,9 +18,10 @@ export interface GameCard {
   year: number;
   coverUrl?: string;
   /**
-   * International Standard Recording Code (Spotify external_ids.isrc), when
-   * available. Used by the MusicBrainz playlist check to look up the original
-   * first-release year. Optional - not every track exposes one.
+   * International Standard Recording Code, delivered by the pool pipeline
+   * (pool_songs.isrc). Currently unused at runtime (the in-app MusicBrainz
+   * playlist check was removed with the playlist import); kept because the
+   * pool data carries it and future year-verification features may need it.
    */
   isrc?: string;
 }
@@ -55,10 +56,14 @@ export type GamePhase = 'setup' | 'playing' | 'result';
 export interface GameSettings {
   /** Correct placements needed to win (default 10). */
   cardsToWin: number;
-  /** Spotify playlist id the deck was built from. */
+  /**
+   * Deck-source id, historically named after the removed Spotify-playlist
+   * import. Carries "pool:<uuid>" now; the NAME stays because PoolProgress'
+   * prefix logic and the song reports hang off it.
+   */
   playlistId: string;
   /**
-   * Display name of the deck source (playlist/pool name), snapshotted at game
+   * Display name of the deck source (pool name), snapshotted at game
    * start for the "Song melden" report. Optional (older callers omit it).
    */
   sourceName?: string;

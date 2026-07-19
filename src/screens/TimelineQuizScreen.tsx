@@ -312,6 +312,16 @@ export default function TimelineQuizScreen() {
     navigation.navigate('OnlineHome');
   }, [lobby?.status, endedHandled, navigation]);
 
+  // Rematch: the host reopened the lobby (status back to 'waiting') -> every
+  // connected device returns to the waiting room automatically (same code, no
+  // re-join). Navigate exactly once.
+  const rematchRef = useRef(false);
+  useEffect(() => {
+    if (lobby?.status !== 'waiting' || rematchRef.current) return;
+    rematchRef.current = true;
+    navigation.navigate('Lobby', { lobbyId, code: lobby.code });
+  }, [lobby?.status, lobby?.code, lobbyId, navigation]);
+
   // Host-only audio: new round card -> play; game over -> pause.
   useEffect(() => {
     if (!isHost) return;
@@ -465,15 +475,27 @@ export default function TimelineQuizScreen() {
               onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
+        {isHost && (
+          <PressableButton
+            style={styles.primaryBtn}
+            onPress={() => Online.reopenLobby(lobbyId).catch((e: any) => setError(e?.message ?? String(e)))}
+          >
+            <Text style={styles.primaryBtnText}>Nochmal spielen</Text>
+          </PressableButton>
+        )}
         <PressableButton
-          style={styles.primaryBtn}
+          style={styles.secondaryBtn}
           onPress={() => {
-            Online.clearLastLobbyId().catch(() => {});
+            // Leaving the result screen = leaving the lobby: delete the own
+            // roster row so a rematch can't deal ghost players into the next
+            // game (fire-and-forget; leaveLobby clears the stored id too).
+            Online.leaveLobby(lobbyId).catch(() => {});
             navigation.navigate('OnlineHome');
           }}
         >
-          <Text style={styles.primaryBtnText}>Zurück</Text>
+          <Text style={styles.secondaryBtnText}>Zurück</Text>
         </PressableButton>
+        {error && <Text style={styles.error}>{error}</Text>}
         {reportDialog}
       </ScrollView>
     );
@@ -796,4 +818,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  secondaryBtn: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '800' },
 });

@@ -157,7 +157,7 @@ export default function SettingsScreen() {
         <Text style={styles.spotifyHint}>
           {connected
             ? 'Du kannst jetzt ein Spiel starten oder eine Lobby erstellen.'
-            : 'Verbinde dich, um Playlists zu laden und Tracks abzuspielen. Nötig zum Starten eines Hot-Seat-Spiels und zum Erstellen einer Online-Lobby.'}
+            : 'Verbinde dich, um die Musik abzuspielen. Nötig zum Starten eines Pass & Play-Spiels und zum Erstellen einer Online-Lobby.'}
         </Text>
         {error && (
           <View style={styles.errorBox}>

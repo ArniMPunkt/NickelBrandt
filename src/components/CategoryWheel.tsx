@@ -38,10 +38,14 @@ const SIZE = 200;
 const HUB = 46;
 const DISC = SIZE - 8;
 const R = DISC / 2;
-// 45° apex triangle: height just past the rim (so the sector reaches the arc),
-// half-base = height * tan(22.5°) makes the apex angle exactly 45°.
+// Two segments per category; the geometry below derives from this count, so
+// the wheel adapts if the category set ever changes again.
+const SEG_COUNT = BINGO_CATEGORIES.length * 2;
+const SEG_DEG = 360 / SEG_COUNT;
+// Sector triangle: height just past the rim (so the sector reaches the arc),
+// half-base = height * tan(SEG_DEG/2) makes the apex angle exactly SEG_DEG.
 const TRI_H = R + 4;
-const TRI_HALF = TRI_H * Math.tan(Math.PI / 8);
+const TRI_HALF = TRI_H * Math.tan(Math.PI / SEG_COUNT);
 
 /** The wheel holds glowing on the result this long before onDone fires. */
 const SPIN_HOLD_MS = 700;
@@ -50,27 +54,24 @@ const SPINS = 5;
 /** Disc rests at 0°: segment 0's CENTRE (not a seam) sits under the pointer. */
 const IDLE_DEG = 0;
 
-// The eight segments, clockwise from the top pointer. Each category colour twice,
-// interleaved so the two same-colour segments sit diametrically opposite (k and
-// k+4) and no two neighbours share a colour - maximum visible variance. Segment k
-// is centred at k*45° (segWrap k is statically pre-rotated by that; the disc's
-// animated rotation spins them all together).
-const SEGMENTS: BingoCategoryType[] = [
-  'decade', 'before_after_2000', 'year_guess', 'title_artist',
-  'decade', 'before_after_2000', 'year_guess', 'title_artist',
-];
+// The segments, clockwise from the top pointer: the category rotation twice,
+// so the two same-colour segments sit diametrically opposite (k and
+// k + BINGO_CATEGORIES.length) and no two neighbours share a colour - maximum
+// visible variance. Segment k is centred at k*SEG_DEG (segWrap k is statically
+// pre-rotated by that; the disc's animated rotation spins them all together).
+const SEGMENTS: BingoCategoryType[] = [...BINGO_CATEGORIES, ...BINGO_CATEGORIES];
 
 /**
  * Final applied rotation (deg, clockwise) that lands the chosen segment's centre
- * under the top pointer. The category owns two segments - indices idx and idx+4
- * (idx = its position in BINGO_CATEGORIES) - centred at their index*45°. `pick`
- * (0/1) selects which; the screen angle of that centre is centreAngle + rotation,
- * which we want ≡ 0 (mod 360) at the pointer, so rotation ≡ -centreAngle, plus
- * SPINS full turns for the spin.
+ * under the top pointer. The category owns two segments - indices idx and
+ * idx + BINGO_CATEGORIES.length (idx = its position in BINGO_CATEGORIES) -
+ * centred at their index*SEG_DEG. `pick` (0/1) selects which; the screen angle
+ * of that centre is centreAngle + rotation, which we want ≡ 0 (mod 360) at the
+ * pointer, so rotation ≡ -centreAngle, plus SPINS full turns for the spin.
  */
 function targetDeg(cat: BingoCategoryType, pick: 0 | 1): number {
-  const idx = BINGO_CATEGORIES.indexOf(cat); // 0..3
-  const centreAngle = (idx + 4 * pick) * 45; // one of the category's two segments
+  const idx = BINGO_CATEGORIES.indexOf(cat);
+  const centreAngle = (idx + BINGO_CATEGORIES.length * pick) * SEG_DEG;
   const delta = (((-centreAngle) % 360) + 360) % 360;
   return IDLE_DEG + 360 * SPINS + delta;
 }
@@ -144,9 +145,9 @@ export function CategoryWheel({
         <Animated.View style={[styles.disc, { transform: [{ rotate: spin }] }]}>
           {SEGMENTS.map((seg, k) => (
             // Each wrapper fills the disc (so it pivots around the disc centre)
-            // and is pre-rotated k*45°; its triangle points up (segment 0) before
-            // that rotation, so it ends up centred at k*45°.
-            <View key={k} style={[styles.segWrap, { transform: [{ rotate: `${k * 45}deg` }] }]}>
+            // and is pre-rotated k*SEG_DEG; its triangle points up (segment 0)
+            // before that rotation, so it ends up centred at k*SEG_DEG.
+            <View key={k} style={[styles.segWrap, { transform: [{ rotate: `${k * SEG_DEG}deg` }] }]}>
               <View style={[styles.tri, { borderTopColor: BINGO_CATEGORY_COLOR[seg] }]} />
             </View>
           ))}
@@ -205,8 +206,8 @@ const styles = StyleSheet.create({
     width: DISC,
     height: DISC,
   },
-  // 45° border-triangle, apex at the disc centre, pointing up (base at the rim).
-  // The circular disc clips the overshoot into an exact 45° sector.
+  // SEG_DEG border-triangle, apex at the disc centre, pointing up (base at the
+  // rim). The circular disc clips the overshoot into an exact SEG_DEG sector.
   tri: {
     position: 'absolute',
     left: R - TRI_HALF,

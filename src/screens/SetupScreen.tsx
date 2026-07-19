@@ -1,7 +1,7 @@
 /**
- * SetupScreen - configure players, playlist and win condition, then start.
+ * SetupScreen - configure players, themed pool and win condition, then start.
  *
- * On "Spiel starten" we load + shuffle the playlist into a deck, dispatch
+ * On "Spiel starten" we load + shuffle the pool into a deck, dispatch
  * START_GAME and hand off to the first player. (Spotify must already be
  * connected via the Spotify tab.) UI only - game logic unchanged.
  */
@@ -9,7 +9,6 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,7 +25,6 @@ import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../servic
 import * as PoolProgress from '../services/poolProgress';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
-import { PlaylistCheckModal } from './PlaylistCheckScreen';
 import { GameRulesSection } from '../components/GameRulesSection';
 import { PoolIcon } from '../components/PoolIcon';
 import { PressableButton } from '../components/PressableButton';
@@ -49,7 +47,6 @@ export default function SetupScreen() {
   const [names, setNames] = useState<string[]>(['', '']);
   const [source, setSource] = useState<DeckSource | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [checkVisible, setCheckVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
@@ -126,7 +123,7 @@ export default function SetupScreen() {
       let tracks = await loadDeckSource(source);
       if (tracks.length < trimmed.length + 1) {
         setError(
-          `${source.kind === 'pool' ? 'Pool' : 'Playlist'} hat nur ${tracks.length} verwendbare Tracks - zu wenige für ${trimmed.length} Spieler.`
+          `Pool hat nur ${tracks.length} verwendbare Tracks - zu wenige für ${trimmed.length} Spieler.`
         );
         return;
       }
@@ -251,22 +248,14 @@ export default function SetupScreen() {
       <Text style={styles.label}>MUSIK</Text>
       {source ? (
         <View style={styles.selectedCard}>
-          {source.kind === 'pool' ? (
-            <PoolIcon iconUrl={source.pool.icon_url} size={52} />
-          ) : source.playlist.imageUrl ? (
-            <Image source={{ uri: source.playlist.imageUrl }} style={styles.selectedCover} />
-          ) : (
-            <View style={[styles.selectedCover, styles.selectedCoverFallback]}>
-              <Text style={styles.selectedGlyph}>💿</Text>
-            </View>
-          )}
+          <PoolIcon iconUrl={source.pool.icon_url} size={52} />
           <View style={styles.selectedText}>
             <Text style={styles.selectedLabel}>Ausgewählt</Text>
             <Text style={styles.selectedName} numberOfLines={1}>
-              {source.kind === 'playlist' ? source.playlist.name : source.pool.name}
+              {source.pool.name}
             </Text>
             <Text style={styles.selectedMeta} numberOfLines={1}>
-              {source.kind === 'playlist' ? `${source.playlist.trackCount} Songs` : 'Themen-Pool'}
+              Themen-Pool
             </Text>
           </View>
           <PressableButton style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
@@ -274,14 +263,9 @@ export default function SetupScreen() {
           </PressableButton>
         </View>
       ) : null}
-      {source?.kind === 'playlist' && (
-        <PressableButton style={styles.checkBtn} onPress={() => setCheckVisible(true)}>
-          <Text style={styles.checkBtnText}>🔍 Playlist prüfen (Jahre)</Text>
-        </PressableButton>
-      )}
       {!source && (
         <PressableButton style={styles.pickBtn} onPress={() => setPickerVisible(true)}>
-          <Text style={styles.pickBtnText}>Playlist oder Pool wählen 🎵</Text>
+          <Text style={styles.pickBtnText}>Themen-Pool wählen 🎵</Text>
         </PressableButton>
       )}
 
@@ -316,14 +300,6 @@ export default function SetupScreen() {
         setError(null);
       }}
     />
-    {source?.kind === 'playlist' && (
-      <PlaylistCheckModal
-        visible={checkVisible}
-        onClose={() => setCheckVisible(false)}
-        playlistId={source.playlist.id}
-        playlistName={source.playlist.name}
-      />
-    )}
    </View>
   );
 }
@@ -400,13 +376,6 @@ const styles = StyleSheet.create({
     padding: 12,
     ...glow(COLORS.accent, { radius: 12, opacity: 0.5 }),
   },
-  selectedCover: { width: 52, height: 52, borderRadius: 10 },
-  selectedCoverFallback: {
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedGlyph: { fontSize: 26, color: COLORS.border },
   selectedText: { flex: 1 },
   selectedLabel: {
     color: COLORS.accent,
@@ -426,18 +395,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   changeBtnText: { color: COLORS.secondary, fontWeight: '800', fontSize: 14 },
-
-  checkBtn: {
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  checkBtnText: { color: COLORS.textMuted, fontWeight: '800', fontSize: 14 },
 
   removeBtn: {
     width: 52,

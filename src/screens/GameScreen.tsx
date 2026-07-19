@@ -29,6 +29,7 @@ import * as PoolProgress from '../services/poolProgress';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { HeaderMenu } from '../components/HeaderMenu';
+import { NickelFixDialog } from '../components/NickelFixDialog';
 import { PressableButton } from '../components/PressableButton';
 import { ReportSongDialog } from '../components/ReportSongDialog';
 import { TurnCountdown } from '../components/TurnCountdown';
@@ -184,6 +185,8 @@ export default function GameScreen() {
   // "Song melden": snapshot of the revealed card taken when the dialog opens,
   // so an advancing round can never swap the reported song underneath it.
   const [reportCard, setReportCard] = useState<GameCard | null>(null);
+  // "Nickel korrigieren" (device holder): manual chip correction dialog.
+  const [nickelFixVisible, setNickelFixVisible] = useState(false);
   // Absolute deadline (epoch ms) for the music timer of the current card, or
   // null when the timer setting is off / no card is playing.
   const [musicDeadline, setMusicDeadline] = useState<number | null>(null);
@@ -213,9 +216,11 @@ export default function GameScreen() {
       ]).catch(() => {});
     }
     setPlayError(null);
-    Spotify.playUriGuarded(card.trackUri)
-      .then(() => Spotify.markTrackPlayed(card.id))
-      .catch((e: any) => setPlayError(e?.message ?? String(e)));
+    // (markTrackPlayed fiel mit dem Playlist-Import weg - das Session-Dedup
+    // fütterte nur getPlaylistTracks; Pool-Dedup läuft über PoolProgress oben.)
+    Spotify.playUriGuarded(card.trackUri).catch((e: any) =>
+      setPlayError(e?.message ?? String(e))
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.currentCard?.id]);
 
@@ -486,6 +491,9 @@ export default function GameScreen() {
               enabled: isRevealed && !!lastPlacement,
               onPress: () => setReportCard(lastPlacement?.card ?? null),
             }}
+            nickelFix={
+              chipsEnabled ? { onPress: () => setNickelFixVisible(true) } : undefined
+            }
             deckCount={state.deck.length}
           />
         </View>
@@ -719,6 +727,18 @@ export default function GameScreen() {
             lobbyId: null,
           })
         }
+      />
+
+      <NickelFixDialog
+        visible={nickelFixVisible}
+        players={state.players.map((p) => ({ id: p.id, name: p.name, chips: p.chips }))}
+        limit={state.settings.chipLimitEnabled ? state.settings.chipLimit : null}
+        onAdjust={async (playerId, delta) => {
+          // Local reducer, no IO - the same clamp as AWARD_CHIP, minus the
+          // history entry (no song context).
+          dispatch({ type: 'ADJUST_CHIPS', payload: { playerId, delta } });
+        }}
+        onClose={() => setNickelFixVisible(false)}
       />
     </ScrollView>
   );

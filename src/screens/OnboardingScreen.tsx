@@ -78,9 +78,9 @@ const SLIDES: Slide[] = [
     eyebrow: 'MUSIK & MEHR',
     headline: 'Bereit?',
     body:
-      'Verbinde Spotify und wähle eine Playlist oder einen fertigen Themen-Pool – ' +
-      'schon kann’s losgehen. Spielregeln, Kartenanzahl und Extras findest du ' +
-      'jederzeit unter „Einstellungen".',
+      'Verbinde Spotify und wähle einen fertigen Themen-Pool – schon kann’s ' +
+      'losgehen. Spielregeln, Kartenanzahl und Extras stellst du direkt beim ' +
+      'Starten ein.',
   },
 ];
 

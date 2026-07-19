@@ -35,6 +35,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
 import { HeaderMenu } from '../components/HeaderMenu';
+import { NickelFixDialog } from '../components/NickelFixDialog';
 import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
 import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import { PressableButton } from '../components/PressableButton';
@@ -42,6 +43,7 @@ import { TurnCountdown } from '../components/TurnCountdown';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
+import { MAX_CHIPS } from '../types/game';
 import type { GameCard, Lobby, LobbyPlayer } from '../types/online';
 import type { OnlineStackParamList } from '../types/navigation';
 
@@ -201,6 +203,8 @@ export default function OnlineGameScreen() {
   const barAnim = useRef(new Animated.Value(1)).current;
   // Handle a host-ended lobby exactly once.
   const endedRef = useRef(false);
+  // Handle a host-reopened lobby (rematch) exactly once.
+  const rematchRef = useRef(false);
   const [endConfirmVisible, setEndConfirmVisible] = useState(false);
   // Victory screen shows first when the game finishes (server-driven phase, so all
   // devices show it together); each player then taps through to the stats locally.
@@ -211,6 +215,8 @@ export default function OnlineGameScreen() {
   // card; stats view: the tapped history item), so an advancing round can
   // never swap the reported song underneath it.
   const [reportCard, setReportCard] = useState<ReportSongTarget | null>(null);
+  // "Nickel korrigieren" (host): manual chip correction dialog.
+  const [nickelFixVisible, setNickelFixVisible] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -226,6 +232,14 @@ export default function OnlineGameScreen() {
         Online.clearLastLobbyId().catch(() => {});
         Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
         navigation.navigate('OnlineHome');
+        return;
+      }
+      // Rematch: the host reopened the lobby (status back to 'waiting') ->
+      // every connected device returns to the waiting room automatically
+      // (same code, no re-join). Navigate exactly once.
+      if (lb.status === 'waiting' && !rematchRef.current) {
+        rematchRef.current = true;
+        navigation.navigate('Lobby', { lobbyId, code: lb.code });
         return;
       }
       setLobby(lb);
@@ -480,6 +494,32 @@ export default function OnlineGameScreen() {
     />
   );
 
+  // Nickel-Obergrenze for the manual correction - same legacy semantics as
+  // the regular award in confirmGuess (fields absent in game_state = old hard
+  // cap; disabled = unbegrenzt -> null).
+  const chipLimit =
+    gs.chipLimitEnabled == null
+      ? MAX_CHIPS
+      : gs.chipLimitEnabled
+        ? (gs.chipLimit ?? MAX_CHIPS)
+        : null;
+  const nickelFixDialog = (
+    <NickelFixDialog
+      visible={nickelFixVisible}
+      players={players.map((p) => ({ id: p.id, name: p.player_name, chips: p.chips }))}
+      limit={chipLimit}
+      onAdjust={async (rowId, delta) => {
+        const row = players.find((p) => p.id === rowId);
+        if (!row) return;
+        // Guarded on the count the dialog showed; a concurrent regular award
+        // makes this throw (dialog shows the retry hint) instead of clobbering.
+        await Online.adjustPlayerChips(rowId, row.chips, delta, chipLimit);
+        await refresh();
+      }}
+      onClose={() => setNickelFixVisible(false)}
+    />
+  );
+
   // ----- Finished: game over (winner) -----
   if (phase === 'finished' && gs.winnerId) {
     const winner = players.find((p) => p.player_id === gs.winnerId);
@@ -529,15 +569,27 @@ export default function OnlineGameScreen() {
               onReportSong={isHost ? setReportCard : undefined}
             />
           ))}
+        {isHost && (
+          <PressableButton
+            style={styles.primaryBtn}
+            onPress={() => Online.reopenLobby(lobbyId).catch((e: any) => setError(e?.message ?? String(e)))}
+          >
+            <Text style={styles.primaryBtnText}>Nochmal spielen</Text>
+          </PressableButton>
+        )}
         <PressableButton
-          style={styles.primaryBtn}
+          style={styles.secondaryBtn}
           onPress={() => {
-            Online.clearLastLobbyId().catch(() => {});
+            // Leaving the result screen = leaving the lobby: delete the own
+            // roster row so a rematch can't deal ghost players into the next
+            // game (fire-and-forget; leaveLobby clears the stored id too).
+            Online.leaveLobby(lobbyId).catch(() => {});
             navigation.navigate('OnlineHome');
           }}
         >
-          <Text style={styles.primaryBtnText}>Zurück</Text>
+          <Text style={styles.secondaryBtnText}>Zurück</Text>
         </PressableButton>
+        {error && <Text style={styles.error}>{error}</Text>}
         {reportDialog}
       </ScrollView>
     );
@@ -563,6 +615,7 @@ export default function OnlineGameScreen() {
               ? { enabled: isRevealed && !!card, onPress: () => setReportCard(card) }
               : undefined
           }
+          nickelFix={isHost ? { onPress: () => setNickelFixVisible(true) } : undefined}
           code={lobby?.code ?? '—'}
           deckCount={gs.deck.length}
           action={
@@ -807,6 +860,7 @@ export default function OnlineGameScreen() {
       />
 
       {reportDialog}
+      {nickelFixDialog}
     </ScrollView>
   );
 }
@@ -1034,4 +1088,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryBtnText: { color: COLORS.background, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  secondaryBtn: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '800' },
 });

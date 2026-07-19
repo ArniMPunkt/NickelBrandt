@@ -1,13 +1,12 @@
 /**
  * LobbyScreen - waiting room. Shows the join code and the live player list.
- * Host connects Spotify + picks a playlist, then starts the game; all devices
+ * Host connects Spotify + picks a themed pool, then starts the game; all devices
  * auto-navigate to OnlineGame once the lobby status becomes 'playing'.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -31,6 +30,11 @@ import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { GameMode, Lobby, LobbyPlayer, ModeConfig } from '../types/online';
+import {
+  BINGO_ROUND_SECONDS,
+  BINGO_SONG_SECONDS_MAX,
+  BINGO_SONG_SECONDS_MIN,
+} from '../game/bingo';
 import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 
 const MODES: Array<{ mode: GameMode; label: string }> = [
@@ -48,8 +52,14 @@ const MODE_LABEL: Record<GameMode, string> = {
 const DEFAULT_QUIZ_CARDS = 15;
 
 /** Default mode config written when the host switches to a mode. */
-function defaultConfigFor(mode: GameMode) {
-  if (mode === 'bingo') return { bingoGridSize: 4 as const };
+function defaultConfigFor(mode: GameMode): ModeConfig {
+  if (mode === 'bingo') {
+    return {
+      bingoGridSize: 4,
+      bingoDifficulty: 'easy',
+      bingoSongSeconds: BINGO_ROUND_SECONDS,
+    };
+  }
   if (mode === 'timeline_quiz') return { timelineCardCount: DEFAULT_QUIZ_CARDS };
   return {};
 }
@@ -75,6 +85,8 @@ export default function LobbyScreen() {
   // Local slider value for the timeline-quiz card count (written to the lobby
   // only on release, so dragging doesn't spam Supabase).
   const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
+  // Same pattern for the bingo Song-Zeit slider.
+  const [songSeconds, setSongSeconds] = useState(BINGO_ROUND_SECONDS);
 
   const myId = Online.getPlayerId();
   const me = players.find((p) => p.player_id === myId);
@@ -108,6 +120,11 @@ export default function LobbyScreen() {
         Alert.alert('Lobby beendet', 'Der Host hat die Lobby beendet.');
         navigation.navigate('OnlineHome');
         return;
+      }
+      // Rematch flow: the lobby was reopened ('waiting' again) - re-arm the
+      // one-shot start navigation so the NEXT game start navigates again.
+      if (lobby.status === 'waiting') {
+        navigatedRef.current = false;
       }
       if (lobby.status === 'playing' && !navigatedRef.current) {
         navigatedRef.current = true;
@@ -179,12 +196,16 @@ export default function LobbyScreen() {
   const gameMode: GameMode = lobby?.game_mode ?? 'hitster';
   const modeConfig: ModeConfig = lobby?.mode_config ?? {};
 
-  // Keep the local slider in sync with the synced config (keyed on the synced
-  // value, so it never fights an ongoing local drag).
+  // Keep the local sliders in sync with the synced config (keyed on the synced
+  // value, so they never fight an ongoing local drag).
   useEffect(() => {
     const synced = lobby?.mode_config?.timelineCardCount;
     if (synced != null) setQuizCards(synced);
   }, [lobby?.mode_config?.timelineCardCount]);
+  useEffect(() => {
+    const synced = lobby?.mode_config?.bingoSongSeconds;
+    if (synced != null) setSongSeconds(synced);
+  }, [lobby?.mode_config?.bingoSongSeconds]);
 
   // --- Host: mode selection (visible to everyone via the lobbies row) ---
   const writeMode = (mode: GameMode, config: ModeConfig) => {
@@ -264,6 +285,8 @@ export default function LobbyScreen() {
       if (gameMode === 'bingo') {
         await Online.startBingoGame(lobbyId, cards, {
           bingoGridSize: modeConfig.bingoGridSize ?? 4,
+          bingoDifficulty: modeConfig.bingoDifficulty ?? 'easy',
+          bingoSongSeconds: modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS,
           ...src,
         });
       } else if (gameMode === 'timeline_quiz') {
@@ -340,7 +363,7 @@ export default function LobbyScreen() {
                     <PressableButton
                       key={size}
                       style={[styles.modeBtn, active && styles.modeBtnActive]}
-                      onPress={() => writeMode('bingo', { bingoGridSize: size })}
+                      onPress={() => writeMode('bingo', { ...modeConfig, bingoGridSize: size })}
                     >
                       <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>
                         {size}×{size}
@@ -349,6 +372,35 @@ export default function LobbyScreen() {
                   );
                 })}
               </View>
+              <Text style={styles.modeConfigLabel}>Schwierigkeit</Text>
+              <View style={styles.modeRow}>
+                {(['easy', 'hard'] as const).map((d) => {
+                  const active = (modeConfig.bingoDifficulty ?? 'easy') === d;
+                  return (
+                    <PressableButton
+                      key={d}
+                      style={[styles.modeBtn, active && styles.modeBtnActive]}
+                      onPress={() => writeMode('bingo', { ...modeConfig, bingoDifficulty: d })}
+                    >
+                      <Text style={[styles.modeBtnText, active && styles.modeBtnTextActive]}>
+                        {d === 'easy' ? 'Easy' : 'Hard'}
+                      </Text>
+                    </PressableButton>
+                  );
+                })}
+              </View>
+              <View style={styles.modeConfigHeader}>
+                <Text style={styles.modeConfigLabel}>Song-Zeit</Text>
+                <Text style={styles.modeConfigValue}>{songSeconds}s</Text>
+              </View>
+              <StepSlider
+                value={songSeconds}
+                min={BINGO_SONG_SECONDS_MIN}
+                max={BINGO_SONG_SECONDS_MAX}
+                milestones={[BINGO_SONG_SECONDS_MIN, 45, 60, BINGO_SONG_SECONDS_MAX]}
+                onChange={setSongSeconds}
+                onRelease={(v) => writeMode('bingo', { ...modeConfig, bingoSongSeconds: v })}
+              />
             </View>
           )}
           {gameMode === 'timeline_quiz' && (
@@ -373,7 +425,9 @@ export default function LobbyScreen() {
           <Text style={styles.modeBadgeText}>
             {MODE_LABEL[gameMode]}
             {gameMode === 'bingo'
-              ? ` · ${modeConfig.bingoGridSize ?? 4}×${modeConfig.bingoGridSize ?? 4}`
+              ? ` · ${modeConfig.bingoGridSize ?? 4}×${modeConfig.bingoGridSize ?? 4}` +
+                ` · ${(modeConfig.bingoDifficulty ?? 'easy') === 'hard' ? 'Hard' : 'Easy'}` +
+                ` · ${modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS}s`
               : ''}
             {gameMode === 'timeline_quiz'
               ? ` · ${modeConfig.timelineCardCount ?? DEFAULT_QUIZ_CARDS} Karten`
@@ -389,24 +443,14 @@ export default function LobbyScreen() {
           <Text style={styles.label}>SONGPOOL</Text>
           {source ? (
             <View style={styles.poolCard}>
-              {source.kind === 'pool' ? (
-                <PoolIcon iconUrl={source.pool.icon_url} size={52} />
-              ) : source.playlist.imageUrl ? (
-                <Image source={{ uri: source.playlist.imageUrl }} style={styles.poolCover} />
-              ) : (
-                <View style={[styles.poolCover, styles.poolCoverFallback]}>
-                  <Text style={styles.poolGlyph}>💿</Text>
-                </View>
-              )}
+              <PoolIcon iconUrl={source.pool.icon_url} size={52} />
               <View style={styles.poolText}>
                 <Text style={styles.poolLabel}>Ausgewählt</Text>
                 <Text style={styles.poolName} numberOfLines={1}>
-                  {source.kind === 'playlist' ? source.playlist.name : source.pool.name}
+                  {source.pool.name}
                 </Text>
                 <Text style={styles.poolMeta} numberOfLines={1}>
-                  {source.kind === 'playlist'
-                    ? `${source.playlist.trackCount} Songs`
-                    : 'Themen-Pool'}
+                  Themen-Pool
                 </Text>
               </View>
               <PressableButton style={styles.changeBtn} onPress={() => setPickerVisible(true)}>
@@ -558,13 +602,6 @@ const styles = StyleSheet.create({
     padding: 12,
     ...glow(COLORS.accent, { radius: 12, opacity: 0.5 }),
   },
-  poolCover: { width: 52, height: 52, borderRadius: 10 },
-  poolCoverFallback: {
-    backgroundColor: COLORS.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  poolGlyph: { fontSize: 26, color: COLORS.border },
   poolText: { flex: 1 },
   poolLabel: { color: COLORS.accent, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   poolName: { color: COLORS.text, fontSize: 17, fontWeight: '900' },

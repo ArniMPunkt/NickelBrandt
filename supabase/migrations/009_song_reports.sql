@@ -25,9 +25,10 @@ create table if not exists public.song_reports (
   artist      text not null,
   year        int  not null,
   track_uri   text not null,
-  -- Deck source: "pool:<uuid>" for themed pools, the Spotify playlist id for
-  -- playlists; null when unknown (e.g. a Party game started before the app
-  -- version that snapshots the source into game_state).
+  -- Deck source: "pool:<uuid>" (themed pools are the only source since the
+  -- Spotify-playlist import was removed; historical rows may carry a raw
+  -- Spotify playlist id). Null when unknown (e.g. a Party game started before
+  -- the app version that snapshots the source into game_state).
   source_id   text,
   source_name text,
   reason      text not null
