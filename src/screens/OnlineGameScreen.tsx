@@ -351,8 +351,10 @@ export default function OnlineGameScreen() {
   }, [card?.id, phase, isHost, gs?.winnerId]);
 
   // Cosmetic countdown bar while the steal window is open (each device animates).
+  // With "Nickel & Hitster-Rufe" off the phase only exists transiently inside
+  // placeCard - nothing to animate.
   useEffect(() => {
-    if (phase === 'hitster_window') {
+    if (phase === 'hitster_window' && gs?.chipsEnabled !== false) {
       barAnim.setValue(1);
       const anim = Animated.timing(barAnim, {
         toValue: 0,
@@ -444,6 +446,11 @@ export default function OnlineGameScreen() {
   };
 
   const hasPassed = !!gs.passedHitster?.includes(myId);
+
+  // "Nickel & Hitster-Rufe" master switch (absent = old game_state -> on).
+  // Off: no steal window UI, no Nickel displays/actions; the service side
+  // (placeCard/closeHitsterWindow/callHitster/skip/blind) is gated too.
+  const chipsOn = gs.chipsEnabled !== false;
 
   // --- Reveal-derived values ---
   const steal = gs.hitsterCallerId
@@ -604,7 +611,9 @@ export default function OnlineGameScreen() {
           <Text style={styles.activeName} numberOfLines={2} adjustsFontSizeToFit>
             {isActive ? 'Du bist dran' : `${activePlayer?.player_name ?? '—'} ist dran`}
           </Text>
-          <Text style={styles.subLine}>{me ? `${me.score} Pkt · 🪙 ${me.chips}` : ''}</Text>
+          <Text style={styles.subLine}>
+            {me ? `${me.score} Pkt${chipsOn ? ` · 🪙 ${me.chips}` : ''}` : ''}
+          </Text>
         </View>
         {/* Single overflow: Play/Pause (host), report, lobby code, deck count,
             end lobby. */}
@@ -615,7 +624,9 @@ export default function OnlineGameScreen() {
               ? { enabled: isRevealed && !!card, onPress: () => setReportCard(card) }
               : undefined
           }
-          nickelFix={isHost ? { onPress: () => setNickelFixVisible(true) } : undefined}
+          nickelFix={
+            isHost && chipsOn ? { onPress: () => setNickelFixVisible(true) } : undefined
+          }
           code={lobby?.code ?? '—'}
           deckCount={gs.deck.length}
           action={
@@ -684,8 +695,9 @@ export default function OnlineGameScreen() {
               <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
               {/* Nickel actions: skip / blind draw (host settings, synced in gs).
                   Locked at match point (score >= cardsToWin - 1): no Nickel
-                  assists on the potentially winning card. */}
-              {(gs.skipEnabled || gs.blindEnabled) && (() => {
+                  assists on the potentially winning card. Hidden entirely when
+                  the Nickel rule is off (they cost Nickel; mirrors P&P). */}
+              {chipsOn && (gs.skipEnabled || gs.blindEnabled) && (() => {
                 const matchPoint = (me?.score ?? 0) >= gs.cardsToWin - 1;
                 const skipBlocked =
                   (me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0 || matchPoint;
@@ -732,8 +744,8 @@ export default function OnlineGameScreen() {
         </>
       )}
 
-      {/* ---- hitster_window: 5s steal window ---- */}
-      {phase === 'hitster_window' && (
+      {/* ---- hitster_window: 5s steal window (rule off: transient only) ---- */}
+      {phase === 'hitster_window' && chipsOn && (
         <>
           <View style={styles.stealBox}>
             <Text style={styles.stealTitle}>Karte eingeordnet!</Text>
@@ -842,7 +854,8 @@ export default function OnlineGameScreen() {
             {p.player_id === myId ? ' (du)' : ''}
           </Text>
           <Text style={styles.scoreVal}>
-            {p.score} Pkt · {p.timeline.length} Karten · 🪙 {p.chips}
+            {p.score} Pkt · {p.timeline.length} Karten
+            {chipsOn ? ` · 🪙 ${p.chips}` : ''}
           </Text>
         </View>
       ))}
