@@ -579,6 +579,8 @@ export async function startGame(
     blindCost: number;
     timerEnabled: boolean;
     timerSeconds: number;
+    /** "Nickel & Hitster-Rufe": false = no steal window / no Nickel awards. */
+    chipsEnabled: boolean;
     /** Nickel cap: enabled + value (off = unlimited collecting). */
     chipLimitEnabled: boolean;
     chipLimit: number;
@@ -633,6 +635,7 @@ export async function startGame(
     blindCost: opts.blindCost,
     timerEnabled: opts.timerEnabled,
     timerSeconds: opts.timerSeconds,
+    chipsEnabled: opts.chipsEnabled,
     chipLimitEnabled: opts.chipLimitEnabled,
     chipLimit: opts.chipLimit,
     sourceId: opts.sourceId ?? null,
@@ -658,6 +661,10 @@ export async function startGame(
 /**
  * Active player picks a slot. This opens the 5s "Hitster!" window (phase
  * hitster_window) - reveal/resolution happen AFTER the window (or after a steal).
+ * With "Nickel & Hitster-Rufe" disabled there is no window: the placement is
+ * resolved immediately (the transient hitster_window write keeps
+ * closeHitsterWindow's atomic claim/logic reusable; the screen renders no
+ * steal UI in that phase when the rule is off, so nothing flashes).
  */
 export async function placeCard(lobbyId: string, insertIndex: number): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
@@ -672,6 +679,9 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
     stealEqualYear: false,
     lastResult: null,
   });
+  if (gs.chipsEnabled === false) {
+    await closeHitsterWindow(lobbyId);
+  }
 }
 
 /**
@@ -684,7 +694,17 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
  */
 export async function skipCard(lobbyId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
-  if (!gs || gs.phase !== 'card_drawn' || !gs.currentCard || !gs.skipEnabled) return;
+  // chipsEnabled false disables the whole Nickel economy incl. paid actions
+  // (mirrors the Pass & Play gating).
+  if (
+    !gs ||
+    gs.phase !== 'card_drawn' ||
+    !gs.currentCard ||
+    !gs.skipEnabled ||
+    gs.chipsEnabled === false
+  ) {
+    return;
+  }
   if (gs.deck.length === 0) throw new Error('Keine Karten mehr im Deck.');
   const cost = gs.skipCost ?? 1;
   const players = await getLobbyPlayers(lobbyId);
@@ -728,7 +748,16 @@ export async function skipCard(lobbyId: string): Promise<void> {
  */
 export async function blindDraw(lobbyId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
-  if (!gs || gs.phase !== 'card_drawn' || !gs.currentCard || !gs.blindEnabled) return;
+  // Same chipsEnabled gate as skipCard (paid Nickel action).
+  if (
+    !gs ||
+    gs.phase !== 'card_drawn' ||
+    !gs.currentCard ||
+    !gs.blindEnabled ||
+    gs.chipsEnabled === false
+  ) {
+    return;
+  }
   const cost = gs.blindCost ?? 3;
   const players = await getLobbyPlayers(lobbyId);
   const active = players.find((p) => p.player_id === gs.activePlayerId);
@@ -794,7 +823,9 @@ export async function blindDraw(lobbyId: string): Promise<void> {
  */
 export async function callHitster(lobbyId: string, callerId: string): Promise<boolean> {
   const { game_state: gs } = await getLobby(lobbyId);
-  if (!gs || gs.phase !== 'hitster_window') return false;
+  // chipsEnabled false: no steal calls (defensive - the button is hidden, and
+  // the disabled-rule window only exists transiently inside placeCard).
+  if (!gs || gs.phase !== 'hitster_window' || gs.chipsEnabled === false) return false;
 
   const newGs: OnlineGameState = {
     ...gs,
@@ -838,7 +869,10 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
     .update({
       game_state: {
         ...gs,
-        phase: won ? 'finished' : 'awaiting_host_confirmation',
+        // chipsEnabled false: no Nickel question - straight to the round
+        // result (the host then draws the next card as usual).
+        phase:
+          won || gs.chipsEnabled === false ? 'finished' : 'awaiting_host_confirmation',
         lastResult: correct ? 'correct' : 'incorrect',
         stealResult: null,
         stealEqualYear: false,

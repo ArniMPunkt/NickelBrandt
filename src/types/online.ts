@@ -192,6 +192,13 @@ export interface OnlineGameState {
   skipCost?: number;
   blindEnabled?: boolean;
   blindCost?: number;
+  /**
+   * "Nickel & Hitster-Rufe" master switch (host setting). false = no steal
+   * window, no Nickel question, no Nickel-costing actions - placements resolve
+   * directly. Absent = game started before the switch reached the online world
+   * -> enabled (the original behavior).
+   */
+  chipsEnabled?: boolean;
   /** Music timer (host settings): hard-stop the song after timerSeconds. */
   timerEnabled?: boolean;
   timerSeconds?: number;
