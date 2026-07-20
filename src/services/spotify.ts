@@ -279,6 +279,17 @@ function mapConnectError(e: any): Error {
         'zurück und tippe erneut auf „Mit Spotify verbinden".'
     );
   }
+  if (isTokenExchangeError(e)) {
+    // See isTokenExchangeError: the Spotify APP (not us, not necessarily our
+    // network) briefly failed to refresh its own session. Reached via any
+    // explicit connect() call (Settings button, or togglePlayback's fallback
+    // when playback wasn't already connected) - unlike the mid-game
+    // playUriGuarded path, connect() itself does not retry before this runs.
+    return new Error(
+      'Spotify hatte kurz Verbindungsprobleme beim Auffrischen deines Zugangs ' +
+        '(Spotify-seitig, nicht dein WLAN). Bitte versuche es in ein paar Sekunden erneut.'
+    );
+  }
   return e instanceof Error ? e : new Error(String(e));
 }
 
@@ -686,15 +697,75 @@ export function pause(): Promise<void> {
 // through to the reconnect path fast, not after the full 20s app-remote box.
 const STATUS_CHECK_TIMEOUT_MS = 3000;
 
-/** Errors that mean the App-Remote session is gone (worth ONE reconnect). */
+/**
+ * iOS: the INSTALLED SPOTIFY APP failing to refresh its own session against
+ * accounts.spotify.com, surfaced through the App Remote connect/play bridge as
+ * `Error Domain=com.spotify.connectivity.auth.token_exchanger ... "TokenExchanger
+ * error kPermanentNetworkError due to transport failure:
+ * accounts_http_transport_error"`. Not a domain/symbol in our vendored SDK
+ * headers (vendor/SpotifyiOS.xcframework) - this is Spotify's own internal
+ * classification, produced by the Spotify app itself, not by us. Despite the
+ * "Permanent" label it has shown up as a transient network hiccup in practice
+ * (TestFlight reports: WiFi connected, game state kept progressing normally),
+ * so treat it as worth exactly the same ONE reconnect+retry as a dropped
+ * session rather than trusting the SDK's "permanent" verdict.
+ */
+function isTokenExchangeError(e: any): boolean {
+  const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
+  return (
+    raw.includes('token_exchanger') ||
+    raw.includes('tokenexchanger') ||
+    raw.includes('kpermanentnetworkerror') ||
+    raw.includes('accounts_http_transport_error') ||
+    raw.includes('com.spotify.connectivity')
+  );
+}
+
+/**
+ * Errors that mean the App-Remote session is gone (worth ONE reconnect) - now
+ * also covers the iOS token-exchange class above, which is content-wise the
+ * same situation (the auth backing the connection is stale) even though its
+ * error text doesn't mention "connection" at all.
+ */
 function isConnectionLostError(e: any): boolean {
   const raw = `${e?.code ?? ''} ${e?.message ?? e}`.toLowerCase();
   return (
     raw.includes('disconnect') ||
     raw.includes('not connected') ||
     raw.includes('connection') ||
-    raw.includes('zeitüberschreitung')
+    raw.includes('zeitüberschreitung') ||
+    isTokenExchangeError(e)
   );
+}
+
+/**
+ * True for the generic `Error Domain=... Code=... "..."` string the native
+ * bridge produces for ANY unmapped NSError - i.e. how an unrecognized native
+ * Spotify SDK error (not just the known classes above) would otherwise reach
+ * the UI verbatim. Used as a last-resort net so a raw domain string can never
+ * render on screen, even for error shapes we haven't seen yet.
+ */
+function isRawNativeError(e: any): boolean {
+  return /error domain=.+code=/i.test(`${e?.message ?? e}`);
+}
+
+/**
+ * Final translation before a playback-path error reaches the UI (Teil 1: no
+ * NSError domain string may ever render there). Recognized transient classes
+ * -> the same actionable reconnect message (by the time this runs, the ONE
+ * retry above already failed, so a manual reconnect genuinely is the next
+ * step). Anything that still looks like a raw, unmapped native error -> the
+ * same message rather than ever showing "Error Domain=...". App-level errors
+ * we threw ourselves (e.g. "Kein aktiver Song zum Abspielen.") don't match
+ * either shape and pass through unchanged.
+ */
+function friendlyPlaybackError(e: any): Error {
+  if (isConnectionLostError(e) || isRawNativeError(e)) {
+    return new Error(
+      'Spotify-Verbindung verloren. Tippe auf ▶ oder verbinde dich in den Einstellungen neu.'
+    );
+  }
+  return e instanceof Error ? e : new Error(String(e));
 }
 
 /** Resulting playback state after a togglePlayback() call, for the button icon. */
@@ -775,18 +846,29 @@ export async function togglePlayback(
     try {
       return await toggleWhileConnected(uriBefore);
     } catch (e) {
-      if (!isConnectionLostError(e)) throw e;
+      // isConnectionLostError() also now covers the iOS token-exchange class
+      // (see isTokenExchangeError) -> that falls through to the reconnect
+      // below too. Anything else that still looks like a raw native error is
+      // scrubbed rather than thrown as-is (Teil 1: no NSError text in the UI).
+      if (!isConnectionLostError(e)) throw friendlyPlaybackError(e);
       // Session died between probe and action -> one reconnect attempt below.
     }
   }
 
-  await connect(); // sets `connected` again on success
+  await connect(); // sets `connected` again on success; already maps its own
+  // failures via mapConnectError, so never a raw native error either.
 
   const uriAfter = getCurrentUri();
   if (!uriAfter || uriAfter !== uriBefore) {
     return 'paused'; // game moved on during the reconnect - never replay a stale card
   }
-  await playUri(uriAfter);
+  try {
+    await playUri(uriAfter);
+  } catch (e) {
+    // A fresh connect() can still be followed by an immediate transient
+    // failure (e.g. another token-exchange hiccup) - never surface it raw.
+    throw friendlyPlaybackError(e);
+  }
   return 'playing';
 }
 
@@ -937,11 +1019,20 @@ export async function playUriGuarded(uri: string): Promise<void> {
   try {
     await playUri(uri);
   } catch (e) {
-    if (!isConnectionLostError(e)) throw e;
+    // isConnectionLostError() also covers the iOS token-exchange class (the
+    // Spotify app briefly failing to refresh its own session - see
+    // isTokenExchangeError) - worth exactly the same one reconnect+retry as a
+    // truly dropped session. Anything else is scrubbed before it can reach
+    // the UI as a raw native error (Teil 1).
+    if (!isConnectionLostError(e)) throw friendlyPlaybackError(e);
     // Dropped between the probe and the play -> one silent reconnect, then retry.
     const ok = await reconnectSilently();
-    if (!ok) throw e;
-    await playUri(uri);
+    if (!ok) throw friendlyPlaybackError(e);
+    try {
+      await playUri(uri);
+    } catch (retryErr) {
+      throw friendlyPlaybackError(retryErr);
+    }
   }
 }
 
