@@ -416,7 +416,13 @@ export default function OnlineGameScreen() {
       setError(e?.message ?? String(e));
       return false;
     });
-    if (!won) setNotice('Jemand anderes war schneller beim Hitster-Ruf.');
+    if (!won) {
+      setNotice(
+        multiStealOn
+          ? 'Das Klau-Fenster ist bereits vorbei.'
+          : 'Jemand anderes war schneller beim Hitster-Ruf.'
+      );
+    }
   };
   const onPassHitster = () =>
     Online.passHitster(lobbyId, myId).catch((e: any) => setError(e?.message ?? String(e)));
@@ -426,6 +432,8 @@ export default function OnlineGameScreen() {
     Online.blindDraw(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
   const onStealPlace = (i: number) =>
     Online.resolveHitsterPlacement(lobbyId, i).catch((e: any) => setError(e?.message ?? String(e)));
+  const onWithdrawHitster = () =>
+    Online.withdrawHitsterAttempt(lobbyId).catch((e: any) => setError(e?.message ?? String(e)));
   const hostConfirm = (wasCorrect: boolean) =>
     Online.confirmGuess(lobbyId, wasCorrect).catch((e: any) => setError(e?.message ?? String(e)));
   const hostNext = () =>
@@ -451,6 +459,26 @@ export default function OnlineGameScreen() {
   // Off: no steal window UI, no Nickel displays/actions; the service side
   // (placeCard/closeHitsterWindow/callHitster/skip/blind) is gated too.
   const chipsOn = gs.chipsEnabled !== false;
+
+  // "Mehrfaches Hitstern" (host setting, frozen at game start). Off = today's
+  // single-winner race (hitsterQueue is always empty then). On: everyone may
+  // press "Hitster!" during the window (press-order queue), then each queued
+  // player gets a sequential, unbounded turn to place or withdraw once the
+  // window closes - see services/supabase.ts's queue functions.
+  const multiStealOn = gs.multiStealEnabled === true;
+  const hitsterQueue = gs.hitsterQueue ?? [];
+  const myQueuePos = hitsterQueue.findIndex((e) => e.playerId === myId);
+  const iAmQueued = myQueuePos >= 0;
+  // Slots no longer pickable for whoever's currently placing: the active
+  // player's own choice, plus every slot a previous queue member already
+  // placed at (queue order = array order, always pre-sorted server-side).
+  const hitsterLockedSlots = [
+    gs.pendingInsertIndex,
+    ...hitsterQueue.filter((e) => e.placedSlot != null).map((e) => e.placedSlot as number),
+  ].filter((i): i is number => i != null);
+  // "A" (queue position 0) must place - no withdrawal; mirrors the OFF-path
+  // where the sole caller always commits to a slot.
+  const canAbortHitster = multiStealOn && hitsterQueue[0]?.playerId !== myId;
 
   // --- Reveal-derived values ---
   const steal = gs.hitsterCallerId
@@ -756,9 +784,35 @@ export default function OnlineGameScreen() {
               <Animated.View style={[styles.barFill, { width: barWidth }]} />
             </View>
             {isActive ? (
-              <Text style={styles.hint}>Mitspieler können jetzt „Hitster!" rufen…</Text>
+              <Text style={styles.hint}>
+                {multiStealOn
+                  ? 'Mitspieler können jetzt „Hitster!" rufen — auch mehrfach nacheinander…'
+                  : 'Mitspieler können jetzt „Hitster!" rufen…'}
+              </Text>
             ) : me && me.chips >= 1 ? (
-              hasPassed ? (
+              multiStealOn ? (
+                iAmQueued ? (
+                  <Text style={styles.hint}>
+                    Du bist in der Warteschlange (Platz {myQueuePos + 1} von {hitsterQueue.length}).
+                  </Text>
+                ) : (
+                  <>
+                    {hasPassed && (
+                      <Text style={styles.hint}>
+                        Du hast „Kein Hitster" gewählt — du kannst dich noch umentscheiden.
+                      </Text>
+                    )}
+                    <PressableButton style={styles.hitsterBtn} onPress={onHitster}>
+                      <Text style={styles.hitsterText}>HITSTER! 🎯</Text>
+                    </PressableButton>
+                    {!hasPassed && (
+                      <PressableButton style={styles.noHitsterBtn} onPress={onPassHitster}>
+                        <Text style={styles.noHitsterText}>Kein Hitster</Text>
+                      </PressableButton>
+                    )}
+                  </>
+                )
+              ) : hasPassed ? (
                 <Text style={styles.hint}>Du hast „Kein Hitster" gewählt. ✓</Text>
               ) : (
                 <>
@@ -772,6 +826,17 @@ export default function OnlineGameScreen() {
               )
             ) : (
               <Text style={styles.hint}>Du hast keine 🪙 zum Klauen.</Text>
+            )}
+            {multiStealOn && hitsterQueue.length > 0 && (
+              <View style={styles.queueBox}>
+                <Text style={styles.queueLabel}>WARTESCHLANGE</Text>
+                {hitsterQueue.map((e, i) => (
+                  <Text key={e.playerId} style={styles.queueItem}>
+                    {i + 1}. {players.find((p) => p.player_id === e.playerId)?.player_name ?? '—'}
+                    {e.playerId === myId ? ' (du)' : ''}
+                  </Text>
+                ))}
+              </View>
             )}
           </View>
           {!isActive && (
@@ -788,7 +853,13 @@ export default function OnlineGameScreen() {
         </>
       )}
 
-      {/* ---- hitster_resolving: caller places in active's timeline ---- */}
+      {/* ---- hitster_resolving: caller places in active's timeline. With
+          multiStealEnabled this is a SEQUENCE - hitsterCallerId is whoever's
+          turn it currently is (front of the still-pending queue), locked
+          slots grow with every previous member's choice, and (from the
+          second member onward) placing is optional - see withdrawHitster
+          Attempt. No per-attempt reveal: the outcome only appears once the
+          whole queue is done (finalizeMultiSteal). ---- */}
       {phase === 'hitster_resolving' && (
         <View>
           {gs.hitsterCallerId === myId ? (
@@ -799,16 +870,25 @@ export default function OnlineGameScreen() {
               <TimelineStrip
                 timeline={activePlayer?.timeline ?? []}
                 onInsert={onStealPlace}
-                isSlotEnabled={(i) => i !== gs.pendingInsertIndex}
+                isSlotEnabled={(i) => !hitsterLockedSlots.includes(i)}
                 centerIndex={gs.pendingInsertIndex}
               />
               <Text style={styles.hint}>
-                Der bereits gewählte Slot ist gesperrt — 1 🪙 wird eingesetzt.
+                {multiStealOn
+                  ? 'Bereits gewählte Slots sind gesperrt — 1 🪙 wird beim Setzen eingesetzt.'
+                  : 'Der bereits gewählte Slot ist gesperrt — 1 🪙 wird eingesetzt.'}
               </Text>
+              {canAbortHitster && (
+                <PressableButton style={styles.noHitsterBtn} onPress={onWithdrawHitster}>
+                  <Text style={styles.noHitsterText}>Abbrechen (kein 🪙-Verlust)</Text>
+                </PressableButton>
+              )}
             </>
           ) : (
             <Text style={styles.hint}>
-              {stealerName ?? 'Jemand'} versucht zu klauen…
+              {multiStealOn && iAmQueued
+                ? `${stealerName ?? 'Jemand'} versucht zu klauen… (du bist Platz ${myQueuePos + 1} von ${hitsterQueue.length})`
+                : `${stealerName ?? 'Jemand'} versucht zu klauen…`}
             </Text>
           )}
         </View>
@@ -1025,6 +1105,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   barFill: { height: '100%', backgroundColor: COLORS.secondary, borderRadius: 999 },
+  queueBox: {
+    alignSelf: 'stretch',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    marginTop: 4,
+    paddingTop: 8,
+    gap: 2,
+  },
+  queueLabel: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 2,
+  },
+  queueItem: { color: COLORS.text, fontSize: 13, fontWeight: '700' },
   hitsterBtn: {
     minHeight: 60,
     alignSelf: 'stretch',

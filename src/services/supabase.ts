@@ -48,6 +48,7 @@ import type {
   BingoDifficulty,
   GameCard,
   GameMode,
+  HitsterQueueEntry,
   Lobby,
   LobbyPlayer,
   MatchEvent,
@@ -584,6 +585,8 @@ export async function startGame(
     /** Nickel cap: enabled + value (off = unlimited collecting). */
     chipLimitEnabled: boolean;
     chipLimit: number;
+    /** "Mehrfaches Hitstern" (mode_config.hitsterMultiSteal, frozen at start). */
+    multiStealEnabled: boolean;
     /** Deck source snapshot for "Song melden" reports. */
     sourceId?: string;
     sourceName?: string;
@@ -624,6 +627,9 @@ export async function startGame(
     lastResult: null,
     hitsterCallerId: null,
     passedHitster: [],
+    multiStealEnabled: opts.multiStealEnabled,
+    hitsterQueue: [],
+    hitsterQueueVersion: 0,
     stealResult: null,
     stealEqualYear: false,
     turnOrder,
@@ -675,6 +681,8 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
     phase: 'hitster_window',
     hitsterCallerId: null,
     passedHitster: [],
+    hitsterQueue: [],
+    hitsterQueueVersion: 0,
     stealResult: null,
     stealEqualYear: false,
     lastResult: null,
@@ -814,22 +822,91 @@ export async function blindDraw(lobbyId: string): Promise<void> {
 }
 
 /**
- * Atomically claim the "Hitster!" call. Returns true if THIS caller won.
+ * Sort key for hitsterQueue: press order by SERVER clock, never write-commit
+ * order (two concurrent joins could otherwise land in either order in the
+ * array). Every function that writes the queue stores it PRE-SORTED via this,
+ * so consumers (UI included) never need to re-sort.
+ */
+function sortedHitsterQueue(queue: HitsterQueueEntry[]): HitsterQueueEntry[] {
+  return [...queue].sort((a, b) => a.queuedAt - b.queuedAt);
+}
+
+/** First entry in a (pre-sorted) queue with neither a placement nor a withdrawal yet. */
+function firstPendingHitster(queue: HitsterQueueEntry[]): HitsterQueueEntry | undefined {
+  return queue.find((e) => e.placedSlot == null && !e.aborted);
+}
+
+/**
+ * multiStealEnabled join: append this press to hitsterQueue (everyone may
+ * join, not just the first - the window itself stays open). Guarded by an
+ * explicit version counter (hitsterQueueVersion) rather than comparing the
+ * array's serialized content: Postgres's jsonb does NOT preserve object key
+ * order, so a text-equality filter on the array's JSON would spuriously
+ * "never match" and retry forever. A plain integer sibling field is the same
+ * optimistic-concurrency idiom used elsewhere in this file (e.g. roundNumber
+ * guards), just scoped to this array. On a lost race (someone else joined
+ * first), re-reads and retries once - collisions require two real people to
+ * press within the same network round-trip, an acceptable rarity.
+ */
+async function joinHitsterQueue(
+  lobbyId: string,
+  gs: OnlineGameState,
+  callerId: string,
+  attemptsLeft = 5
+): Promise<boolean> {
+  const queue = gs.hitsterQueue ?? [];
+  if (queue.some((e) => e.playerId === callerId)) return true; // already queued - idempotent
+  const nextQueue = sortedHitsterQueue([...queue, { playerId: callerId, queuedAt: serverNow() }]);
+  // Opinion change: a prior "Kein Hitster" no longer applies once they've queued.
+  const nextPassed = (gs.passedHitster ?? []).filter((id) => id !== callerId);
+  const version = gs.hitsterQueueVersion ?? 0;
+  const { data, error } = await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        hitsterQueue: nextQueue,
+        passedHitster: nextPassed,
+        hitsterQueueVersion: version + 1,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'hitster_window')
+    .filter('game_state->>hitsterQueueVersion', 'eq', String(version))
+    .select();
+  if (error) return false;
+  if (data && data.length > 0) return true;
+  if (attemptsLeft <= 0) return false;
+  const { game_state: fresh } = await getLobby(lobbyId);
+  if (!fresh || fresh.phase !== 'hitster_window') return false;
+  return joinHitsterQueue(lobbyId, fresh, callerId, attemptsLeft - 1);
+}
+
+/**
+ * Atomically claim the "Hitster!" call (multiStealEnabled OFF - today's
+ * single-winner race) or join the steal queue (multiStealEnabled ON - see
+ * joinHitsterQueue). Returns true if THIS caller is now in the running
+ * (claimed the race, or successfully queued).
  *
- * Atomicity: the UPDATE only writes when the row still has phase 'hitster_window'
- * AND hitster_caller_id IS NULL. Postgres takes a row lock per UPDATE; under READ
- * COMMITTED a second concurrent UPDATE waits for the first to commit and then
- * RE-EVALUATES its WHERE against the now-updated row - where hitster_caller_id is
- * no longer null - so it matches 0 rows. `.select()` returns the updated row only
- * to the winner (the loser gets []). This is the classic "UPDATE ... WHERE col IS
- * NULL RETURNING" claim, applied to a jsonb field via PostgREST json-path filters.
- * No Postgres function / migration needed.
+ * OFF-path atomicity: the UPDATE only writes when the row still has phase
+ * 'hitster_window' AND hitster_caller_id IS NULL. Postgres takes a row lock
+ * per UPDATE; under READ COMMITTED a second concurrent UPDATE waits for the
+ * first to commit and then RE-EVALUATES its WHERE against the now-updated row
+ * - where hitster_caller_id is no longer null - so it matches 0 rows.
+ * `.select()` returns the updated row only to the winner (the loser gets []).
+ * This is the classic "UPDATE ... WHERE col IS NULL RETURNING" claim, applied
+ * to a jsonb field via PostgREST json-path filters. No Postgres function /
+ * migration needed, on either path.
  */
 export async function callHitster(lobbyId: string, callerId: string): Promise<boolean> {
   const { game_state: gs } = await getLobby(lobbyId);
   // chipsEnabled false: no steal calls (defensive - the button is hidden, and
   // the disabled-rule window only exists transiently inside placeCard).
   if (!gs || gs.phase !== 'hitster_window' || gs.chipsEnabled === false) return false;
+
+  if (gs.multiStealEnabled) {
+    return joinHitsterQueue(lobbyId, gs, callerId);
+  }
 
   const newGs: OnlineGameState = {
     ...gs,
@@ -851,12 +928,41 @@ export async function callHitster(lobbyId: string, callerId: string): Promise<bo
 /**
  * Host's window timeout: no one stole -> resolve the active player's placement.
  * Claimed atomically (same WHERE guard) so a late callHitster can't be overridden.
+ *
+ * multiStealEnabled: if the queue is non-empty, hands off to the collection
+ * phase instead (front of hitsterQueue becomes hitsterCallerId, phase moves to
+ * hitster_resolving same as the OFF-path's single claim) - resolveHitster
+ * Placement/withdrawHitsterAttempt take it from there. An empty queue (nobody
+ * pressed "Hitster!" in time) falls through to the exact same regular
+ * resolution as the OFF-path below.
  */
 export async function closeHitsterWindow(lobbyId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs || gs.phase !== 'hitster_window' || !gs.currentCard || gs.pendingInsertIndex == null) {
     return;
   }
+
+  if (gs.multiStealEnabled) {
+    const queue = sortedHitsterQueue(gs.hitsterQueue ?? []);
+    if (queue.length > 0) {
+      await supabase
+        .from('lobbies')
+        .update({
+          game_state: {
+            ...gs,
+            hitsterQueue: queue,
+            hitsterCallerId: queue[0].playerId,
+            phase: 'hitster_resolving',
+          } as OnlineGameState,
+        })
+        .eq('id', lobbyId)
+        .filter('game_state->>phase', 'eq', 'hitster_window')
+        .filter('game_state->>hitsterCallerId', 'is', null);
+      return;
+    }
+    // Queue empty -> regular resolution below, identical to the OFF-path.
+  }
+
   const players = await getLobbyPlayers(lobbyId);
   const active = players.find((p) => p.player_id === gs.activePlayerId);
   if (!active) return;
@@ -925,6 +1031,9 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
 export async function passHitster(lobbyId: string, playerId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs || gs.phase !== 'hitster_window') return;
+  // Already queued (multiStealEnabled) supersedes a pass - defensive no-op,
+  // the UI never offers this button once queued.
+  if (gs.hitsterQueue?.some((e) => e.playerId === playerId)) return;
 
   const passed = gs.passedHitster ?? [];
   if (!passed.includes(playerId)) {
@@ -947,8 +1056,9 @@ export async function passHitster(lobbyId: string, playerId: string): Promise<vo
 
 /**
  * Close the steal window early if every potential stealer (non-active player with
- * >=1 Nickel) has either called "Hitster!" or pressed "Kein Hitster". Safe to call
- * from any client: closeHitsterWindow is itself atomic.
+ * >=1 Nickel) has either called "Hitster!" (or, multiStealEnabled, joined the
+ * queue) or pressed "Kein Hitster". Safe to call from any client:
+ * closeHitsterWindow is itself atomic.
  */
 async function checkHitsterWindowComplete(lobbyId: string): Promise<void> {
   const { game_state: gs } = await getLobby(lobbyId);
@@ -959,7 +1069,9 @@ async function checkHitsterWindowComplete(lobbyId: string): Promise<void> {
     (p) => p.player_id !== gs.activePlayerId && p.chips >= 1
   );
   const passed = new Set(gs.passedHitster ?? []);
-  const allResponded = potential.length > 0 && potential.every((p) => passed.has(p.player_id));
+  const queued = new Set((gs.hitsterQueue ?? []).map((e) => e.playerId));
+  const allResponded =
+    potential.length > 0 && potential.every((p) => passed.has(p.player_id) || queued.has(p.player_id));
   if (allResponded) {
     await closeHitsterWindow(lobbyId);
   }
@@ -971,6 +1083,10 @@ async function checkHitsterWindowComplete(lobbyId: string): Promise<void> {
  * hot-seat). Success: card -> caller's OWN sorted timeline + score, -1 Nickel.
  * Miss: -1 Nickel, then the active player's own placement is evaluated. A steal
  * never affects the Brandt hot-streak (only own active-turn placements do).
+ *
+ * multiStealEnabled: delegates to placeHitsterQueueSlot instead - the OFF-path
+ * body below is untouched (single caller, evaluated immediately, exactly as
+ * before).
  */
 export async function resolveHitsterPlacement(
   lobbyId: string,
@@ -980,6 +1096,12 @@ export async function resolveHitsterPlacement(
   if (!gs || gs.phase !== 'hitster_resolving' || !gs.currentCard || gs.pendingInsertIndex == null) {
     return;
   }
+
+  if (gs.multiStealEnabled) {
+    await placeHitsterQueueSlot(lobbyId, gs, insertIndex);
+    return;
+  }
+
   const callerId = gs.hitsterCallerId;
   const players = await getLobbyPlayers(lobbyId);
   const active = players.find((p) => p.player_id === gs.activePlayerId);
@@ -1053,6 +1175,234 @@ export async function resolveHitsterPlacement(
         song,
         correct: stealCorrect,
       }
+    ),
+  });
+  if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);
+}
+
+/**
+ * multiStealEnabled: the current front-of-queue member (gs.hitsterCallerId)
+ * places `insertIndex`. If someone else is still pending, only hands the turn
+ * to them (one atomic write, guarded on phase + the CURRENT hitsterCallerId -
+ * which this write changes, so a duplicate/retry submit fails the guard on
+ * its second attempt and the Nickel charge below, gated on the write's
+ * success, never double-fires). Charges 1 Nickel to the placer immediately
+ * regardless of outcome ("Nickel wird erst beim tatsächlichen Setzen
+ * abgezogen") - the win/lose OUTCOME itself stays hidden until the whole
+ * queue is done (finalizeMultiSteal), matching the "silent, one reveal at the
+ * end" design. If this WAS the last pending member, the final evaluation
+ * (incl. this entry's own Nickel charge) happens there instead.
+ */
+async function placeHitsterQueueSlot(
+  lobbyId: string,
+  gs: OnlineGameState,
+  insertIndex: number
+): Promise<void> {
+  const callerId = gs.hitsterCallerId;
+  if (!callerId || callerId !== getPlayerId()) return;
+  const queue = sortedHitsterQueue(gs.hitsterQueue ?? []);
+  const current = queue.find((e) => e.playerId === callerId);
+  if (!current || current.placedSlot != null || current.aborted) return;
+
+  const nextQueue = queue.map((e) =>
+    e.playerId === callerId ? { ...e, placedSlot: insertIndex } : e
+  );
+  const next = firstPendingHitster(nextQueue);
+
+  if (!next) {
+    await finalizeMultiSteal(lobbyId, gs, nextQueue, callerId);
+    return;
+  }
+
+  const { data } = await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        hitsterQueue: nextQueue,
+        hitsterCallerId: next.playerId,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'hitster_resolving')
+    .filter('game_state->>hitsterCallerId', 'eq', callerId)
+    .select();
+  if (!data || data.length === 0) return; // lost the guard - already advanced past this turn
+
+  const players = await getLobbyPlayers(lobbyId);
+  const caller = players.find((p) => p.player_id === callerId);
+  if (caller) {
+    await supabase
+      .from('lobby_players')
+      .update({ chips: Math.max(0, caller.chips - 1) })
+      .eq('id', caller.id);
+  }
+}
+
+/**
+ * multiStealEnabled: the front-of-queue member withdraws instead of placing -
+ * no Nickel charge (nothing was ever deducted for a press/queue join, only
+ * for an actual placement), no stats event (no attempt was made). Refused
+ * for the very FIRST queue entry (queue[0], always the earliest press) -
+ * "kein Abbrechen für A": someone must place on the very first turn, mirroring
+ * the OFF-path where the sole caller always commits to a slot.
+ */
+export async function withdrawHitsterAttempt(lobbyId: string): Promise<void> {
+  const myId = getPlayerId();
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    !gs.multiStealEnabled ||
+    gs.phase !== 'hitster_resolving' ||
+    gs.hitsterCallerId !== myId
+  ) {
+    return;
+  }
+  const queue = sortedHitsterQueue(gs.hitsterQueue ?? []);
+  if (queue[0]?.playerId === myId) return; // "A" must place, no withdrawal
+  const current = queue.find((e) => e.playerId === myId);
+  if (!current || current.placedSlot != null || current.aborted) return;
+
+  const nextQueue = queue.map((e) => (e.playerId === myId ? { ...e, aborted: true } : e));
+  const next = firstPendingHitster(nextQueue);
+
+  if (!next) {
+    await finalizeMultiSteal(lobbyId, gs, nextQueue);
+    return;
+  }
+
+  await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        hitsterQueue: nextQueue,
+        hitsterCallerId: next.playerId,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>phase', 'eq', 'hitster_resolving')
+    .filter('game_state->>hitsterCallerId', 'eq', myId)
+    .select();
+}
+
+/**
+ * multiStealEnabled: the queue is fully processed (every entry has either
+ * placedSlot or aborted) - the ONE-TIME final evaluation + reveal ("still",
+ * no per-attempt hints - see the module doc). Scans front-to-back (queue is
+ * pre-sorted by press time) for the first PLACED slot that's actually valid;
+ * that entry steals the card - impossible when the active player was already
+ * correct, exactly like the OFF-path's stealCorrect formula (only ONE outcome
+ * is possible, never both). Every OTHER placed entry logs a "verbrandt"
+ * (correct: false) steal event, in queue order; withdrawals log nothing.
+ *
+ * The active player's OWN placement is evaluated EXACTLY ONCE, here - never
+ * per queue entry. That is the correctness pitfall the Schritt-0 analysis
+ * flagged: activeCorrect doesn't change between attempts, so applying its
+ * score/timeline/streak side effects on every failed attempt (instead of once,
+ * at the end) would double- or triple-count them when multiple people fail in
+ * a row.
+ *
+ * `chargePlayerId` is the entry that JUST placed to reach this final step
+ * (undefined if they withdrew instead) - every earlier entry's Nickel was
+ * already charged at ITS OWN turn (see placeHitsterQueueSlot), so this is the
+ * only charge left to apply.
+ */
+async function finalizeMultiSteal(
+  lobbyId: string,
+  gs: OnlineGameState,
+  queue: HitsterQueueEntry[],
+  chargePlayerId?: string
+): Promise<void> {
+  const players = await getLobbyPlayers(lobbyId);
+  const active = players.find((p) => p.player_id === gs.activePlayerId);
+  if (!active || !gs.currentCard || gs.pendingInsertIndex == null) return;
+  const card = gs.currentCard;
+
+  const activeCorrect = isCorrectPlacement(active.timeline, card, gs.pendingInsertIndex);
+  const placed = queue.filter(
+    (e): e is HitsterQueueEntry & { placedSlot: number } => e.placedSlot != null && !e.aborted
+  );
+  // A steal is only even possible when the active player was wrong (mirrors
+  // the OFF-path's stealCorrect = !activeCorrect && callerSlotValid).
+  const winnerEntry = !activeCorrect
+    ? placed.find((e) => isCorrectPlacement(active.timeline, card, e.placedSlot))
+    : undefined;
+  const winnerPlayer = winnerEntry
+    ? players.find((p) => p.player_id === winnerEntry.playerId)
+    : undefined;
+  // Equal-year standoff, generalized: active was right AND at least one
+  // attempt also landed on an equally-valid slot.
+  const stealEqualYear =
+    activeCorrect && placed.some((e) => isCorrectPlacement(active.timeline, card, e.placedSlot));
+
+  let winnerId: string | null = gs.winnerId;
+
+  if (winnerEntry && winnerPlayer) {
+    const idx = sortedInsertIndex(winnerPlayer.timeline, card.year);
+    const newScore = winnerPlayer.score + 1;
+    await supabase
+      .from('lobby_players')
+      .update({ timeline: insertAt(winnerPlayer.timeline, card, idx), score: newScore })
+      .eq('id', winnerPlayer.id);
+    if (newScore >= gs.cardsToWin - 1) winnerId = winnerPlayer.player_id;
+  }
+
+  // Active player's OWN placement - see the doc above: exactly once, here.
+  const activeStreak = activeCorrect ? active.current_streak + 1 : 0;
+  const activeUpdate: Record<string, unknown> = {
+    current_streak: activeStreak,
+    max_brandt_streak: Math.max(active.max_brandt_streak, activeStreak),
+  };
+  if (activeCorrect) {
+    const newScore = active.score + 1;
+    activeUpdate.timeline = insertAt(active.timeline, card, gs.pendingInsertIndex);
+    activeUpdate.score = newScore;
+    if (newScore >= gs.cardsToWin - 1) winnerId = active.player_id;
+  }
+  await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
+
+  if (chargePlayerId) {
+    const charged = players.find((p) => p.player_id === chargePlayerId);
+    if (charged) {
+      await supabase
+        .from('lobby_players')
+        .update({ chips: Math.max(0, charged.chips - 1) })
+        .eq('id', charged.id);
+    }
+  }
+
+  const won = !!winnerId;
+  const song = toStatsSong(card);
+  // One "steal" event per PLACED (non-withdrawn) attempt, in queue order: the
+  // actual winner (if any) logs correct: true, everyone else correct: false -
+  // only one placed attempt can ever be the true steal.
+  const stealEvents: MatchEvent[] = placed.map((e) => ({
+    type: 'steal',
+    playerId: e.playerId,
+    victimId: active.player_id,
+    song,
+    correct: winnerEntry?.playerId === e.playerId,
+  }));
+  await writeGameState(lobbyId, {
+    ...gs,
+    phase: won ? 'finished' : 'awaiting_host_confirmation',
+    lastResult: activeCorrect ? 'correct' : 'incorrect',
+    stealResult: winnerEntry ? 'correct' : placed.length > 0 ? 'incorrect' : null,
+    stealEqualYear,
+    // Reveal identity for the existing single-name message (stealerName):
+    // the winner if there was one, otherwise the LAST (queue-order) placed
+    // attempt, otherwise null (nobody placed at all - identical to an empty
+    // queue). Known simplification: with several failed attempts, only one
+    // name is shown - see the write-up for a possible future "list everyone"
+    // enhancement.
+    hitsterCallerId: winnerEntry?.playerId ?? placed[placed.length - 1]?.playerId ?? null,
+    hitsterQueue: queue,
+    winnerId,
+    statsHistory: appendStats(
+      gs,
+      { type: 'place', playerId: active.player_id, song, correct: activeCorrect },
+      ...stealEvents
     ),
   });
   if (won) await supabase.from('lobbies').update({ status: 'finished' }).eq('id', lobbyId);

@@ -21,6 +21,12 @@ export interface ModeConfig {
   bingoSongSeconds?: number;
   /** Timeline-Quiz: number of cards to play. */
   timelineCardCount?: number;
+  /**
+   * Hitster: allow multiple sequential steal attempts per steal window
+   * (queued by press order) instead of the default single-winner race.
+   * Absent/false = today's atomic-claim behavior.
+   */
+  hitsterMultiSteal?: boolean;
 }
 
 /** Outcome of one player in a resolved simultaneous round. */
@@ -149,6 +155,20 @@ export interface BingoRoundSpec {
   tolerance?: number;
 }
 
+/**
+ * One "Hitster!" press during a multiStealEnabled window/collection phase.
+ * See OnlineGameState.hitsterQueue for the full lifecycle.
+ */
+export interface HitsterQueueEntry {
+  playerId: string;
+  /** serverNow() at press time - the array's sort key (NOT write order). */
+  queuedAt: number;
+  /** The slot this entry chose once it was their turn (absent = not their turn yet). */
+  placedSlot?: number | null;
+  /** True if they withdrew instead of placing (kept their Nickel, no stats event). */
+  aborted?: boolean;
+}
+
 /** The whole synced round state (stored in lobbies.game_state jsonb). */
 export interface OnlineGameState {
   /** Remaining cards, drawn from the front. */
@@ -162,21 +182,62 @@ export interface OnlineGameState {
   pendingInsertIndex: number | null;
   /** Result of the active player's own placement, for the reveal UI. */
   lastResult: 'correct' | 'incorrect' | null;
-  /** Who won the "Hitster!" call this turn (player_id), or null. */
+  /**
+   * Off (default): who won the "Hitster!" claim race this turn (player_id), or
+   * null. On (multiStealEnabled): during the collection phase, whoever is
+   * CURRENTLY placing their slot - the front of the still-pending hitsterQueue,
+   * NOT a fixed "winner" - see resolveHitsterPlacement/withdrawHitsterAttempt.
+   */
   hitsterCallerId: string | null;
   /**
    * Player ids who pressed "Kein Hitster" this turn (reset each round). When all
-   * potential stealers (non-active players with >=1 Nickel) have either stolen or
-   * passed, the window closes early. Optional for backward-compat with rows
-   * written before this field existed.
+   * potential stealers (non-active players with >=1 Nickel) have either stolen/
+   * queued or passed, the window closes early. Optional for backward-compat
+   * with rows written before this field existed. With multiStealEnabled, a
+   * later "Hitster!" press retracts a prior entry here (opinion change).
    */
   passedHitster?: string[];
+  /**
+   * "Mehrfaches Hitstern" (host setting, frozen at game start from
+   * mode_config.hitsterMultiSteal). false/absent = today's single-winner
+   * atomic-claim race (hitsterQueue is never written to or read). true =
+   * every "Hitster!" press during the window joins hitsterQueue (press-order),
+   * and once the window closes each queued player gets an unbounded,
+   * sequential turn to place a slot or withdraw - see hitsterQueue.
+   */
+  multiStealEnabled?: boolean;
+  /**
+   * Queue of "Hitster!" presses during the window, ALWAYS stored pre-sorted by
+   * queuedAt ascending (press order by server clock, not write-commit order -
+   * two concurrent joins could otherwise land in either order). Only written/
+   * read when multiStealEnabled is true.
+   *
+   * Collection phase (after the window closes): entries are processed
+   * front-to-back. placedSlot/aborted are filled in as each entry's turn comes
+   * ("pending" = both absent). hitsterCallerId always names the first still-
+   * pending entry. Final evaluation (once every entry has placedSlot or
+   * aborted) scans front-to-back for the first placedSlot that is actually
+   * correct - that entry steals the card; everyone else who placed (whether
+   * before or after) gets a "verbrandt" stats event; withdrawals get neither a
+   * Nickel charge nor a stats event.
+   */
+  hitsterQueue?: HitsterQueueEntry[] | null;
+  /**
+   * Scalar optimistic-concurrency guard for hitsterQueue joins (see
+   * joinHitsterQueue in supabase.ts): bumped by 1 on every successful join.
+   * A plain counter, not the array's content, because jsonb does not preserve
+   * object key order - a text-equality filter on the serialized array would
+   * spuriously never match.
+   */
+  hitsterQueueVersion?: number;
   /** The steal's outcome (caller prediction), or null if no steal happened. */
   stealResult: 'correct' | 'incorrect' | null;
   /**
    * True when the steal missed ONLY because the active player was also correct at
-   * an equal-year slot (both slots year-valid). Drives the "Gleiches Jahr, beide
-   * Plätze richtig" reveal message. Optional for backward-compat.
+   * an equal-year slot (both slots year-valid). With multiStealEnabled: true if
+   * the active player was correct AND at least one queued attempt also landed
+   * on an equally-valid slot. Drives the "Gleiches Jahr, beide Plätze richtig"
+   * reveal message. Optional for backward-compat.
    */
   stealEqualYear?: boolean;
   /** Turn rotation order (player_ids, join order). */

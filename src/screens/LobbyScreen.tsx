@@ -9,6 +9,7 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -61,6 +62,7 @@ function defaultConfigFor(mode: GameMode): ModeConfig {
     };
   }
   if (mode === 'timeline_quiz') return { timelineCardCount: DEFAULT_QUIZ_CARDS };
+  if (mode === 'hitster') return { hitsterMultiSteal: false };
   return {};
 }
 
@@ -307,6 +309,7 @@ export default function LobbyScreen() {
           chipsEnabled: settings.chipsEnabled,
           chipLimitEnabled: settings.chipLimitEnabled,
           chipLimit: settings.chipLimit,
+          multiStealEnabled: modeConfig.hitsterMultiSteal ?? false,
           ...src,
         });
       }
@@ -352,6 +355,31 @@ export default function LobbyScreen() {
             <>
               <Text style={styles.label}>SPIELREGELN</Text>
               <GameRulesSection />
+              {/* Funktionslos ohne die Nickel-Ökonomie (kein Klau-Fenster ohne
+                  Nickel) - ausgeblendet statt nur deaktiviert, analog dazu, wie
+                  GameRulesSection abhängige Detail-Configs (Kosten-Slider etc.)
+                  komplett verbirgt statt nur zu sperren, wenn ihr eigener
+                  Schalter aus ist. */}
+              {settings.chipsEnabled && (
+                <View style={styles.modeConfigBox}>
+                  <View style={styles.modeConfigHeader}>
+                    <Text style={styles.modeConfigLabel}>Mehrfaches Hitstern</Text>
+                    <Switch
+                      value={modeConfig.hitsterMultiSteal ?? false}
+                      onValueChange={(v) =>
+                        writeMode('hitster', { ...modeConfig, hitsterMultiSteal: v })
+                      }
+                      trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                      thumbColor={COLORS.text}
+                      ios_backgroundColor={COLORS.border}
+                    />
+                  </View>
+                  <Text style={styles.modeConfigHint}>
+                    Alle dürfen „Hitster!" drücken — Reihenfolge nach Drückzeitpunkt
+                    entscheidet, wer zuerst raten darf.
+                  </Text>
+                </View>
+              )}
             </>
           )}
           {gameMode === 'bingo' && (
@@ -430,6 +458,11 @@ export default function LobbyScreen() {
                 ` · ${(modeConfig.bingoDifficulty ?? 'easy') === 'hard' ? 'Hard' : 'Easy'}` +
                 ` · ${modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS}s`
               : ''}
+            {/* chipsEnabled lebt nur in der lokalen, geräteeigenen SettingsContext
+                des Hosts (nie synchronisiert) - ein Mitspieler-Gerät hat keinen
+                Zugriff auf den tatsächlichen Host-Wert, daher hier bewusst KEINE
+                Bedingung darauf (anders als beim Host-Toggle in derselben Datei). */}
+            {gameMode === 'hitster' && modeConfig.hitsterMultiSteal ? ' · Mehrfaches Hitstern' : ''}
             {gameMode === 'timeline_quiz'
               ? ` · ${modeConfig.timelineCardCount ?? DEFAULT_QUIZ_CARDS} Karten`
               : ''}
@@ -639,6 +672,7 @@ const styles = StyleSheet.create({
   modeConfigHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modeConfigLabel: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
   modeConfigValue: { color: COLORS.accent, fontSize: 18, fontWeight: '900' },
+  modeConfigHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
   modeBadgeRow: {
     backgroundColor: COLORS.backgroundAlt,
     borderWidth: 1,
