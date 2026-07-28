@@ -617,10 +617,12 @@ export default function GameScreen() {
             <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
           )}
           {/* Nickel actions: skip / blind draw (settings-gated, need the chip
-              layer). Both are locked at match point (score >= cardsToWin - 1):
-              no Nickel assists on the potentially winning card. */}
+              layer). Both are locked at match point (score >= cardsToWin - 2,
+              one correct placement from the cardsToWin - 1 win threshold -
+              see the PLACE_CARD/SKIP_CARD/BLIND_DRAW reducer cases): no
+              Nickel assists on the potentially winning card. */}
           {state.currentCard && chipsEnabled && (state.settings.skipEnabled || state.settings.blindEnabled) && (() => {
-            const matchPoint = player.score >= state.settings.cardsToWin - 1;
+            const matchPoint = player.score >= state.settings.cardsToWin - 2;
             const skipBlocked =
               player.chips < state.settings.skipCost || state.deck.length === 0 || matchPoint;
             const blindBlocked = player.chips < state.settings.blindCost || matchPoint;

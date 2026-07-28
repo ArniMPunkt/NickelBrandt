@@ -164,7 +164,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         i === playerIndex ? updatedPlayer : p
       );
 
-      const won = correct && newScore >= state.settings.cardsToWin;
+      // Win at cardsToWin - 1 correct placements: the dealt start card is the
+      // implicit first of the cardsToWin timeline cards (score never counts
+      // it), so "10 Karten zum Gewinnen" means 10 cards total, not 10 + start.
+      const won = correct && newScore >= state.settings.cardsToWin - 1;
 
       return {
         ...state,
@@ -187,14 +190,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SKIP_CARD': {
       // "Karte überspringen": discard the current card and draw a replacement
       // (same turn continues). Costs skipCost Nickel; needs a non-empty deck.
-      // Locked at match point (score >= cardsToWin - 1): no Nickel assists on
+      // Locked at match point (score >= cardsToWin - 2, one correct placement
+      // from the cardsToWin - 1 win threshold above): no Nickel assists on
       // the potentially winning card - the endgame has to be guessed.
       const card = state.currentCard;
       if (!card || state.deck.length === 0 || !state.settings.skipEnabled) return state;
       const cost = state.settings.skipCost;
       const playerIndex = state.currentPlayerIndex;
       if (state.players[playerIndex].chips < cost) return state;
-      if (state.players[playerIndex].score >= state.settings.cardsToWin - 1) return state;
+      if (state.players[playerIndex].score >= state.settings.cardsToWin - 2) return state;
 
       const [next, ...rest] = state.deck;
       const players = state.players.map((p, i) =>
@@ -208,15 +212,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // into the timeline, but does NOT count toward the win (no score) - a
       // bought card is no progress toward cardsToWin. Costs blindCost Nickel.
       // The Brandt streak is untouched - it tracks own GUESSES, and a bought
-      // card is neither a hit nor a miss. Locked at match point (score >=
-      // cardsToWin - 1): no Nickel assists on the potentially winning card.
+      // card is neither a hit nor a miss. Locked at match point (see
+      // SKIP_CARD): no Nickel assists on the potentially winning card.
       const card = state.currentCard;
       if (!card || !state.settings.blindEnabled) return state;
       const cost = state.settings.blindCost;
       const playerIndex = state.currentPlayerIndex;
       const player = state.players[playerIndex];
       if (player.chips < cost) return state;
-      if (player.score >= state.settings.cardsToWin - 1) return state;
+      if (player.score >= state.settings.cardsToWin - 2) return state;
 
       const insertIndex = sortedInsertIndex(player.timeline, card.year);
       const updatedPlayer: Player = {
@@ -350,8 +354,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         return p;
       });
 
+      // Win threshold cardsToWin - 1 (see PLACE_CARD).
       const winner =
-        players.find((p) => p.score >= state.settings.cardsToWin) ?? null;
+        players.find((p) => p.score >= state.settings.cardsToWin - 1) ?? null;
 
       // Two stats events per resolved steal turn: the active player's OWN
       // placement and the steal attempt (victim = the active player, whose

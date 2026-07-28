@@ -687,7 +687,7 @@ export async function placeCard(lobbyId: string, insertIndex: number): Promise<v
 /**
  * "Karte überspringen": the active player discards the current card and draws a
  * replacement (same turn, phase stays card_drawn). Costs skipCost Nickel.
- * Locked at match point (score >= cardsToWin - 1): no Nickel assists on the
+ * Locked at match point (score >= cardsToWin - 2): no Nickel assists on the
  * potentially winning card - the endgame has to be guessed.
  * Atomic on phase AND the current card id, so a double-tap (or a stale client)
  * can never skip twice / charge twice: the second write matches 0 rows.
@@ -710,7 +710,10 @@ export async function skipCard(lobbyId: string): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
   const active = players.find((p) => p.player_id === gs.activePlayerId);
   if (!active || active.chips < cost) return;
-  if (active.score >= gs.cardsToWin - 1) return;
+  // Match point = one correct placement away from the win threshold below
+  // (cardsToWin - 1, since the dealt start card already counts as the first
+  // of the cardsToWin timeline cards) - keep this in lockstep with that check.
+  if (active.score >= gs.cardsToWin - 2) return;
 
   const [next, ...rest] = gs.deck;
   const { data } = await supabase
@@ -741,7 +744,7 @@ export async function skipCard(lobbyId: string): Promise<void> {
  * current card is auto-inserted year-sorted into their timeline. It does NOT
  * count toward the win (no score - a bought card is no progress to cardsToWin)
  * and does NOT touch the Brandt streak (that tracks own guesses; a bought card
- * is neither hit nor miss). Locked at match point (score >= cardsToWin - 1).
+ * is neither hit nor miss). Locked at match point (score >= cardsToWin - 2).
  * The turn ends immediately: no steal window, no host confirmation - rotate +
  * draw the next card directly (or finish on an empty deck, like drawNextCard).
  * Same atomic claim pattern as skipCard (phase + card id).
@@ -762,7 +765,8 @@ export async function blindDraw(lobbyId: string): Promise<void> {
   const players = await getLobbyPlayers(lobbyId);
   const active = players.find((p) => p.player_id === gs.activePlayerId);
   if (!active || active.chips < cost) return;
-  if (active.score >= gs.cardsToWin - 1) return;
+  // Match point (see skipCard) - one correct placement from the win threshold.
+  if (active.score >= gs.cardsToWin - 2) return;
 
   const card = gs.currentCard;
 
@@ -861,7 +865,10 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
   const idx = gs.pendingInsertIndex;
   const correct = isCorrectPlacement(active.timeline, card, idx);
   const newScore = correct ? active.score + 1 : active.score;
-  const won = correct && newScore >= gs.cardsToWin;
+  // Win at cardsToWin - 1 correct placements: the dealt start card is the
+  // implicit first of the cardsToWin timeline cards (score never counts it),
+  // so "10 Karten zum Gewinnen" means 10 cards total, not 10 + the start card.
+  const won = correct && newScore >= gs.cardsToWin - 1;
 
   // Atomic transition (only if still an open, unclaimed window).
   const { data } = await supabase
@@ -1002,7 +1009,8 @@ export async function resolveHitsterPlacement(
     const newScore = caller.score + 1;
     callerUpdate.timeline = insertAt(caller.timeline, card, idx);
     callerUpdate.score = newScore;
-    if (newScore >= gs.cardsToWin) winnerId = caller.player_id;
+    // Win threshold cardsToWin - 1 (see closeHitsterWindow).
+    if (newScore >= gs.cardsToWin - 1) winnerId = caller.player_id;
   }
   await supabase.from('lobby_players').update(callerUpdate).eq('id', caller.id);
 
@@ -1018,7 +1026,8 @@ export async function resolveHitsterPlacement(
     const newScore = active.score + 1;
     activeUpdate.timeline = insertAt(active.timeline, card, gs.pendingInsertIndex);
     activeUpdate.score = newScore;
-    if (newScore >= gs.cardsToWin) winnerId = active.player_id;
+    // Win threshold cardsToWin - 1 (see closeHitsterWindow).
+    if (newScore >= gs.cardsToWin - 1) winnerId = active.player_id;
   }
   await supabase.from('lobby_players').update(activeUpdate).eq('id', active.id);
 

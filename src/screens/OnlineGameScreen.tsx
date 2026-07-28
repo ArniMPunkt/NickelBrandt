@@ -694,11 +694,14 @@ export default function OnlineGameScreen() {
               <TimelineStrip timeline={myTimeline} onInsert={onPlace} />
               <Text style={styles.hint}>Tippe ein „+", um den Track einzuordnen.</Text>
               {/* Nickel actions: skip / blind draw (host settings, synced in gs).
-                  Locked at match point (score >= cardsToWin - 1): no Nickel
-                  assists on the potentially winning card. Hidden entirely when
-                  the Nickel rule is off (they cost Nickel; mirrors P&P). */}
+                  Locked at match point (score >= cardsToWin - 2, one correct
+                  placement from the cardsToWin - 1 win threshold - see
+                  closeHitsterWindow/skipCard/blindDraw in supabase.ts):
+                  no Nickel assists on the potentially winning card. Hidden
+                  entirely when the Nickel rule is off (they cost Nickel;
+                  mirrors P&P). */}
               {chipsOn && (gs.skipEnabled || gs.blindEnabled) && (() => {
-                const matchPoint = (me?.score ?? 0) >= gs.cardsToWin - 1;
+                const matchPoint = (me?.score ?? 0) >= gs.cardsToWin - 2;
                 const skipBlocked =
                   (me?.chips ?? 0) < (gs.skipCost ?? 1) || gs.deck.length === 0 || matchPoint;
                 const blindBlocked = (me?.chips ?? 0) < (gs.blindCost ?? 3) || matchPoint;
