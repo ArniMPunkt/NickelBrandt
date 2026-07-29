@@ -27,6 +27,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
+import * as Achievements from '../services/achievements';
 import {
   bandAnswerGroup,
   bingoCategoryLabel,
@@ -50,6 +51,8 @@ import { CategoryWheel } from '../components/CategoryWheel';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { BingoLineReveal } from '../components/BingoLineReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { AchievementUnlockedOverlay } from '../components/AchievementUnlockedOverlay';
+import { NewAchievementsSection } from '../components/NewAchievementsSection';
 import { HeaderMenu } from '../components/HeaderMenu';
 import { PlayerBingoStatsAccordion } from '../components/PlayerStatsAccordion';
 import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
@@ -116,6 +119,13 @@ export default function BingoGameScreen() {
   }>({ round: null, list: [] });
   const [error, setError] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
+  // Achievements newly unlocked by THIS match; specialAchievement (at most
+  // one) gets the rare fullscreen moment, shown after VictoryCelebration but
+  // before the stats view.
+  const [newAchievements, setNewAchievements] = useState<Achievements.AchievementDefinition[]>([]);
+  const [specialAchievement, setSpecialAchievement] =
+    useState<Achievements.AchievementDefinition | null>(null);
+  const [achievementShown, setAchievementShown] = useState(false);
   // year_guess slider / title_artist free text (local until submitted).
   const [yearGuess, setYearGuess] = useState(1990);
   const [titleText, setTitleText] = useState('');
@@ -247,6 +257,33 @@ export default function BingoGameScreen() {
   const winnerIds = gs?.winnerIds ?? (gs?.winnerId ? [gs.winnerId] : []);
   const winners = players.filter((p) => winnerIds.includes(p.player_id));
   const winnerNames = winners.map((p) => p.player_name).join(' & ');
+
+  // This device records its OWN performance + evaluates achievement unlocks
+  // exactly once when the match ends. roundNumber at finish = rounds played
+  // (Perfect Bingo checks it against gridSize); events are THIS player's own
+  // bingoStatsHistory entries only (Sad Bingo needs no cross-player data).
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (gs?.phase !== 'finished' || recordedRef.current || players.length === 0) return;
+    recordedRef.current = true;
+    Achievements.recordMatchResult({
+      mode: 'bingo',
+      participantCount: players.length,
+      won: winnerIds.includes(myId),
+      gridSize: size,
+      difficulty,
+      roundsPlayed: gs.roundNumber ?? 0,
+      events: (gs.bingoStatsHistory ?? [])
+        .filter((e) => e.playerId === myId)
+        .map((e) => ({ category: e.category, correct: e.correct, overfull: e.overfull === true })),
+    })
+      .then(({ profile, newlyUnlocked }) => {
+        setNewAchievements(newlyUnlocked);
+        setSpecialAchievement(Achievements.pickSpecialAchievement(newlyUnlocked, profile.unlocked.length));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs?.phase]);
 
   // ---- Cell-pick window (after resolution; see pickBingoCell) ----
   const myBoard = me?.bingo_board ?? null;
@@ -632,6 +669,18 @@ export default function BingoGameScreen() {
         />
       );
     }
+    // Rare fullscreen "besonderer Moment" (first achievement ever / a
+    // top-tier milestone) - one tap, then straight into the normal stats.
+    // Reached regardless of winnerId (achievements also fire on a
+    // "Unentschieden" finish - a deck-exhausted draw is still a played match).
+    if (specialAchievement && !achievementShown) {
+      return (
+        <AchievementUnlockedOverlay
+          achievement={specialAchievement}
+          onContinue={() => setAchievementShown(true)}
+        />
+      );
+    }
     return (
       <ScrollView
         style={styles.screen}
@@ -646,6 +695,7 @@ export default function BingoGameScreen() {
               : 'KEINE KARTEN MEHR — UNENTSCHIEDEN'}
         </Text>
         {gs.winnerId && <Text style={styles.winnerName}>{winnerNames || '—'}</Text>}
+        <NewAchievementsSection achievements={newAchievements} />
         <Text style={styles.sectionLabel}>FELDER</Text>
         {[...players]
           .sort((a, b) => markedCount(b.bingo_board) - markedCount(a.bingo_board))

@@ -19,6 +19,7 @@ import { buildPlayerMatchStats } from '../game/stats';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
+import { NewAchievementsSection } from '../components/NewAchievementsSection';
 import { PressableButton } from '../components/PressableButton';
 import { ReportSongDialog, type ReportSongTarget } from '../components/ReportSongDialog';
 import { COLORS } from '../theme/colors';
@@ -151,6 +152,8 @@ export default function ResultScreen() {
           </Text>
         )}
       </View>
+
+      <NewAchievementsSection achievements={state.newAchievements} />
 
       <Text style={styles.sectionLabel}>SPIELER</Text>
       {state.players.map((p) => {

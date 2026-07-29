@@ -16,7 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { isCorrectPlacement } from '../context/GameContext';
-import { insertAt, sortedInsertIndex, shuffle } from '../game/cards';
+import { insertAt, neighborYears, sortedInsertIndex, shuffle } from '../game/cards';
 import * as Spotify from './spotify';
 import {
   BINGO_PICK_SECONDS,
@@ -630,6 +630,7 @@ export async function startGame(
     multiStealEnabled: opts.multiStealEnabled,
     hitsterQueue: [],
     hitsterQueueVersion: 0,
+    chipsPeak: Object.fromEntries(players.map((p) => [p.player_id, 2])),
     stealResult: null,
     stealEqualYear: false,
     turnOrder,
@@ -970,6 +971,7 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
   const card = gs.currentCard;
   const idx = gs.pendingInsertIndex;
   const correct = isCorrectPlacement(active.timeline, card, idx);
+  const { left, right } = neighborYears(active.timeline, idx);
   const newScore = correct ? active.score + 1 : active.score;
   // Win at cardsToWin - 1 correct placements: the dealt start card is the
   // implicit first of the cardsToWin timeline cards (score never counts it),
@@ -996,6 +998,8 @@ export async function closeHitsterWindow(lobbyId: string): Promise<void> {
           playerId: active.player_id,
           song: toStatsSong(card),
           correct,
+          leftYear: left,
+          rightYear: right,
         }),
       } as OnlineGameState,
     })
@@ -1113,6 +1117,9 @@ export async function resolveHitsterPlacement(
   const activeCorrect = isCorrectPlacement(active.timeline, card, gs.pendingInsertIndex);
   // Whether the caller's slot is year-valid in the active player's timeline.
   const callerSlotValid = isCorrectPlacement(active.timeline, card, insertIndex);
+  // Gap info for both attempts (raw data for the stats log).
+  const activeNeighbors = neighborYears(active.timeline, gs.pendingInsertIndex);
+  const callerNeighbors = neighborYears(active.timeline, insertIndex);
   // A steal only succeeds if the active player placed WRONGLY and the caller then
   // found a year-valid slot. If the active player was already correct, no steal is
   // possible - even when an equal-year situation leaves a second valid slot for the
@@ -1167,13 +1174,22 @@ export async function resolveHitsterPlacement(
     // placement + the steal attempt (victim = active player).
     statsHistory: appendStats(
       gs,
-      { type: 'place', playerId: active.player_id, song, correct: activeCorrect },
+      {
+        type: 'place',
+        playerId: active.player_id,
+        song,
+        correct: activeCorrect,
+        leftYear: activeNeighbors.left,
+        rightYear: activeNeighbors.right,
+      },
       {
         type: 'steal',
         playerId: caller.player_id,
         victimId: active.player_id,
         song,
         correct: stealCorrect,
+        leftYear: callerNeighbors.left,
+        rightYear: callerNeighbors.right,
       }
     ),
   });
@@ -1320,6 +1336,7 @@ async function finalizeMultiSteal(
   const card = gs.currentCard;
 
   const activeCorrect = isCorrectPlacement(active.timeline, card, gs.pendingInsertIndex);
+  const activeNeighbors = neighborYears(active.timeline, gs.pendingInsertIndex);
   const placed = queue.filter(
     (e): e is HitsterQueueEntry & { placedSlot: number } => e.placedSlot != null && !e.aborted
   );
@@ -1377,13 +1394,18 @@ async function finalizeMultiSteal(
   // One "steal" event per PLACED (non-withdrawn) attempt, in queue order: the
   // actual winner (if any) logs correct: true, everyone else correct: false -
   // only one placed attempt can ever be the true steal.
-  const stealEvents: MatchEvent[] = placed.map((e) => ({
-    type: 'steal',
-    playerId: e.playerId,
-    victimId: active.player_id,
-    song,
-    correct: winnerEntry?.playerId === e.playerId,
-  }));
+  const stealEvents: MatchEvent[] = placed.map((e) => {
+    const n = neighborYears(active.timeline, e.placedSlot);
+    return {
+      type: 'steal',
+      playerId: e.playerId,
+      victimId: active.player_id,
+      song,
+      correct: winnerEntry?.playerId === e.playerId,
+      leftYear: n.left,
+      rightYear: n.right,
+    };
+  });
   await writeGameState(lobbyId, {
     ...gs,
     phase: won ? 'finished' : 'awaiting_host_confirmation',
@@ -1401,7 +1423,14 @@ async function finalizeMultiSteal(
     winnerId,
     statsHistory: appendStats(
       gs,
-      { type: 'place', playerId: active.player_id, song, correct: activeCorrect },
+      {
+        type: 'place',
+        playerId: active.player_id,
+        song,
+        correct: activeCorrect,
+        leftYear: activeNeighbors.left,
+        rightYear: activeNeighbors.right,
+      },
       ...stealEvents
     ),
   });
@@ -1416,6 +1445,7 @@ export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promis
   const { game_state: gs } = await getLobby(lobbyId);
   if (!gs) return;
   let statsHistory = gs.statsHistory ?? [];
+  let chipsPeak = gs.chipsPeak;
   if (wasCorrect) {
     const players = await getLobbyPlayers(lobbyId);
     const active = players.find((p) => p.player_id === gs.activePlayerId);
@@ -1437,20 +1467,23 @@ export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promis
           song: gs.currentCard ? toStatsSong(gs.currentCard) : undefined,
         });
       }
-      await supabase
-        .from('lobby_players')
-        .update({ chips: Math.min(active.chips + 1, limit) })
-        .eq('id', active.id);
+      const newChips = Math.min(active.chips + 1, limit);
+      await supabase.from('lobby_players').update({ chips: newChips }).eq('id', active.id);
+      const peak = gs.chipsPeak ?? {};
+      chipsPeak = { ...peak, [active.player_id]: Math.max(peak[active.player_id] ?? 0, newChips) };
     }
   }
-  await writeGameState(lobbyId, { ...gs, phase: 'finished', statsHistory });
+  await writeGameState(lobbyId, { ...gs, phase: 'finished', statsHistory, chipsPeak });
 }
 
 /**
  * Manual Nickel correction (host, "Nickel korrigieren" dialog): ±1 on one
  * player's chip count, clamped to [0, limit] (limit null = unbegrenzt).
  * Deliberately NO statsHistory append: a manual fix has no song context, and
- * the "Erhaltene Nickel" list requires one.
+ * the "Erhaltene Nickel" list requires one. A +1 DOES count toward chipsPeak
+ * (game_state, best-effort second write) - the manual fix corrects a real
+ * balance, so it counts the same as an honestly earned Nickel for the
+ * "Nickelfarmer/-meister/-gott" achievement family.
  *
  * Race-safe against the regular award/steal writes via optimistic
  * concurrency: the update is guarded on the CURRENT count, so if a round
@@ -1458,6 +1491,8 @@ export async function confirmGuess(lobbyId: string, wasCorrect: boolean): Promis
  * instead of silently overwriting the newer count.
  */
 export async function adjustPlayerChips(
+  lobbyId: string,
+  playerId: string,
   playerRowId: string,
   currentChips: number,
   delta: 1 | -1,
@@ -1474,6 +1509,19 @@ export async function adjustPlayerChips(
   if (error) throw new Error(`Nickel-Korrektur fehlgeschlagen: ${error.message}`);
   if (!data || data.length === 0) {
     throw new Error('Nickel-Stand hat sich gerade geändert — bitte nochmal tippen.');
+  }
+  if (delta === 1) {
+    // Best-effort secondary write (the chip change itself already succeeded
+    // above) - a lost race here just means chipsPeak briefly under-counts,
+    // never a wrong game outcome, so no retry/guard needed.
+    const { game_state: gs } = await getLobby(lobbyId);
+    if (gs) {
+      const peak = gs.chipsPeak ?? {};
+      await writeGameState(lobbyId, {
+        ...gs,
+        chipsPeak: { ...peak, [playerId]: Math.max(peak[playerId] ?? 0, next) },
+      });
+    }
   }
 }
 
@@ -2034,10 +2082,16 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
       const bingoStatsHistory = [...(gs.bingoStatsHistory ?? [])];
       if (card && round) {
         for (const p of players) {
+          const board = p.bingo_board ?? [];
+          const correct = results[p.player_id] === 'correct';
           bingoStatsHistory.push({
             playerId: p.player_id,
             category: round.type,
-            correct: results[p.player_id] === 'correct',
+            correct,
+            // "Sad Bingo" raw data: correct answer, but the color was already
+            // fully marked (mirrors earnsPick above, computed independently
+            // here since expectedMarks doesn't carry a per-color breakdown).
+            overfull: correct && freeCellIndices(board, round.type).length === 0,
             song: toStatsSong(card),
           });
         }

@@ -661,7 +661,7 @@ async function getWebApiToken(): Promise<string> {
     if (isWebApiAuthorized()) return webApiToken!;
   }
   throw new Error(
-    'Spotify Web API nicht autorisiert. Bitte zuerst in den Einstellungen ' +
+    'Spotify Web API nicht autorisiert. Bitte zuerst im Profil ' +
       '"Mit Spotify verbinden".'
   );
 }
@@ -762,7 +762,7 @@ function isRawNativeError(e: any): boolean {
 function friendlyPlaybackError(e: any): Error {
   if (isConnectionLostError(e) || isRawNativeError(e)) {
     return new Error(
-      'Spotify-Verbindung verloren. Tippe auf ▶ oder verbinde dich in den Einstellungen neu.'
+      'Spotify-Verbindung verloren. Tippe auf ▶ oder verbinde dich im Profil neu.'
     );
   }
   return e instanceof Error ? e : new Error(String(e));
@@ -1011,7 +1011,7 @@ export async function playUriGuarded(uri: string): Promise<void> {
     const ok = await reconnectSilently();
     if (!ok) {
       throw new Error(
-        'Spotify-Verbindung verloren. Tippe auf ▶ oder verbinde dich in den Einstellungen neu.'
+        'Spotify-Verbindung verloren. Tippe auf ▶ oder verbinde dich im Profil neu.'
       );
     }
   }
@@ -1086,7 +1086,7 @@ function buildWebApiError(status: number, context: string, body: string): Error 
   }
   if (status === 401) {
     return new Error(
-      `Spotify Web API 401 (${context}): Token abgelaufen/ungültig. In den Einstellungen ` +
+      `Spotify Web API 401 (${context}): Token abgelaufen/ungültig. Im Profil ` +
         `"Verbindung trennen" und neu verbinden. Server-Antwort: ${body}`
     );
   }

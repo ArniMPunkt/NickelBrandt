@@ -35,7 +35,7 @@ export function missingRequirements(opts: {
   }
   if (!opts.hasSource) missing.push('Songpool wählen');
   if (opts.spotifyReady === false) {
-    missing.push('Mit Spotify verbinden (Tab „Einstellungen")');
+    missing.push('Mit Spotify verbinden (Tab „Profil")');
   }
   return missing;
 }

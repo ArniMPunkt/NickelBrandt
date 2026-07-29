@@ -141,8 +141,20 @@ export interface BingoRoundEvent {
   playerId: string;
   /** The spun category = the cell color this round played on. */
   category: BingoCategoryType;
-  /** True when the player answered correctly (earned a mark pick). */
+  /**
+   * True when the player's ANSWER was correct - NOT the same as "earned a
+   * mark pick" (see overfull below): a correct answer on an already-full
+   * color earns no mark, but is still logged correct: true here.
+   */
   correct: boolean;
+  /**
+   * True when the answer was correct but earned NO mark because every cell
+   * of that color was already marked on this player's board ("Sad Bingo" raw
+   * data). False whenever correct is false (a wrong answer was never
+   * "overfull", it just missed). Optional for backward-compat with events
+   * logged before this field existed.
+   */
+  overfull?: boolean;
   song: StatsSong;
 }
 
@@ -230,6 +242,16 @@ export interface OnlineGameState {
    * spuriously never match.
    */
   hitsterQueueVersion?: number;
+  /**
+   * Highest chips value reached this game per player_id (not the final
+   * balance) - for the "Nickelfarmer/-meister/-gott" achievement family.
+   * Maintained at every point a player's chips actually go UP (Nickel award
+   * in confirmGuess + manual "Nickel korrigieren" in adjustPlayerChips), same
+   * idea as lobby_players.max_brandt_streak but kept in game_state (no
+   * migration needed - purely transient, reset fresh every startGame).
+   * Absent player_id = never tracked (pre-instrumentation game).
+   */
+  chipsPeak?: Record<string, number>;
   /** The steal's outcome (caller prediction), or null if no steal happened. */
   stealResult: 'correct' | 'incorrect' | null;
   /**

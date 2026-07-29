@@ -271,7 +271,7 @@ export default function LobbyScreen() {
       setStarting(false);
     }
     if (!ready) {
-      setError('Bitte zuerst im Tab „Einstellungen" mit Spotify verbinden (nur der Host braucht Spotify).');
+      setError('Bitte zuerst im Tab „Profil" mit Spotify verbinden (nur der Host braucht Spotify).');
       return;
     }
     void onSourceChosen(source);

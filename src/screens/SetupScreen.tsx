@@ -54,7 +54,7 @@ export default function SetupScreen() {
   // confirmed App-Remote connection), not just the web authorization: on a
   // failed connect the PKCE web step may have succeeded while the app-to-app
   // connection was refused - the button must stay locked then. Re-checked on
-  // focus, so connecting in the Einstellungen tab and returning enables it.
+  // focus, so connecting in the Profil tab and returning enables it.
   const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isReadyToPlay());
 
   useFocusEffect(
@@ -115,7 +115,7 @@ export default function SetupScreen() {
       // dropped session (routine after a finished Partie) before refusing.
       if (!(await Spotify.ensureReadyToPlay())) {
         setError(
-          'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Einstellungen" ' +
+          'Noch nicht mit Spotify verbunden. Bitte zuerst im Tab „Profil" ' +
             'mit Spotify verbinden.'
         );
         return;

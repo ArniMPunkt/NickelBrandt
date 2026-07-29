@@ -6,7 +6,8 @@
  *    flow - the app's main mode, so it comes FIRST and is the start tab.
  *  - "Pass & Play" (route name "Hot-Seat", unchanged): the single-device game
  *    flow as a Native Stack (Setup -> Intro -> Handoff -> Game -> Result).
- *  - "Einstellungen": Spotify connection, game rules, app info, data.
+ *  - "Profil" (route name "Einstellungen", unchanged): Spotify connection,
+ *    app info, and the local stats/achievements profile.
  *
  * Only the visible labels were renamed (tabBarLabel); the route names stay to
  * avoid a rename refactor across navigation calls.
@@ -92,8 +93,8 @@ function PartyTabIcon({ focused }: { focused: boolean }) {
   return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🎉</Text>;
 }
 
-function SettingsTabIcon({ focused }: { focused: boolean }) {
-  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>⚙️</Text>;
+function ProfileTabIcon({ focused }: { focused: boolean }) {
+  return <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>👤</Text>;
 }
 
 // Tab-bar sizing. The visible content band (icon + label) is the same on both
@@ -155,7 +156,7 @@ function RootTabs() {
         <Tab.Screen
           name="Einstellungen"
           component={SettingsScreen}
-          options={{ tabBarIcon: SettingsTabIcon }}
+          options={{ tabBarIcon: ProfileTabIcon, tabBarLabel: 'Profil' }}
         />
       </Tab.Navigator>
     </NavigationContainer>

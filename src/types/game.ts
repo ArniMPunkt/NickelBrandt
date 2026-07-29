@@ -6,6 +6,7 @@
  * between two of their existing cards (or before/after all). Correct = the card
  * stays; wrong = discarded. First to place X cards correctly wins.
  */
+import type { AchievementDefinition } from '../services/achievementDefinitions';
 
 /** A single track/card in the game. */
 export interface GameCard {
@@ -49,6 +50,13 @@ export interface Player {
    * correct own placements). Per-game only; not affected by steals. Start: 0.
    */
   maxBrandtStreak: number;
+  /**
+   * Highest chips value reached this game (not the final balance) - for the
+   * "Nickelfarmer/-meister/-gott" achievement family. Maintained alongside
+   * maxBrandtStreak at every point chips actually go UP (Nickel award +
+   * manual "Nickel korrigieren"). Start: 2, matching the starting chips.
+   */
+  chipsPeak: number;
 }
 
 export type GamePhase = 'setup' | 'playing' | 'result';
@@ -141,6 +149,15 @@ export type MatchEvent =
       playerId: string;
       song: StatsSong;
       correct: boolean;
+      /**
+       * Neighbor years around the placed slot at the moment of resolution
+       * (null = no neighbor on that side, i.e. start/end of the timeline) -
+       * raw data for gap-distance achievements (Total daneben / Perfect Hit /
+       * Insane Guess), not yet evaluated against any threshold here. Optional
+       * for backward-compat with events logged before this field existed.
+       */
+      leftYear?: number | null;
+      rightYear?: number | null;
     }
   | {
       /** A "Hitster!" steal attempt was resolved (chip always spent). */
@@ -150,6 +167,9 @@ export type MatchEvent =
       victimId: string;
       song: StatsSong;
       correct: boolean;
+      /** Same gap info as 'place', for the stealer's own guessed slot. */
+      leftYear?: number | null;
+      rightYear?: number | null;
     }
   | {
       /** A Nickel was actually received (title+artist recognized, not capped). */
@@ -212,4 +232,18 @@ export interface GameState {
    * (ResultScreen). Reset on START_GAME; never read by game logic.
    */
   history: MatchEvent[];
+  /**
+   * Achievements newly unlocked by THIS match (services/achievements.ts
+   * recordMatchResult, fired from GameScreen once state.winner is set). Read
+   * by ResultScreen for the "Neue Erfolge" badge row. Reset to [] on
+   * START_GAME/RESET so a fresh match never carries over stale badges.
+   */
+  newAchievements: AchievementDefinition[];
+  /**
+   * At most ONE of newAchievements picked out for the rare fullscreen
+   * "besonderer Moment" (first achievement ever, or a top-tier milestone -
+   * see pickSpecialAchievement). Read + then cleared by VictoryScreen once
+   * shown, so it can never reappear on a re-render/back-navigation.
+   */
+  specialAchievement: AchievementDefinition | null;
 }

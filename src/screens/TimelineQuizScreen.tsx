@@ -23,9 +23,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
+import * as Achievements from '../services/achievements';
 import type { QuizAnswer } from '../game/timelineQuiz';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { AchievementUnlockedOverlay } from '../components/AchievementUnlockedOverlay';
+import { NewAchievementsSection } from '../components/NewAchievementsSection';
 import { HeaderMenu } from '../components/HeaderMenu';
 import { PressableButton } from '../components/PressableButton';
 import { useSpotifyReconnect } from '../hooks/useSpotifyReconnect';
@@ -188,6 +191,13 @@ export default function TimelineQuizScreen() {
   }>({ round: null, list: [] });
   const [error, setError] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
+  // Achievements newly unlocked by THIS match; specialAchievement (at most
+  // one) gets the rare fullscreen moment, shown after VictoryCelebration but
+  // before the stats view.
+  const [newAchievements, setNewAchievements] = useState<Achievements.AchievementDefinition[]>([]);
+  const [specialAchievement, setSpecialAchievement] =
+    useState<Achievements.AchievementDefinition | null>(null);
+  const [achievementShown, setAchievementShown] = useState(false);
   const [endedHandled, setEndedHandled] = useState(false);
   const [exitConfirmVisible, setExitConfirmVisible] = useState(false);
   // "Song melden": snapshot taken when the dialog opens (live: the revealed
@@ -295,6 +305,29 @@ export default function TimelineQuizScreen() {
     .filter((p) => winnerIds.includes(p.player_id))
     .map((p) => p.player_name)
     .join(' & ');
+
+  // This device records its OWN performance + evaluates achievement unlocks
+  // exactly once when the match ends. Only counts are needed (Perfect
+  // Timeline = 0 Fehler) - no per-round detail required here.
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (gs?.phase !== 'finished' || recordedRef.current || players.length === 0) return;
+    recordedRef.current = true;
+    const mine = (gs.quizStatsHistory ?? []).filter((e) => e.playerId === myId);
+    Achievements.recordMatchResult({
+      mode: 'timeline_quiz',
+      participantCount: players.length,
+      won: winnerIds.includes(myId),
+      correctCount: mine.filter((e) => e.correct).length,
+      wrongCount: mine.filter((e) => !e.correct).length,
+    })
+      .then(({ profile, newlyUnlocked }) => {
+        setNewAchievements(newlyUnlocked);
+        setSpecialAchievement(Achievements.pickSpecialAchievement(newlyUnlocked, profile.unlocked.length));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs?.phase]);
   const isLastRound =
     gs?.roundNumber != null && (gs.roundNumber >= totalRounds || gs.deck.length === 0);
   // The freshly inserted song in the resolved view (for highlight + centering).
@@ -452,6 +485,16 @@ export default function TimelineQuizScreen() {
         />
       );
     }
+    // Rare fullscreen "besonderer Moment" (first achievement ever / a
+    // top-tier milestone) - one tap, then straight into the normal stats.
+    if (specialAchievement && !achievementShown) {
+      return (
+        <AchievementUnlockedOverlay
+          achievement={specialAchievement}
+          onContinue={() => setAchievementShown(true)}
+        />
+      );
+    }
     return (
       <ScrollView
         style={styles.screen}
@@ -462,6 +505,7 @@ export default function TimelineQuizScreen() {
           {winnerIds.length > 1 ? 'GETEILTER SIEG' : 'GEWINNER'}
         </Text>
         <Text style={styles.winnerName}>{winnerNames || '—'}</Text>
+        <NewAchievementsSection achievements={newAchievements} />
         <Text style={styles.sectionLabel}>PUNKTE</Text>
         {[...players]
           .sort((a, b) => b.score - a.score)

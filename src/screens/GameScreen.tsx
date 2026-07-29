@@ -26,6 +26,7 @@ import { useGame } from '../context/GameContext';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import * as PoolProgress from '../services/poolProgress';
+import * as Achievements from '../services/achievements';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { HeaderMenu } from '../components/HeaderMenu';
@@ -334,6 +335,43 @@ export default function GameScreen() {
       clearTimeout(reveal);
     };
   }, [localPhase, pendingIndex, barAnim, dispatch]);
+
+  // Record this match's raw performance + evaluate achievement unlocks
+  // exactly once when it ends. Pass & Play is ONE shared device with several
+  // real people passing it around - there is no stable per-player identity
+  // across matches to single one out, so every player who played THIS match
+  // is recorded into this device's local profile (unlike Party, where each
+  // device only ever records its own single identity). The result crosses
+  // into VictoryScreen/ResultScreen via GameContext (SET_NEW_ACHIEVEMENTS) -
+  // both screens share this same provider, so no navigation params needed.
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (!state.winner || recordedRef.current) return;
+    recordedRef.current = true;
+    Achievements.recordMatchResult({
+      mode: 'hitster_pnp',
+      participantCount: state.players.length,
+      events: Achievements.toHitsterStatsEvents(state.history),
+      players: state.players.map((p) => ({
+        playerId: p.id,
+        won: p.id === state.winner!.id,
+        finalTimelineYears: p.timeline.map((c) => c.year),
+        maxStreak: p.maxBrandtStreak,
+        chipsPeak: p.chipsPeak,
+      })),
+    })
+      .then(({ profile, newlyUnlocked }) => {
+        dispatch({
+          type: 'SET_NEW_ACHIEVEMENTS',
+          payload: {
+            achievements: newlyUnlocked,
+            special: Achievements.pickSpecialAchievement(newlyUnlocked, profile.unlocked.length),
+          },
+        });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.winner]);
 
   if (!player) {
     return (

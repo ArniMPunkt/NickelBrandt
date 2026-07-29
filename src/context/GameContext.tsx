@@ -13,7 +13,8 @@ import {
   type MatchEvent,
   type Player,
 } from '../types/game';
-import { insertAt, sortedInsertIndex } from '../game/cards';
+import { insertAt, neighborYears, sortedInsertIndex } from '../game/cards';
+import type { AchievementDefinition } from '../services/achievementDefinitions';
 
 // ---------------------------------------------------------------------------
 // Pure placement logic
@@ -29,10 +30,8 @@ export function isCorrectPlacement(
   card: GameCard,
   insertIndex: number
 ): boolean {
-  const left = insertIndex > 0 ? timeline[insertIndex - 1].year : -Infinity;
-  const right =
-    insertIndex < timeline.length ? timeline[insertIndex].year : Infinity;
-  return left <= card.year && card.year <= right;
+  const { left, right } = neighborYears(timeline, insertIndex);
+  return (left ?? -Infinity) <= card.year && card.year <= (right ?? Infinity);
 }
 
 // ---------------------------------------------------------------------------
@@ -63,7 +62,17 @@ export type GameAction =
   | { type: 'RESET' }
   // Background cover prefetch resolved a chunk (trackUri -> url); stamp it onto
   // every card that is still cover-less. Pure merge, no game logic.
-  | { type: 'ADD_COVERS'; payload: { covers: Record<string, string> } };
+  | { type: 'ADD_COVERS'; payload: { covers: Record<string, string> } }
+  // Achievements.recordMatchResult resolved (async, fired once state.winner is
+  // set) - hands the newly-unlocked list across the Victory/Result navigation
+  // boundary via context, since both screens share this same provider.
+  | {
+      type: 'SET_NEW_ACHIEVEMENTS';
+      payload: { achievements: AchievementDefinition[]; special: AchievementDefinition | null };
+    }
+  // VictoryScreen dismissed the fullscreen "besonderer Moment" - clear it so
+  // it can never reappear (a re-render, or navigating back to Victory).
+  | { type: 'CLEAR_SPECIAL_ACHIEVEMENT' };
 
 const initialState: GameState = {
   phase: 'setup',
@@ -88,6 +97,8 @@ const initialState: GameState = {
   winner: null,
   lastPlacement: null,
   history: [],
+  newAchievements: [],
+  specialAchievement: null,
 };
 
 function gameReducer(state: GameState, action: GameAction): GameState {
@@ -104,6 +115,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         chips: 2, // start with 2 Nickel (Hitster-style)
         currentStreak: 0,
         maxBrandtStreak: 0,
+        chipsPeak: 2, // matches the starting chips
       }));
       const remaining = deck.slice(playerNames.length);
 
@@ -137,6 +149,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const playerIndex = state.currentPlayerIndex;
       const player = state.players[playerIndex];
       const correct = isCorrectPlacement(player.timeline, card, insertIndex);
+      const { left, right } = neighborYears(player.timeline, insertIndex);
 
       // Correct -> insert (keeps timeline sorted) and score up. Wrong -> discard.
       const newTimeline = correct
@@ -180,7 +193,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         },
         history: [
           ...state.history,
-          { type: 'place', playerId: player.id, song: toStatsSong(card), correct },
+          {
+            type: 'place',
+            playerId: player.id,
+            song: toStatsSong(card),
+            correct,
+            leftYear: left,
+            rightYear: right,
+          },
         ],
         winner: won ? updatedPlayer : state.winner,
         phase: won ? 'result' : state.phase,
@@ -249,7 +269,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const target = state.players.find((p) => p.id === playerId);
       const received = !!target && target.chips < limit;
       const players = state.players.map((p) =>
-        p.id === playerId && p.chips < limit ? { ...p, chips: p.chips + 1 } : p
+        p.id === playerId && p.chips < limit
+          ? { ...p, chips: p.chips + 1, chipsPeak: Math.max(p.chipsPeak, p.chips + 1) }
+          : p
       );
       // Log only ACTUALLY received Nickel (capped at the limit = not received).
       // The chip question runs during the reveal, so lastPlacement still holds
@@ -276,11 +298,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const limit = state.settings.chipLimitEnabled
         ? state.settings.chipLimit
         : Number.POSITIVE_INFINITY;
-      const players = state.players.map((p) =>
-        p.id === playerId
-          ? { ...p, chips: Math.max(0, Math.min(p.chips + delta, limit)) }
-          : p
-      );
+      const players = state.players.map((p) => {
+        if (p.id !== playerId) return p;
+        const chips = Math.max(0, Math.min(p.chips + delta, limit));
+        return { ...p, chips, chipsPeak: Math.max(p.chipsPeak, chips) };
+      });
       return { ...state, players };
     }
 
@@ -306,6 +328,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         card,
         stealerInsertIndex
       );
+      // Gap info for both attempts (both judged against the active player's
+      // timeline) - raw data for the stats log, see the 'place'/'steal' event
+      // fields.
+      const activeNeighbors = neighborYears(active.timeline, activeInsertIndex);
+      const stealerNeighbors = neighborYears(active.timeline, stealerInsertIndex);
       // A steal only succeeds if the active player placed WRONGLY and the stealer
       // then found a year-valid slot. If the active player was already correct, no
       // steal is possible - even when an equal-year situation leaves a second valid
@@ -364,8 +391,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const song = toStatsSong(card);
       const history: MatchEvent[] = [
         ...state.history,
-        { type: 'place', playerId: active.id, song, correct: activeCorrect },
-        { type: 'steal', playerId: stealerId, victimId: active.id, song, correct: stealCorrect },
+        {
+          type: 'place',
+          playerId: active.id,
+          song,
+          correct: activeCorrect,
+          leftYear: activeNeighbors.left,
+          rightYear: activeNeighbors.right,
+        },
+        {
+          type: 'steal',
+          playerId: stealerId,
+          victimId: active.id,
+          song,
+          correct: stealCorrect,
+          leftYear: stealerNeighbors.left,
+          rightYear: stealerNeighbors.right,
+        },
       ];
 
       return {
@@ -426,6 +468,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           : null,
       };
     }
+
+    case 'SET_NEW_ACHIEVEMENTS':
+      return {
+        ...state,
+        newAchievements: action.payload.achievements,
+        specialAchievement: action.payload.special,
+      };
+
+    case 'CLEAR_SPECIAL_ACHIEVEMENT':
+      return { ...state, specialAchievement: null };
 
     case 'RESET':
       return initialState;

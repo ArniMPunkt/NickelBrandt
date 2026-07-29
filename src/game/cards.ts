@@ -13,6 +13,24 @@ export function insertAt<T>(arr: T[], item: T, index: number): T[] {
 }
 
 /**
+ * The years immediately left/right of `insertIndex` in a timeline - null when
+ * there is no neighbor on that side (start/end of the timeline). Shared by
+ * isCorrectPlacement (GameContext) and the stats instrumentation that logs
+ * gap-distance info on place/steal events (Total daneben / Perfect Hit /
+ * Insane Guess achievements) - both need the exact same boundary computation,
+ * so it lives here once instead of being re-derived ad hoc.
+ */
+export function neighborYears(
+  timeline: GameCard[],
+  insertIndex: number
+): { left: number | null; right: number | null } {
+  return {
+    left: insertIndex > 0 ? timeline[insertIndex - 1].year : null,
+    right: insertIndex < timeline.length ? timeline[insertIndex].year : null,
+  };
+}
+
+/**
  * The slot at which `year` keeps an ascending-by-year timeline sorted. Equal
  * years sort AFTER existing ones (same as the original implementations).
  */

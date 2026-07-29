@@ -106,7 +106,7 @@ export default function OnlineHomeScreen() {
   // App-Remote connection), not just the web authorization: on a failed connect
   // the PKCE web step may have succeeded while the app-to-app connection was
   // refused - the button must stay locked then. Re-checked on focus so
-  // connecting in the Einstellungen tab and returning enables it automatically.
+  // connecting in the Profil tab and returning enables it automatically.
   const [spotifyAuthorized, setSpotifyAuthorized] = useState(Spotify.isReadyToPlay());
 
   const configured = Online.isSupabaseConfigured();
@@ -289,7 +289,7 @@ export default function OnlineHomeScreen() {
       </PressableButton>
       {configured && !spotifyAuthorized && (
         <Text style={styles.spotifyGateHint}>
-          Zum Erstellen zuerst mit Spotify verbinden (siehe Tab „Einstellungen"). Zum
+          Zum Erstellen zuerst mit Spotify verbinden (siehe Tab „Profil"). Zum
           Beitreten ist das nicht nötig.
         </Text>
       )}

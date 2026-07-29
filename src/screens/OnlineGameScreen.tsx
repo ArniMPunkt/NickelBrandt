@@ -29,11 +29,14 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
+import * as Achievements from '../services/achievements';
 import { STEAL_WINDOW_MS } from '../game/constants';
 import { buildPlayerMatchStats } from '../game/stats';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { FinalCardReveal } from '../components/FinalCardReveal';
 import { VictoryCelebration } from '../components/VictoryCelebration';
+import { AchievementUnlockedOverlay } from '../components/AchievementUnlockedOverlay';
+import { NewAchievementsSection } from '../components/NewAchievementsSection';
 import { HeaderMenu } from '../components/HeaderMenu';
 import { NickelFixDialog } from '../components/NickelFixDialog';
 import { PlayerStatsAccordion } from '../components/PlayerStatsAccordion';
@@ -211,6 +214,13 @@ export default function OnlineGameScreen() {
   const [showStats, setShowStats] = useState(false);
   // The automatic final-card interstitial runs BEFORE the celebration (per device).
   const [finaleDone, setFinaleDone] = useState(false);
+  // Achievements newly unlocked by THIS match (populated once recordMatchResult
+  // resolves); specialAchievement (at most one) gets the rare fullscreen
+  // moment, shown after VictoryCelebration but before the stats view.
+  const [newAchievements, setNewAchievements] = useState<Achievements.AchievementDefinition[]>([]);
+  const [specialAchievement, setSpecialAchievement] =
+    useState<Achievements.AchievementDefinition | null>(null);
+  const [achievementShown, setAchievementShown] = useState(false);
   // "Song melden": snapshot taken when the dialog opens (live: the revealed
   // card; stats view: the tapped history item), so an advancing round can
   // never swap the reported song underneath it.
@@ -349,6 +359,38 @@ export default function OnlineGameScreen() {
     if (phase === 'finished' && gs?.winnerId) Spotify.pause().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, phase, isHost, gs?.winnerId]);
+
+  // This device records its OWN performance + evaluates achievement unlocks
+  // exactly once when the match ends (game over, not just a round). The full
+  // event log (all players) is passed along - Double/Triple Hitster needs
+  // the whole round sequence, not just this player's own events - but only
+  // THIS device's own identity goes into `players` (every connected device
+  // runs this same effect for itself; no cross-device write).
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (phase !== 'finished' || !gs?.winnerId || recordedRef.current) return;
+    recordedRef.current = true;
+    Achievements.recordMatchResult({
+      mode: 'hitster_party',
+      participantCount: players.length,
+      events: Achievements.toHitsterStatsEvents(gs.statsHistory ?? []),
+      players: [
+        {
+          playerId: myId,
+          won: gs.winnerId === myId,
+          finalTimelineYears: (me?.timeline ?? []).map((c) => c.year),
+          maxStreak: me?.max_brandt_streak ?? 0,
+          chipsPeak: gs.chipsPeak?.[myId] ?? me?.chips ?? 0,
+        },
+      ],
+    })
+      .then(({ profile, newlyUnlocked }) => {
+        setNewAchievements(newlyUnlocked);
+        setSpecialAchievement(Achievements.pickSpecialAchievement(newlyUnlocked, profile.unlocked.length));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, gs?.winnerId]);
 
   // Cosmetic countdown bar while the steal window is open (each device animates).
   // With "Nickel & Hitster-Rufe" off the phase only exists transiently inside
@@ -548,7 +590,7 @@ export default function OnlineGameScreen() {
         if (!row) return;
         // Guarded on the count the dialog showed; a concurrent regular award
         // makes this throw (dialog shows the retry hint) instead of clobbering.
-        await Online.adjustPlayerChips(rowId, row.chips, delta, chipLimit);
+        await Online.adjustPlayerChips(lobbyId, row.player_id, rowId, row.chips, delta, chipLimit);
         await refresh();
       }}
       onClose={() => setNickelFixVisible(false)}
@@ -582,6 +624,16 @@ export default function OnlineGameScreen() {
         />
       );
     }
+    // Rare fullscreen "besonderer Moment" (first achievement ever / a
+    // top-tier milestone) - one tap, then straight into the normal stats.
+    if (specialAchievement && !achievementShown) {
+      return (
+        <AchievementUnlockedOverlay
+          achievement={specialAchievement}
+          onContinue={() => setAchievementShown(true)}
+        />
+      );
+    }
     const statsHistory = gs.statsHistory ?? [];
     const nameOf = (playerId: string) =>
       players.find((p) => p.player_id === playerId)?.player_name ?? '—';
@@ -590,6 +642,7 @@ export default function OnlineGameScreen() {
         <Text style={styles.trophy}>🏆</Text>
         <Text style={styles.winnerLabel}>GEWINNER</Text>
         <Text style={styles.winnerName}>{winner ? winner.player_name : '-'}</Text>
+        <NewAchievementsSection achievements={newAchievements} />
         <Text style={styles.sectionLabel}>ERGEBNIS</Text>
         {[...players]
           .sort((a, b) => b.score - a.score)
