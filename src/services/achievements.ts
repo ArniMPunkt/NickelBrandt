@@ -162,6 +162,15 @@ export interface LocalProfile {
     hitster: {
       maxStreakEver: number;
       chipsPeakEver: number;
+      /**
+       * Party-Hitster wins by THIS device's own player, ONLY. Pass & Play is
+       * deliberately excluded (shared device, no stable "me" across matches -
+       * counting a P&P win here would misattribute someone else's win to this
+       * profile). Denominator for the "Siegquote" stat is
+       * gamesByMode.hitster_party (Party-Hitster matches played), not this
+       * field and not gamesPlayed overall.
+       */
+      partyGamesWon: number;
     };
     /**
      * Recent matches in full detail (capped at MAX_MATCH_HISTORY, oldest
@@ -184,7 +193,7 @@ function emptyProfile(deviceId: string): LocalProfile {
       gamesByMode: { hitster_party: 0, hitster_pnp: 0, bingo: 0, timeline_quiz: 0 },
       modesPlayed: [],
       maxParticipantsWon: 0,
-      hitster: { maxStreakEver: 0, chipsPeakEver: 0 },
+      hitster: { maxStreakEver: 0, chipsPeakEver: 0, partyGamesWon: 0 },
       matchHistory: [],
     },
     unlocked: [],
@@ -260,6 +269,9 @@ export async function recordMatchResult(input: MatchInput): Promise<RecordMatchO
         stats.hitster.maxStreakEver = Math.max(stats.hitster.maxStreakEver, p.maxStreak);
         stats.hitster.chipsPeakEver = Math.max(stats.hitster.chipsPeakEver, p.chipsPeak);
       }
+      // "Siege" stat: Party-Hitster only, this device's own player - Pass &
+      // Play is excluded (shared device, no stable "me" across matches).
+      if (input.mode === 'hitster_party' && won) stats.hitster.partyGamesWon += 1;
       record = {
         mode: input.mode,
         playedAt,

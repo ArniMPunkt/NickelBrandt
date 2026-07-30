@@ -7,8 +7,10 @@ const { mapUploadRow } = require('../scripts/lib/upload/map-upload-row');
 const {
   UPLOAD_READY_STATUSES,
   formatBlockedUploadRows,
+  isUploadReady,
   validateUploadRows,
 } = require('../scripts/lib/upload/validate-upload-rows');
+const { computeSummary } = require('../scripts/lib/precheck/report');
 
 function row(overrides = {}) {
   return {
@@ -84,6 +86,21 @@ test('review_needed with final_year still blocks because status is not upload-re
   assert.equal(result.uploadCandidates.length, 0);
   assert.equal(result.blockedRows.length, 1);
   assert.equal(result.blockedRows[0].reason, 'blocked_status:review_needed');
+  assert.equal(isUploadReady(row({ status: 'review_needed', final_year: '1984' })), false);
+});
+
+test('precheck report uses the same upload-ready status allowlist as upload validation', () => {
+  const rows = [
+    row({ status: 'auto_accepted_mb', final_year: '1984', spotify_track_id: 'ready' }),
+    row({ status: 'review_needed', final_year: '1984', spotify_track_id: 'blocked' }),
+  ];
+  const validation = validateUploadRows(rows);
+  const summary = computeSummary(rows);
+
+  assert.equal(validation.uploadCandidates.length, 1);
+  assert.equal(validation.blockedRows.length, 1);
+  assert.equal(summary.autoDecided, 1);
+  assert.equal(summary.uploadBlocked, 1);
 });
 
 test('excluded_from_pool is skipped and not uploaded', () => {

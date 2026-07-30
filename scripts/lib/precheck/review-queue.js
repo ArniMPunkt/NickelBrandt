@@ -25,10 +25,11 @@ function compareRows(a, b) {
 }
 
 function isOpenReview(row) {
+  row = row || {};
   if (row.status === 'excluded_from_pool') return false;
   if (OPEN_STATUSES.has(row.status)) return true;
+  if (hasOpenHint(row)) return true;
   if (!hasFinalYear(row)) return true;
-  if (!hasFinalYear(row) && hasOpenHint(row)) return true;
   return false;
 }
 

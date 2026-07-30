@@ -102,19 +102,31 @@ function longestConsecutiveSteals(events: HitsterStatsEvent[], playerId: string)
   return best;
 }
 
-/** Longest run of DISTINCT, integer-consecutive years (duplicates collapse, don't break the run). */
+/**
+ * Longest run of CARDS (not distinct years) forming a gapless year sequence
+ * in the sorted timeline. A duplicate (same year as the reference) EXTENDS
+ * the chain without advancing the reference year; a card exactly one year
+ * above the reference also extends it AND becomes the new reference; any
+ * bigger gap starts a fresh chain at that card. E.g. 1966,1967,1967,1968 is
+ * a chain of length 4 (the repeated 1967 counts as its own link), but
+ * 1966,1967,1967,1970 tops out at 3 (1970 is a 3-year jump from 1967).
+ */
 function longestConsecutiveYearRun(years: number[]): number {
-  const distinct = [...new Set(years)].sort((a, b) => a - b);
-  if (distinct.length === 0) return 0;
+  if (years.length === 0) return 0;
+  const sorted = [...years].sort((a, b) => a - b);
   let best = 1;
   let current = 1;
-  for (let i = 1; i < distinct.length; i++) {
-    if (distinct[i] - distinct[i - 1] === 1) {
+  let refYear = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const year = sorted[i];
+    if (year === refYear || year === refYear + 1) {
       current += 1;
-      best = Math.max(best, current);
+      refYear = year;
     } else {
       current = 1;
+      refYear = year;
     }
+    best = Math.max(best, current);
   }
   return best;
 }
@@ -140,6 +152,14 @@ const ALL_MODES: GameModeKey[] = ['hitster_party', 'hitster_pnp', 'bingo', 'time
 // ---------------------------------------------------------------------------
 
 export const ACHIEVEMENTS: AchievementDefinition[] = [
+  {
+    id: 'erste-partie',
+    name: 'Erste Partie',
+    description: 'Die erste Partie gespielt.',
+    icon: '🌱',
+    condition: (stats) => stats.gamesPlayed >= 1,
+  },
+
   // --- Hitster (Party + Pass & Play) ---
   {
     id: 'total-daneben',
@@ -309,14 +329,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
       quizMatches(stats).some((m) => m.correctCount + m.wrongCount > 0 && m.wrongCount === 0),
   },
 
-  // --- Allgemein/Meta ---
-  {
-    id: 'erste-partie',
-    name: 'Erste Partie',
-    description: 'Die erste Partie gespielt.',
-    icon: '🌱',
-    condition: (stats) => stats.gamesPlayed >= 1,
-  },
+  // --- Allgemein/Meta (Erste Partie steht ganz vorn, siehe oben) ---
   {
     id: 'warmgespielt',
     name: 'Warmgespielt',
@@ -409,10 +422,9 @@ export function pickSpecialAchievement(
  * tile per family showing the current state, not 3 redundant rows. Purely a
  * display-time grouping - the underlying `unlocked` data is untouched.
  */
-const ACHIEVEMENT_FAMILIES: string[][] = [
-  ['nickelfarmer', 'nickelmeister', 'nickelgott'],
-  ['warmgespielt', 'dauergast', 'partyleiter'],
-];
+const NICKEL_FAMILY = ['nickelfarmer', 'nickelmeister', 'nickelgott'];
+const MILESTONE_FAMILY = ['warmgespielt', 'dauergast', 'partyleiter'];
+const ACHIEVEMENT_FAMILIES: string[][] = [NICKEL_FAMILY, MILESTONE_FAMILY];
 
 /**
  * The full catalog collapsed for the "Erfolge" gallery: every standalone
@@ -442,4 +454,17 @@ export function buildGalleryTiles(unlockedIds: ReadonlySet<string>): Achievement
     tiles.push(byId.get(highestUnlocked ?? family[0])!);
   }
   return tiles;
+}
+
+/**
+ * The highest "Partien gespielt"-Meilenstein reached so far (Warmgespielt ->
+ * Dauergast -> Partyleiter), evaluated directly against stats (not against
+ * `unlocked` - one less thing to pass around, and the conditions are the
+ * same either way). Null if none yet (gamesPlayed < 10). Used for the Profil
+ * tab's "Dein Titel" header, which then has no title to show at all.
+ */
+export function currentMilestone(stats: LocalProfile['stats']): AchievementDefinition | null {
+  const byId = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
+  const highest = [...MILESTONE_FAMILY].reverse().find((id) => byId.get(id)!.condition(stats));
+  return highest ? (byId.get(highest) ?? null) : null;
 }

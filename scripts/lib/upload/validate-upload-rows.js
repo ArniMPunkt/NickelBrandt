@@ -65,7 +65,13 @@ function isUploadReadyStatus(status) {
   return UPLOAD_READY_STATUSES.has(cleanText(status));
 }
 
+function isUploadReady(row) {
+  if (isExcludedFromPool(row)) return false;
+  return parseUploadYear(row && row.final_year) != null && isUploadReadyStatus(normalizedStatus(row));
+}
+
 function blockedReason(row) {
+  if (isUploadReady(row)) return '';
   const status = normalizedStatus(row);
   const finalYear = parseUploadYear(row && row.final_year);
   if (finalYear == null) return 'missing_final_year';
@@ -140,6 +146,7 @@ module.exports = {
   formatBlockedUploadRows,
   hasSpotifyTarget,
   isExcludedFromPool,
+  isUploadReady,
   isUploadReadyStatus,
   parseUploadYear,
   validateUploadRows,

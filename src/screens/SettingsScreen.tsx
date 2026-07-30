@@ -24,6 +24,7 @@ import {
   Settings,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import Constants from 'expo-constants';
@@ -31,7 +32,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Spotify from '../services/spotify';
 import * as Achievements from '../services/achievements';
-import { buildGalleryTiles, type AchievementDefinition } from '../services/achievementDefinitions';
+import {
+  PLAYER_NAME_MAX_LENGTH,
+  loadPlayerName,
+  savePlayerName,
+  validatePlayerName,
+} from '../services/playerName';
+import {
+  buildGalleryTiles,
+  currentMilestone,
+  type AchievementDefinition,
+} from '../services/achievementDefinitions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
@@ -56,6 +67,17 @@ const MODE_LABEL: Record<Achievements.GameModeKey, string> = {
   timeline_quiz: 'Timeline-Quiz',
 };
 
+// Reuses icons already established elsewhere: 🎉/📱 are the app's own
+// Party/Pass & Play tab icons (App.tsx); 🟩/🧵 are the Bingo/Timeline-Quiz
+// "Perfect ..." achievement icons - thematically the closest fit without
+// inventing a fourth icon language for the same four modes.
+const MODE_ICON: Record<Achievements.GameModeKey, string> = {
+  hitster_party: '🎉',
+  hitster_pnp: '📱',
+  bingo: '🟩',
+  timeline_quiz: '🧵',
+};
+
 function formatUnlockDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('de-DE');
@@ -75,10 +97,39 @@ function StatTile({ icon, label, value }: { icon: string; label: string; value: 
   );
 }
 
+/** One "Nach Modus" row: icon + name + a bar visualizing this mode's share of gamesPlayed + the raw count. */
+function ModeBreakdownRow({
+  mode,
+  count,
+  totalGames,
+}: {
+  mode: Achievements.GameModeKey;
+  count: number;
+  totalGames: number;
+}) {
+  const share = totalGames > 0 ? count / totalGames : 0;
+  return (
+    <View style={styles.statBreakdownRow}>
+      <Text style={styles.statBreakdownIcon}>{MODE_ICON[mode]}</Text>
+      <View style={styles.statBreakdownMain}>
+        <View style={styles.statBreakdownTopLine}>
+          <Text style={styles.statBreakdownName}>{MODE_LABEL[mode]}</Text>
+          <Text style={styles.statBreakdownValue}>{count}</Text>
+        </View>
+        <View style={styles.statBarTrack}>
+          <View style={[styles.statBarFill, { width: `${Math.round(share * 100)}%` }]} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 /**
  * One tile in the "Erfolge" gallery. Unlocked: full-color icon + name +
- * unlock date. Locked: dimmed icon + name (never hidden - "kein
- * Überraschungseffekt") + "Noch nicht freigeschaltet".
+ * unlock date. Locked: dimmed icon + name only (never hidden - "kein
+ * Überraschungseffekt") - no status subtitle, the 30% icon opacity already
+ * makes the locked state unambiguous, and the extra line only got truncated
+ * at this tile width anyway.
  */
 function AchievementTile({
   achievement,
@@ -94,9 +145,11 @@ function AchievementTile({
       <Text style={styles.achName} numberOfLines={2}>
         {achievement.name}
       </Text>
-      <Text style={[styles.achStatus, unlocked && styles.achStatusUnlocked]} numberOfLines={1}>
-        {unlocked ? formatUnlockDate(unlockedAt) : 'Noch nicht freigeschaltet'}
-      </Text>
+      {unlocked && (
+        <Text style={styles.achStatusUnlocked} numberOfLines={1}>
+          {formatUnlockDate(unlockedAt)}
+        </Text>
+      )}
     </View>
   );
 }
@@ -134,6 +187,43 @@ export default function SettingsScreen() {
   // Reload on every focus, so returning here right after a match shows the
   // just-earned stats/achievements without a manual pull-to-refresh.
   useFocusEffect(refreshProfile);
+
+  // ---- Persistent name header (same stored name Party uses to prefill) ----
+  const [playerName, setPlayerName] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const refreshPlayerName = useCallback(() => {
+    loadPlayerName().then(setPlayerName).catch(() => {});
+  }, []);
+  // Reload on every focus too - editing the name from Party (OnlineHomeScreen)
+  // must show up here without needing an app restart, since this tab stays
+  // mounted in the background otherwise.
+  useFocusEffect(refreshPlayerName);
+
+  const startEditName = () => {
+    setNameDraft(playerName ?? '');
+    setNameError(null);
+    setEditingName(true);
+  };
+
+  const cancelEditName = () => {
+    setEditingName(false);
+    setNameError(null);
+  };
+
+  const saveEditName = async () => {
+    const result = validatePlayerName(nameDraft);
+    if (!result.ok) {
+      setNameError(result.error);
+      return;
+    }
+    await savePlayerName(result.value);
+    setPlayerName(result.value);
+    setEditingName(false);
+    setNameError(null);
+  };
 
   const confirmResetProfile = async () => {
     setResetConfirmVisible(false);
@@ -209,12 +299,61 @@ export default function SettingsScreen() {
     }
   };
 
+  // "Dein Titel": the highest Partien-Meilenstein reached so far (null below
+  // 10 Partien - no empty-state header, it just doesn't render).
+  const titleAchievement = profile ? currentMilestone(profile.stats) : null;
+
+  // Siegquote: Party-Hitster only, both numerator and denominator (NOT
+  // gamesPlayed overall, which also counts Bingo/Quiz/Pass & Play). "–" for
+  // 0 Party-Hitster matches instead of a 0/0 division.
+  const partyGamesPlayed = profile?.stats.gamesByMode.hitster_party ?? 0;
+  const winRateDisplay =
+    partyGamesPlayed > 0
+      ? `${Math.round(((profile?.stats.hitster.partyGamesWon ?? 0) / partyGamesPlayed) * 100)}%`
+      : '–';
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
     >
       <Text style={styles.title}>Profil</Text>
+
+      {/* ---- Spielername: persistent header, same stored value Party
+          prefills from. Visible/editable regardless of which Statistik/
+          Erfolge sub-tab is active further down. ---- */}
+      <View style={styles.nameCard}>
+        {editingName ? (
+          <>
+            <TextInput
+              style={styles.nameInput}
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              placeholder="Name"
+              placeholderTextColor={COLORS.textMuted}
+              maxLength={PLAYER_NAME_MAX_LENGTH}
+              autoFocus
+            />
+            {nameError && <Text style={styles.nameErrorText}>{nameError}</Text>}
+            <View style={styles.nameButtonRow}>
+              <PressableButton style={styles.nameCancelBtn} onPress={cancelEditName}>
+                <Text style={styles.nameCancelText}>Abbrechen</Text>
+              </PressableButton>
+              <PressableButton style={styles.nameSaveBtn} onPress={saveEditName}>
+                <Text style={styles.nameSaveText}>Speichern</Text>
+              </PressableButton>
+            </View>
+          </>
+        ) : (
+          <PressableButton style={styles.nameDisplayRow} onPress={startEditName}>
+            <Text style={styles.namePlayerIcon}>👤</Text>
+            <Text style={styles.namePlayerText} numberOfLines={1}>
+              {playerName && playerName.trim() ? playerName : 'Name festlegen'}
+            </Text>
+            <Text style={styles.nameEditHint}>✎</Text>
+          </PressableButton>
+        )}
+      </View>
 
       {/* ---- Spotify ---- */}
       <Text style={styles.section}>SPOTIFY</Text>
@@ -308,41 +447,46 @@ export default function SettingsScreen() {
       </View>
 
       {profileTab === 'stats' ? (
-        <View style={styles.card}>
-          <View style={styles.statGrid}>
-            <StatTile icon="🎮" label="Partien gesamt" value={profile?.stats.gamesPlayed ?? 0} />
-            <StatTile
-              icon="🧭"
-              label="Modi gespielt"
-              value={`${profile?.stats.modesPlayed.length ?? 0}/4`}
-            />
-            <StatTile
-              icon="🔥"
-              label="Bester Streak"
-              value={profile?.stats.hitster.maxStreakEver ?? 0}
-            />
-            <StatTile
-              icon="🪙"
-              label="Nickel-Rekord"
-              value={profile?.stats.hitster.chipsPeakEver ?? 0}
-            />
-          </View>
-          <Text style={styles.statBreakdownLabel}>NACH MODUS</Text>
-          {(Object.keys(MODE_LABEL) as Achievements.GameModeKey[]).map((mode) => (
-            <View key={mode} style={styles.statBreakdownRow}>
-              <Text style={styles.statBreakdownName}>{MODE_LABEL[mode]}</Text>
-              <Text style={styles.statBreakdownValue}>
-                {profile?.stats.gamesByMode[mode] ?? 0}
-              </Text>
+        <>
+          {titleAchievement && (
+            <View style={styles.titleHeader}>
+              <Text style={styles.titleIcon}>{titleAchievement.icon}</Text>
+              <View>
+                <Text style={styles.titleName}>{titleAchievement.name}</Text>
+                <Text style={styles.titleSubline}>
+                  {profile?.stats.gamesPlayed ?? 0} Partien gespielt
+                </Text>
+              </View>
             </View>
-          ))}
-          <PressableButton
-            style={[styles.dangerBtn, { marginTop: 4 }]}
-            onPress={() => setResetConfirmVisible(true)}
-          >
-            <Text style={styles.dangerText}>Spielstatistiken zurücksetzen</Text>
-          </PressableButton>
-        </View>
+          )}
+          <View style={styles.card}>
+            <View style={styles.statGrid}>
+              <StatTile icon="🎮" label="Partien gesamt" value={profile?.stats.gamesPlayed ?? 0} />
+              <StatTile icon="🏆" label="Siege" value={profile?.stats.hitster.partyGamesWon ?? 0} />
+              <StatTile
+                icon="🔥"
+                label="Bester Streak"
+                value={profile?.stats.hitster.maxStreakEver ?? 0}
+              />
+              <StatTile icon="📈" label="Siegquote" value={winRateDisplay} />
+            </View>
+            <Text style={styles.statBreakdownLabel}>NACH MODUS</Text>
+            {(Object.keys(MODE_LABEL) as Achievements.GameModeKey[]).map((mode) => (
+              <ModeBreakdownRow
+                key={mode}
+                mode={mode}
+                count={profile?.stats.gamesByMode[mode] ?? 0}
+                totalGames={profile?.stats.gamesPlayed ?? 0}
+              />
+            ))}
+            <PressableButton
+              style={[styles.dangerBtn, { marginTop: 4 }]}
+              onPress={() => setResetConfirmVisible(true)}
+            >
+              <Text style={styles.dangerText}>Spielstatistiken zurücksetzen</Text>
+            </PressableButton>
+          </View>
+        </>
       ) : (
         <View style={styles.achGrid}>
           {buildGalleryTiles(new Set((profile?.unlocked ?? []).map((u) => u.id))).map((def) => (
@@ -437,13 +581,47 @@ const styles = StyleSheet.create({
   },
   statBreakdownRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  statBreakdownIcon: { fontSize: 18, width: 22, textAlign: 'center' },
+  statBreakdownMain: { flex: 1, gap: 4 },
+  statBreakdownTopLine: { flexDirection: 'row', justifyContent: 'space-between' },
   statBreakdownName: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
   statBreakdownValue: { color: COLORS.accent, fontSize: 14, fontWeight: '900' },
+  statBarTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.background,
+    overflow: 'hidden',
+  },
+  statBarFill: { height: '100%', borderRadius: 999, backgroundColor: COLORS.accent },
+
+  // ---- "Dein Titel" header ----
+  titleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    padding: 16,
+    ...glow(COLORS.accent, { radius: 14, opacity: 0.5 }),
+  },
+  titleIcon: { fontSize: 40 },
+  titleName: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '900',
+    textShadowColor: COLORS.accent,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  titleSubline: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700', marginTop: 2 },
 
   // ---- Erfolge-Galerie ----
   achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -464,14 +642,53 @@ const styles = StyleSheet.create({
   achIcon: { fontSize: 30 },
   achIconLocked: { opacity: 0.3 },
   achName: { color: COLORS.text, fontSize: 12, fontWeight: '800', textAlign: 'center' },
-  achStatus: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    textAlign: 'center',
-    fontStyle: 'italic',
+  achStatusUnlocked: { color: COLORS.accent, fontSize: 10, fontWeight: '700', textAlign: 'center' },
+
+  // ---- Spielername header ----
+  nameCard: {
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 14,
+    gap: 10,
   },
-  achStatusUnlocked: { color: COLORS.accent, fontStyle: 'normal' },
+  nameDisplayRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  namePlayerIcon: { fontSize: 22 },
+  namePlayerText: { flex: 1, color: COLORS.text, fontSize: 18, fontWeight: '900' },
+  nameEditHint: { color: COLORS.textMuted, fontSize: 16 },
+  nameInput: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.background,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '700',
+    paddingHorizontal: 14,
+  },
+  nameErrorText: { color: COLORS.incorrect, fontSize: 13, fontWeight: '700' },
+  nameButtonRow: { flexDirection: 'row', gap: 10 },
+  nameCancelBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nameCancelText: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
+  nameSaveBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 12,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nameSaveText: { color: COLORS.background, fontSize: 15, fontWeight: '900' },
 
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dot: { width: 12, height: 12, borderRadius: 999 },

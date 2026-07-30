@@ -27,19 +27,26 @@ const { formatBlockedUploadRows, validateUploadRows } = require('./lib/upload/va
 async function insertPoolSongs(supabase, rows) {
   if (rows.length === 0) return 0;
   const { data, error } = await supabase.from('pool_songs').insert(rows).select('id');
-  if (!error) return data.length;
-  console.warn(`  Bulk insert failed (${error.message}); retrying row-by-row...`);
-  let n = 0;
-  for (const r of rows) {
-    const { error: e } = await supabase.from('pool_songs').insert(r);
-    if (e) {
-      if (e.code === '23505') continue; // unique (pool_id, spotify_track_id) -> skip
-      console.warn(`  skip "${r.title}" - ${r.artist}: ${e.message}`);
-      continue;
+  if (error) throw new Error(`Failed to insert pool_songs: ${error.message}`);
+  return data.length;
+}
+
+async function rollbackCreatedPool(supabase, poolId) {
+  const { error } = await supabase.from('song_pools').delete().eq('id', poolId);
+  if (error) throw new Error(`Rollback failed for pool ${poolId}: ${error.message}`);
+}
+
+async function insertPoolSongsOrRollback(supabase, poolId, rows) {
+  try {
+    return await insertPoolSongs(supabase, rows);
+  } catch (error) {
+    try {
+      await rollbackCreatedPool(supabase, poolId);
+    } catch (rollbackError) {
+      error.message = `${error.message}; rollback also failed: ${rollbackError.message}`;
     }
-    n += 1;
+    throw error;
   }
-  return n;
 }
 
 async function main() {
@@ -86,6 +93,9 @@ async function main() {
     dedup.push(item);
   }
 
+  const correctedFromMb = dedup.filter((item) => finalYearDiffersFromMb(item.row)).length;
+  const mappedRows = dedup.map((item) => mapUploadRow(item.row, '__pending_pool_id__'));
+
   const supabase = createClient(need('SUPABASE_URL'), need('SUPABASE_SERVICE_ROLE_KEY'), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -118,9 +128,14 @@ async function main() {
     process.exit(1);
   }
 
-  const correctedFromMb = dedup.filter((item) => finalYearDiffersFromMb(item.row)).length;
-  const rows = dedup.map((item) => mapUploadRow(item.row, pool.id));
-  const written = await insertPoolSongs(supabase, rows);
+  const rows = mappedRows.map((row) => ({ ...row, pool_id: pool.id }));
+  let written = 0;
+  try {
+    written = await insertPoolSongsOrRollback(supabase, pool.id, rows);
+  } catch (error) {
+    console.error(`Failed to write pool songs; rollback attempted for created pool: ${error.message}`);
+    process.exit(1);
+  }
 
   const line = '-'.repeat(60);
   console.log(`\n${line}\nUPLOAD ZUSAMMENFASSUNG\n${line}`);
@@ -140,7 +155,15 @@ async function main() {
   console.log(line);
 }
 
-main().catch((e) => {
-  console.error('\nFatal error:', e && e.message ? e.message : e);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error('\nFatal error:', e && e.message ? e.message : e);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  insertPoolSongs,
+  insertPoolSongsOrRollback,
+  rollbackCreatedPool,
+};

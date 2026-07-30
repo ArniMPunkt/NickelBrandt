@@ -4,12 +4,10 @@ const readline = require('readline/promises');
 const { stdin: input, stdout: output } = require('process');
 const { applyManualChoice } = require('./apply-manual-choice');
 const { toIntYear } = require('./helpers');
+const { isOpenReview } = require('./review-queue');
+const { OPEN_STATUSES } = require('./review-schema');
 
-const INTERACTIVE_REVIEW_STATUSES = new Set([
-  'review_needed',
-  'review_needed_after_discogs',
-  'soft_discogs_pending',
-]);
+const INTERACTIVE_REVIEW_STATUSES = new Set(OPEN_STATUSES);
 
 const DEFAULT_MB_CONTEXT_NOTE =
   'Manual accept: MB year accepted despite LB->MB context warning.';
@@ -170,7 +168,7 @@ function yearsForRow(row) {
 }
 
 function isInteractiveReviewTarget(row) {
-  return INTERACTIVE_REVIEW_STATUSES.has(row && row.status);
+  return isOpenReview(row || {});
 }
 
 function reviewQueue(rows) {

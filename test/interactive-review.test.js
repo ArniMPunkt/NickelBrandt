@@ -160,12 +160,29 @@ test('upload-ready rows are not in interactive review queue', () => {
     row({ status: 'review_needed' }),
     row({ status: 'review_needed_after_discogs' }),
     row({ status: 'soft_discogs_pending' }),
+    row({ status: 'manual_skipped' }),
   ]);
 
   assert.deepEqual(queue.map((item) => item.status), [
     'review_needed',
     'review_needed_after_discogs',
     'soft_discogs_pending',
+    'manual_skipped',
+  ]);
+});
+
+test('rows with upload-blocking open statuses are included in interactive review queue', () => {
+  const queue = reviewQueue([
+    row({ status: 'manual_quit_pending' }),
+    row({ status: 'mb_no_match' }),
+    row({ status: 'auto_accepted_mb', final_year: '' }),
+    row({ status: 'excluded_from_pool', final_year: '' }),
+  ]);
+
+  assert.deepEqual(queue.map((item) => item.status), [
+    'manual_quit_pending',
+    'mb_no_match',
+    'auto_accepted_mb',
   ]);
 });
 

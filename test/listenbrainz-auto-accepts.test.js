@@ -26,6 +26,8 @@ function row(overrides = {}) {
     notes: 'review_reason: mb_uncertain; risk_flags: mb_uncertain',
     final_year: '',
     chosen_candidate: '',
+    spotify_found: 'true',
+    spotify_track_id: 'spotify-track-id',
     ...overrides,
   };
 }

@@ -2,7 +2,8 @@
 
 const fs = require('fs');
 const { toIntYear } = require('./helpers');
-const { hasFinalYear, isOpenReview } = require('./review-queue');
+const { isOpenReview } = require('./review-queue');
+const { isUploadReady, validateUploadRows } = require('../upload/validate-upload-rows');
 
 const PRIMARY_STATUSES = [
   'auto_accepted_mb',
@@ -24,23 +25,22 @@ function statusDistribution(rows) {
   return out;
 }
 
-function isUploadReady(row) {
-  if (row.status === 'excluded_from_pool') return false;
-  return hasFinalYear(row);
-}
-
 function computeSummary(rows) {
   const statuses = statusDistribution(rows);
-  const uploadReadyDirect = statuses.auto_accepted_mb;
-  const uploadReadySoftChecked = statuses.auto_accepted_mb_soft_checked;
-  const uploadReadyLbConfirmed = statuses.auto_accepted_mb_lb_confirmed;
-  const manualReviewsOpen = statuses.review_needed + statuses.review_needed_after_discogs;
-  const uploadBlocked = rows.filter((row) => row.status !== 'excluded_from_pool' && !hasFinalYear(row)).length;
+  const uploadValidation = validateUploadRows(rows);
+  const uploadCandidateRows = uploadValidation.uploadCandidates
+    .map((item) => item.row)
+    .filter(isUploadReady);
+  const uploadReadyDirect = uploadCandidateRows.filter((row) => row.status === 'auto_accepted_mb').length;
+  const uploadReadySoftChecked = uploadCandidateRows.filter((row) => row.status === 'auto_accepted_mb_soft_checked').length;
+  const uploadReadyLbConfirmed = uploadCandidateRows.filter((row) => row.status === 'auto_accepted_mb_lb_confirmed').length;
+  const manualReviewsOpen = rows.filter(isOpenReview).length;
+  const uploadBlocked = uploadValidation.blockedRows.length;
 
   return {
-    autoDecided: rows.filter(isUploadReady).length,
+    autoDecided: uploadValidation.uploadCandidates.length,
     existingConfirmed: rows.filter((r) => r.status === 'existing_year_confirmed').length,
-    openReviews: rows.filter(isOpenReview).length,
+    openReviews: manualReviewsOpen,
     skipped: rows.filter((r) => r.status === 'manual_skipped').length,
     mbPlausible: rows.filter((r) => r.mb_year_source === 'mb_ok' && toIntYear(r.mb_year) != null).length,
     mbMissingOrUncertain: rows.filter((r) => r.status === 'mb_no_match' || r.status === 'mb_match_uncertain' || r.mb_year_source === 'mb_no_match' || r.mb_year_source === 'mb_match_uncertain').length,
@@ -51,6 +51,7 @@ function computeSummary(rows) {
     uploadReadyLbConfirmed,
     manualReviewsOpen,
     uploadBlocked,
+    uploadSkippedNoSpotify: uploadValidation.skippedNoSpotify.length,
   };
 }
 

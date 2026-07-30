@@ -20,9 +20,14 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
+import {
+  PLAYER_NAME_MAX_LENGTH,
+  loadPlayerName,
+  savePlayerName,
+  validatePlayerName,
+} from '../services/playerName';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -30,11 +35,6 @@ import type { OnlineStackParamList } from '../types/navigation';
 import type { Lobby } from '../types/online';
 
 type Nav = NativeStackNavigationProp<OnlineStackParamList, 'OnlineHome'>;
-
-// Client-side convenience only (not an account): remember the last name the
-// player actually used, so they don't retype it every game. Same AsyncStorage
-// approach as the onboarding flag.
-const PLAYER_NAME_KEY = '@nickelbrandt/player_name';
 
 const EQ_COLORS = [
   COLORS.primary,
@@ -132,21 +132,32 @@ export default function OnlineHomeScreen() {
     return unsub;
   }, []);
 
-  // Prefill the name field once on first mount with the last-used name (empty on
-  // first ever visit). Mount-only so it never clobbers what the user is typing.
-  useEffect(() => {
-    AsyncStorage.getItem(PLAYER_NAME_KEY)
-      .then((saved) => {
-        if (saved) setName(saved);
-      })
-      .catch(() => {});
-  }, []);
+  // Prefill the name field with the last-used/last-persisted name, both on
+  // first mount AND every time this screen regains focus - the Profil tab can
+  // change the same stored name while this screen stays mounted in the
+  // background (tab navigators don't unmount inactive tabs), so a plain
+  // mount-only effect would miss that edit. `lastKnownName` guards against
+  // clobbering an in-progress edit: it only overwrites the field when nothing
+  // has been typed since the last known-stored value.
+  const lastKnownName = useRef('');
+  useFocusEffect(
+    useCallback(() => {
+      loadPlayerName()
+        .then((saved) => {
+          const value = saved ?? '';
+          setName((current) => (current === lastKnownName.current ? value : current));
+          lastKnownName.current = value;
+        })
+        .catch(() => {});
+    }, [])
+  );
 
   // Persist the name only after a lobby is actually created/joined (not on every
   // keystroke): that's the moment it's confirmed valid + intentionally used, and
   // it keeps storage writes to one per game instead of one per character.
   const persistName = (playerName: string) => {
-    AsyncStorage.setItem(PLAYER_NAME_KEY, playerName).catch(() => {});
+    savePlayerName(playerName);
+    lastKnownName.current = playerName;
   };
 
   const resumeLobby = () => {
@@ -171,12 +182,12 @@ export default function OnlineHomeScreen() {
   };
 
   const requireName = (): string | null => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setError('Bitte einen Namen eingeben.');
+    const result = validatePlayerName(name);
+    if (!result.ok) {
+      setError(result.error);
       return null;
     }
-    return trimmed;
+    return result.value;
   };
 
   const createLobby = async () => {
@@ -269,7 +280,7 @@ export default function OnlineHomeScreen() {
         placeholderTextColor={COLORS.textMuted}
         value={name}
         onChangeText={setName}
-        maxLength={20}
+        maxLength={PLAYER_NAME_MAX_LENGTH}
       />
 
       {/* Hero action: creating the party gets the visual weight. */}
