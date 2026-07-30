@@ -33,6 +33,15 @@ export interface GameRuleSettings {
   chipLimitEnabled: boolean;
   /** The cap when chipLimitEnabled (5-10; original Hitster rule: 5). */
   chipLimit: number;
+  /**
+   * "Mehrfaches Hitstern" for Pass & Play: select ALL callers (tap-order),
+   * resolved sequentially. Default off. Deliberately separate from Party's
+   * mode_config.hitsterMultiSteal (that one syncs over the network and is
+   * edited directly in LobbyScreen, not here) - same boolean idea, but the
+   * two toggles live in genuinely different settings systems, so this is its
+   * own field rather than a shared one.
+   */
+  hitsterMultiSteal: boolean;
 }
 
 export const DEFAULT_SETTINGS: GameRuleSettings = {
@@ -47,6 +56,7 @@ export const DEFAULT_SETTINGS: GameRuleSettings = {
   timerSeconds: 60,
   chipLimitEnabled: false,
   chipLimit: 5,
+  hitsterMultiSteal: false,
 };
 
 interface SettingsContextValue {

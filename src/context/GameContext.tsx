@@ -57,6 +57,20 @@ export type GameAction =
         activeInsertIndex: number;
       };
     }
+  | {
+      /**
+       * "Mehrfaches Hitstern": one NON-final queued steal attempt just
+       * failed. Charges the Nickel + logs the 'steal' miss immediately (see
+       * GameScreen's onStealPlace), but deliberately does NOT touch the
+       * active player (timeline/score/streak) or end the round - that must
+       * happen EXACTLY ONCE, when the whole queue is exhausted, via the
+       * existing PLACE_CARD (nobody stole) or ATTEMPT_STEAL (the queue's
+       * final attempt, success or fail) - see the correctness pitfall this
+       * avoids in ATTEMPT_STEAL's own doc comment.
+       */
+      type: 'QUEUE_STEAL_MISS';
+      payload: { stealerId: string; stealerInsertIndex: number };
+    }
   | { type: 'NEXT_PLAYER' }
   | { type: 'END_GAME'; payload: { winner: Player } }
   | { type: 'RESET' }
@@ -93,6 +107,7 @@ const initialState: GameState = {
     timerSeconds: 60,
     chipLimitEnabled: false,
     chipLimit: 5,
+    hitsterMultiSteal: false,
   },
   winner: null,
   lastPlacement: null,
@@ -306,6 +321,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, players };
     }
 
+    // Resolves ONE steal attempt AND finalizes the whole round: the active
+    // player's own placement is evaluated here (exactly once). Used directly
+    // for the single-caller case, and reused UNCHANGED by "Mehrfaches
+    // Hitstern" (GameScreen's onStealPlace) for whichever queued attempt
+    // actually ends the round - either the one that SUCCEEDS (remaining
+    // queue members are then skipped, per spec), or the LAST queued member
+    // regardless of outcome (mirrors today's single-attempt case, since with
+    // only one queue member left there is nothing left to defer). Any
+    // earlier FAILED attempt in a longer queue goes through QUEUE_STEAL_MISS
+    // instead, which deliberately does NOT touch the active player - see its
+    // own doc comment for the correctness pitfall this avoids.
     case 'ATTEMPT_STEAL': {
       const card = state.currentCard;
       if (!card) return state;
@@ -428,6 +454,41 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         },
         winner: winner ?? state.winner,
         phase: winner ? 'result' : state.phase,
+      };
+    }
+
+    case 'QUEUE_STEAL_MISS': {
+      const card = state.currentCard;
+      if (!card) return state;
+
+      const { stealerId, stealerInsertIndex } = action.payload;
+      const active = state.players[state.currentPlayerIndex];
+      const stealer = state.players.find((p) => p.id === stealerId);
+      if (!stealer || stealer.id === active.id) return state;
+
+      // Judged against the active player's timeline, same as ATTEMPT_STEAL -
+      // the active player hasn't placed yet, so their timeline is unchanged
+      // between queue members.
+      const neighbors = neighborYears(active.timeline, stealerInsertIndex);
+      const players = state.players.map((p) =>
+        p.id === stealerId ? { ...p, chips: Math.max(0, p.chips - 1) } : p
+      );
+
+      return {
+        ...state,
+        players,
+        history: [
+          ...state.history,
+          {
+            type: 'steal',
+            playerId: stealerId,
+            victimId: active.id,
+            song: toStatsSong(card),
+            correct: false,
+            leftYear: neighbors.left,
+            rightYear: neighbors.right,
+          },
+        ],
       };
     }
 

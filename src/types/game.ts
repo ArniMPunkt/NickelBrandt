@@ -110,6 +110,16 @@ export interface GameSettings {
   chipLimitEnabled: boolean;
   /** The cap when chipLimitEnabled (5-10). */
   chipLimit: number;
+  /**
+   * "Mehrfaches Hitstern": the active player selects (multi-select, tap-order
+   * = processing order) ALL players who called "Hitster!" instead of just
+   * one. Default false = today's single-caller behavior. Local counterpart
+   * to Party's mode_config.hitsterMultiSteal, but resolved sequentially and
+   * immediately (no collection phase) - a shared device has no network
+   * concurrency to protect against, so each queued attempt is charged its
+   * Nickel and revealed as soon as it's placed, not batched at the end.
+   */
+  hitsterMultiSteal: boolean;
 }
 
 /**

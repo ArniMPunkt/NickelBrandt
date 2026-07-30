@@ -22,7 +22,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGame } from '../context/GameContext';
+import { isCorrectPlacement, useGame } from '../context/GameContext';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import * as PoolProgress from '../services/poolProgress';
@@ -178,7 +178,19 @@ export default function GameScreen() {
   // --- Chip / steal local flow state (side-effects live here, not the reducer) ---
   const [localPhase, setLocalPhase] = useState<LocalPhase>('placing');
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
-  const [stealerId, setStealerId] = useState<string | null>(null);
+  // "Mehrfaches Hitstern": stealQueue is the FIXED, confirmed processing order
+  // (tap order); queuePos is whoever's turn it currently is. Off/single-caller
+  // cases just use a length-1 queue, so onStealPlace/onWithdrawSteal below
+  // need no separate branch for them - position 0 of a length-1 queue is
+  // simultaneously first (must place) and last (finalizes the round), exactly
+  // like today's single-attempt behavior. pendingStealSelection is the
+  // in-progress multi-select BEFORE it's confirmed into stealQueue.
+  const [stealQueue, setStealQueue] = useState<string[]>([]);
+  const [queuePos, setQueuePos] = useState(0);
+  // Cumulative locked slots from this round's earlier FAILED attempts (on top
+  // of pendingIndex, the active player's own slot - always locked).
+  const [failedSlots, setFailedSlots] = useState<number[]>([]);
+  const [pendingStealSelection, setPendingStealSelection] = useState<string[]>([]);
   const [chipAnswered, setChipAnswered] = useState(false);
   // The automatic final-card interstitial has run (guards against re-showing it
   // when this screen re-renders below the Victory route).
@@ -202,7 +214,11 @@ export default function GameScreen() {
 
   const others = state.players.filter((_, i) => i !== state.currentPlayerIndex);
   const eligibleStealers = others.filter((p) => p.chips >= 1);
-  const stealer = stealerId ? state.players.find((p) => p.id === stealerId) ?? null : null;
+  const multiStealEnabled = state.settings.hitsterMultiSteal;
+  const currentStealerId: string | undefined = stealQueue[queuePos];
+  const stealer = currentStealerId
+    ? state.players.find((p) => p.id === currentStealerId) ?? null
+    : null;
 
   // Start playback when a fresh card arrives (drawn during handoff).
   useEffect(() => {
@@ -230,7 +246,10 @@ export default function GameScreen() {
   useEffect(() => {
     setLocalPhase('placing');
     setPendingIndex(null);
-    setStealerId(null);
+    setStealQueue([]);
+    setQueuePos(0);
+    setFailedSlots([]);
+    setPendingStealSelection([]);
     setChipAnswered(false);
     setFinaleDone(false);
     cardScale.setValue(1);
@@ -421,25 +440,95 @@ export default function GameScreen() {
   const onBlindDraw = () => dispatch({ type: 'BLIND_DRAW' });
 
   const onHitster = () => {
+    // A single eligible stealer needs no order to pick - skip straight to
+    // placement, on or off, exactly like today.
     if (eligibleStealers.length === 1) {
-      setStealerId(eligibleStealers[0].id);
+      setStealQueue([eligibleStealers[0].id]);
+      setQueuePos(0);
       setLocalPhase('stealPlace');
-    } else {
-      setLocalPhase('stealSelect');
+      return;
     }
+    if (multiStealEnabled) {
+      setPendingStealSelection([]);
+      setLocalPhase('stealSelect');
+      return;
+    }
+    setLocalPhase('stealSelect');
   };
 
+  // Single-select path (multiStealEnabled off, 2+ eligible stealers): pick
+  // the one caller and go straight to placement.
   const onSelectStealer = (id: string) => {
-    setStealerId(id);
+    setStealQueue([id]);
+    setQueuePos(0);
     setLocalPhase('stealPlace');
   };
 
+  // Multi-select path: tap toggles membership, tap order = queue order
+  // (re-tapping removes and renumbers everyone after it).
+  const onToggleStealSelection = (id: string) => {
+    setPendingStealSelection((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const onConfirmStealSelection = () => {
+    if (pendingStealSelection.length === 0) return;
+    setStealQueue(pendingStealSelection);
+    setQueuePos(0);
+    setFailedSlots([]);
+    setLocalPhase('stealPlace');
+  };
+
+  // Resolves the CURRENT queue member's attempt. Unified for single- and
+  // multi-select: a failed attempt only finalizes the round (ATTEMPT_STEAL,
+  // which evaluates the active player's own placement) when it's the LAST
+  // queued member - otherwise it's a partial miss (QUEUE_STEAL_MISS) and the
+  // next member is up. A SUCCESS always finalizes immediately regardless of
+  // queue position (remaining members are never processed, per spec). With a
+  // length-1 queue (single-steal, or multi-steal's lone-eligible-stealer
+  // shortcut), position 0 is always "last" too, so this reduces to exactly
+  // today's single-attempt behavior.
   const onStealPlace = (insertIndex: number) => {
-    if (stealerId === null || pendingIndex === null) return;
+    const card = state.currentCard;
+    if (!card || currentStealerId === undefined || pendingIndex === null) return;
+    const isLast = queuePos === stealQueue.length - 1;
+    const activeCorrect = isCorrectPlacement(player.timeline, card, pendingIndex);
+    const stealerSlotValid = isCorrectPlacement(player.timeline, card, insertIndex);
+    const success = !activeCorrect && stealerSlotValid;
+
+    if (success || isLast) {
+      dispatch({
+        type: 'ATTEMPT_STEAL',
+        payload: {
+          stealerId: currentStealerId,
+          stealerInsertIndex: insertIndex,
+          activeInsertIndex: pendingIndex,
+        },
+      });
+      return;
+    }
     dispatch({
-      type: 'ATTEMPT_STEAL',
-      payload: { stealerId, stealerInsertIndex: insertIndex, activeInsertIndex: pendingIndex },
+      type: 'QUEUE_STEAL_MISS',
+      payload: { stealerId: currentStealerId, stealerInsertIndex: insertIndex },
     });
+    setFailedSlots((prev) => [...prev, insertIndex]);
+    setQueuePos((prev) => prev + 1);
+  };
+
+  // "Abbrechen": refused for the very first queue member (mirrors the
+  // OFF-path where the sole caller always commits). From the second member
+  // on: no Nickel charge, no stats event (nothing was ever attempted). If
+  // this was the last pending member, the round still needs its regular
+  // (no-steal) resolution - PLACE_CARD, unchanged.
+  const onWithdrawSteal = () => {
+    if (queuePos === 0 || pendingIndex === null) return;
+    const isLast = queuePos === stealQueue.length - 1;
+    if (isLast) {
+      dispatch({ type: 'PLACE_CARD', payload: { insertIndex: pendingIndex } });
+      return;
+    }
+    setQueuePos((prev) => prev + 1);
   };
 
   const awardChip = () => {
@@ -722,14 +811,57 @@ export default function GameScreen() {
       {!isRevealed && localPhase === 'stealSelect' && (
         <View>
           <Text style={styles.sectionLabel}>WER RUFT „HITSTER!"?</Text>
-          {eligibleStealers.map((p) => (
-            <PressableButton key={p.id} style={styles.selectRow} onPress={() => onSelectStealer(p.id)}>
-              <Text style={styles.selectName} numberOfLines={1}>
-                {p.name}
+          {multiStealEnabled ? (
+            <>
+              <Text style={styles.hint}>
+                Mehrfachauswahl — Antipp-Reihenfolge entscheidet, wer zuerst dran ist.
               </Text>
-              <Text style={styles.selectChips}>🪙 {p.chips}</Text>
-            </PressableButton>
-          ))}
+              {eligibleStealers.map((p) => {
+                const order = pendingStealSelection.indexOf(p.id);
+                const selected = order !== -1;
+                return (
+                  <PressableButton
+                    key={p.id}
+                    style={[styles.selectRow, selected && styles.selectRowActive]}
+                    onPress={() => onToggleStealSelection(p.id)}
+                  >
+                    <View style={styles.selectNameRow}>
+                      {selected && (
+                        <View style={styles.orderBadge}>
+                          <Text style={styles.orderBadgeText}>{order + 1}</Text>
+                        </View>
+                      )}
+                      <Text style={styles.selectName} numberOfLines={1}>
+                        {p.name}
+                      </Text>
+                    </View>
+                    <Text style={styles.selectChips}>🪙 {p.chips}</Text>
+                  </PressableButton>
+                );
+              })}
+              <PressableButton
+                style={[
+                  styles.confirmBtn,
+                  pendingStealSelection.length === 0 && styles.confirmBtnDisabled,
+                ]}
+                onPress={onConfirmStealSelection}
+                disabled={pendingStealSelection.length === 0}
+              >
+                <Text style={styles.confirmBtnText}>
+                  Weiter ({pendingStealSelection.length} ausgewählt)
+                </Text>
+              </PressableButton>
+            </>
+          ) : (
+            eligibleStealers.map((p) => (
+              <PressableButton key={p.id} style={styles.selectRow} onPress={() => onSelectStealer(p.id)}>
+                <Text style={styles.selectName} numberOfLines={1}>
+                  {p.name}
+                </Text>
+                <Text style={styles.selectChips}>🪙 {p.chips}</Text>
+              </PressableButton>
+            ))
+          )}
         </View>
       )}
 
@@ -739,14 +871,27 @@ export default function GameScreen() {
           <Text style={styles.sectionLabel}>
             {stealer.name.toUpperCase()}: WO IN {player.name.toUpperCase()}S ZEITLINIE?
           </Text>
+          {stealQueue.length > 1 && (
+            <Text style={styles.hint}>
+              Platz {queuePos + 1} von {stealQueue.length}
+              {failedSlots.length > 0 ? ' — vorherige(r) Versuch(e) verBrandt' : ''}
+            </Text>
+          )}
           <TimelineStrip
             timeline={player.timeline}
             onInsert={onStealPlace}
-            isSlotEnabled={(i) => i !== pendingIndex}
+            isSlotEnabled={(i) => i !== pendingIndex && !failedSlots.includes(i)}
           />
           <Text style={styles.hint}>
-            Der bereits gewählte Slot ist gesperrt — rate selbst. 1 🪙 wird eingesetzt.
+            {stealQueue.length > 1
+              ? 'Bereits gewählte Slots sind gesperrt — 1 🪙 wird beim Setzen eingesetzt.'
+              : 'Der bereits gewählte Slot ist gesperrt — rate selbst. 1 🪙 wird eingesetzt.'}
           </Text>
+          {queuePos > 0 && (
+            <PressableButton style={styles.noHitsterBtn} onPress={onWithdrawSteal}>
+              <Text style={styles.noHitsterText}>Abbrechen (kein 🪙-Verlust)</Text>
+            </PressableButton>
+          )}
         </View>
       )}
 
@@ -1002,6 +1147,39 @@ const styles = StyleSheet.create({
   },
   selectName: { color: COLORS.text, fontSize: 18, fontWeight: '800', flexShrink: 1 },
   selectChips: { color: COLORS.accent, fontSize: 16, fontWeight: '900' },
+  selectRowActive: { borderColor: COLORS.accent, backgroundColor: COLORS.background },
+  selectNameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  orderBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderBadgeText: { color: COLORS.background, fontSize: 13, fontWeight: '900' },
+  confirmBtn: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: COLORS.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    ...glow(COLORS.accent, { radius: 12, opacity: 0.7 }),
+  },
+  confirmBtnDisabled: { opacity: 0.4 },
+  confirmBtnText: { color: COLORS.background, fontSize: 16, fontWeight: '900' },
+
+  noHitsterBtn: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  noHitsterText: { color: COLORS.textMuted, fontSize: 15, fontWeight: '800' },
 
   // Chip question
   chipQ: {

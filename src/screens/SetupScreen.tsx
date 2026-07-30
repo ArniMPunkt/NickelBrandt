@@ -11,6 +11,7 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -42,7 +43,7 @@ export default function SetupScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { dispatch } = useGame();
-  const { settings } = useSettings();
+  const { settings, update } = useSettings();
 
   const [names, setNames] = useState<string[]>(['', '']);
   const [source, setSource] = useState<DeckSource | null>(null);
@@ -180,6 +181,7 @@ export default function SetupScreen() {
             timerSeconds: settings.timerSeconds,
             chipLimitEnabled: settings.chipLimitEnabled,
             chipLimit: settings.chipLimit,
+            hitsterMultiSteal: settings.hitsterMultiSteal,
           },
           deck,
         },
@@ -271,6 +273,31 @@ export default function SetupScreen() {
 
       <Text style={styles.label}>SPIELREGELN</Text>
       <GameRulesSection />
+
+      {/* "Mehrfaches Hitstern" lives OUTSIDE GameRulesSection deliberately -
+          same reasoning as Party's own version of this toggle sitting outside
+          the shared rules editor in LobbyScreen: it's genuinely a separate
+          settings system there (mode_config, synced over the network) and,
+          while this one DOES share GameRuleSettings/SettingsContext with the
+          rest of the Pass & Play rules, putting it inside the shared
+          component would also render it (confusingly, bound to the wrong
+          state) on the Party lobby screen, which reuses GameRulesSection too. */}
+      <View style={styles.multiStealCard}>
+        <View style={styles.multiStealTextWrap}>
+          <Text style={styles.multiStealTitle}>Mehrfaches Hitstern</Text>
+          <Text style={styles.multiStealHint}>
+            Am Zug: mehrere Rufer auswählen (Antipp-Reihenfolge = Reihenfolge),
+            die nacheinander raten dürfen.
+          </Text>
+        </View>
+        <Switch
+          value={settings.hitsterMultiSteal}
+          onValueChange={(v) => update({ hitsterMultiSteal: v })}
+          trackColor={{ false: COLORS.border, true: COLORS.primary }}
+          thumbColor={COLORS.text}
+          ios_backgroundColor={COLORS.border}
+        />
+      </View>
 
       {error && (
         <View style={styles.errorBox}>
@@ -427,6 +454,20 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   errorText: { color: COLORS.incorrect, fontSize: 14, fontWeight: '700' },
+
+  multiStealCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.backgroundAlt,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+  },
+  multiStealTextWrap: { flex: 1 },
+  multiStealTitle: { color: COLORS.text, fontSize: 15, fontWeight: '800' },
+  multiStealHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
   startBtn: {
     marginTop: 24,
