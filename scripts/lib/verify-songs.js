@@ -12,7 +12,9 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { need, parseCSV } = require('./util');
+const { detectRiskFlags } = require('./decision/detect-risk-flags');
+const { planDiscogsLookup } = require('./decision/plan-discogs-lookup');
+const { need } = require('./util');
 
 if (typeof fetch === 'undefined') {
   console.error('This needs Node 18+ (global fetch is missing). Please upgrade Node.');
@@ -221,49 +223,6 @@ async function fetchSource(url, opts = {}, { rateLimiter = null, maxRetries = 2,
     return res;
   }
   throw lastErr ?? new Error(`${label || url}: request failed`);
-}
-
-// ---------------------------------------------------------------------------
-// Input CSV (title,artist,estimated_year)
-// ---------------------------------------------------------------------------
-function readInputCsv(csvPath, fs = require('fs')) {
-  if (!fs.existsSync(csvPath)) {
-    console.error(`CSV file not found: ${csvPath}`);
-    process.exit(1);
-  }
-  const rows = parseCSV(fs.readFileSync(csvPath, 'utf8'));
-  if (rows.length === 0) {
-    console.error('CSV is empty.');
-    process.exit(1);
-  }
-  const header = rows[0].map((h) => h.trim().toLowerCase());
-  const hasHeader = header.includes('title') || header.includes('artist');
-  // spotify_track_id + isrc are OPTIONAL extra columns (present in playlist
-  // exports, absent in hand-written custom lists). When both are filled the
-  // precheck takes a fast-path; otherwise these stay null and nothing changes.
-  const idx = hasHeader
-    ? {
-        title: header.indexOf('title'),
-        artist: header.indexOf('artist'),
-        year: header.findIndex((h) => h.includes('year')),
-        trackId: header.findIndex((h) => h === 'spotify_track_id' || h === 'track_id'),
-        isrc: header.indexOf('isrc'),
-      }
-    : { title: 0, artist: 1, year: 2, trackId: -1, isrc: -1 };
-  const dataRows = hasHeader ? rows.slice(1) : rows;
-
-  const out = [];
-  for (const r of dataRows) {
-    const title = (r[idx.title] ?? '').trim();
-    const artist = (r[idx.artist] ?? '').trim();
-    const yearRaw = idx.year >= 0 ? (r[idx.year] ?? '').trim() : '';
-    const estimatedYear = /^\d{4}$/.test(yearRaw) ? parseInt(yearRaw, 10) : null;
-    const trackId = idx.trackId >= 0 ? (r[idx.trackId] ?? '').trim() : '';
-    const isrc = idx.isrc >= 0 ? (r[idx.isrc] ?? '').trim() : '';
-    if (!title || !artist) continue;
-    out.push({ title, artist, estimatedYear, spotifyTrackId: trackId || null, isrc: isrc || null });
-  }
-  return out;
 }
 
 // ===========================================================================
@@ -594,12 +553,6 @@ async function deezerYearInfoForTrack(trackId, ctx = {}) {
   return Number.isFinite(y) ? { year: null, invalidYear: y, status: 'invalid_year' } : { year: null, invalidYear: null, status: 'no_year' };
 }
 
-/** Release year for legacy callers. Suspicious years such as 1900 are null. */
-async function deezerYearForTrack(trackId) {
-  const info = await deezerYearInfoForTrack(trackId);
-  return info ? info.year : null;
-}
-
 /**
  * Deezer (free, unauthenticated) lookup. /search returns `isrc` per track; we
  * only trust a result that passes the similarity guard (artist + title), then do
@@ -767,8 +720,10 @@ function newDiscogsStats(mode) {
     reasons: {
       mb_no_match: 0,
       mb_uncertain: 0,
+      mb_text_match_only: 0,
+      mb_year_suspicious_late: 0,
+      existing_year_conflict: 0,
       catalog_suspected_with_late_mb: 0,
-      earlier_source_conflict: 0,
       full_mode: 0,
     },
   };
@@ -795,18 +750,34 @@ function discogsCacheKey(track) {
   return `txt:${normalize(track.title)}|${normalize(track.artist)}`;
 }
 
-function discogsPlanReason(track, mb, dzYear, options = {}) {
+function discogsDecisionInput(track, mb) {
+  return {
+    title: track.title || '',
+    artist: track.artist || '',
+    isrc: track.isrc || '',
+    spotify_album_name: track.albumName || '',
+    spotify_album_type: track.albumType || '',
+    spotify_album_release_date: track.albumReleaseDate || '',
+    spotify_album_artist: track.albumArtist || '',
+    estimated_year: track.estimatedYear != null ? track.estimatedYear : '',
+    existing_year: track.existingYear != null ? track.existingYear : '',
+    mb_year: mb && mb.year != null ? mb.year : '',
+    mb_status: mb && mb.status ? mb.status : 'mb_no_match',
+    mb_match_method: mb && mb.matchMethod ? mb.matchMethod : '',
+    mb_score: mb && mb.score != null ? mb.score : '',
+    discogs_year: '',
+  };
+}
+
+function discogsPlanReason(track, mb, options = {}) {
   const mode = options.mode || 'needed';
   if (mode === 'off') return null;
   if (mode === 'full') return 'full_mode';
-  if (!mb || mb.status === 'mb_no_match' || mb.year == null) return 'mb_no_match';
-  if (mb.status === 'mb_match_uncertain') return 'mb_uncertain';
   if (options.deepOriginalSearch && isCatalogContext(track)) return 'catalog_suspected_with_late_mb';
-  if (hasEarlierSourceHint({ ...track, inputDeezerYear: dzYear }, mb.year, 5)) return 'earlier_source_conflict';
-  if (isLateCatalogMb(track, mb.year) && hasEarlierSourceHint({ ...track, inputDeezerYear: dzYear }, mb.year, 1)) {
-    return 'catalog_suspected_with_late_mb';
-  }
-  return null;
+  const input = discogsDecisionInput(track, mb || { status: 'mb_no_match', year: null });
+  const riskFlags = detectRiskFlags(input);
+  const plan = planDiscogsLookup(input, riskFlags);
+  return plan.should_lookup ? plan.reasons[0] : null;
 }
 
 /**
@@ -861,20 +832,6 @@ async function getDiscogsCandidate(title, artist) {
 /** Discogs master year (artist-plausibility-filtered) or null. */
 async function getDiscogsYear(title, artist) {
   return (await getDiscogsCandidate(title, artist)).year;
-}
-
-/** tracks: [{title, artist}] -> (number|null)[] Discogs master year, for display. */
-async function discogsVerifyYears(tracks) {
-  const years = new Array(tracks.length).fill(null);
-  for (let g = 0; g < tracks.length; g += DISCOGS_CONCURRENCY) {
-    const group = tracks.slice(g, g + DISCOGS_CONCURRENCY).map((t, k) => ({ t, i: g + k }));
-    await Promise.all(
-      group.map(async ({ t, i }) => {
-        years[i] = await getDiscogsYear(t.title, t.artist).catch(() => null);
-      })
-    );
-  }
-  return years;
 }
 
 // ===========================================================================
@@ -1199,6 +1156,8 @@ function parseMusicBrainzEntity(input) {
 }
 
 async function mbYearFromManualUrl(input) {
+  // TODO: Manual MusicBrainz URL year extraction exists but is not currently
+  // wired into interactive-review.js; reconnect it in a future review-flow pass.
   const parsed = parseMusicBrainzEntity(input);
   if (!parsed) throw new Error('Keine gueltige MusicBrainz-URL/MBID erkannt.');
   let url;
@@ -1389,7 +1348,7 @@ function buildNotes(mb, deezerYear, discogsYear, discogsReason, con, deezerInval
   if (deezerInvalidYear != null) n.push(`deezer:invalid_year_${deezerInvalidYear}`);
   if (deezerStatus && deezerStatus !== 'ok' && deezerStatus !== 'from_input') n.push(`deezer:${deezerStatus}`);
   else if (deezerYear == null) n.push('deezer:no_year');
-  if (discogsReason === 'skipped_deezer_confirmed') n.push('discogs skipped (deezer confirmed)');
+  if (discogsReason === 'skipped_not_needed') n.push('discogs skipped (not needed)');
   else if (discogsReason) n.push(`discogs:${discogsReason}`);
   if (con.earlier) n.push(`earlier:${con.earlier.join('+')}`);
   return n.join('; ');
@@ -1685,69 +1644,7 @@ function mbYearFromDate(date) {
   return Number.isFinite(y) && y > 0 ? y : null;
 }
 
-function mbEarliestYear(recordings) {
-  let best = null;
-  for (const rec of recordings ?? []) {
-    const y = mbYearFromDate(rec && rec['first-release-date']);
-    if (y != null && (best == null || y < best)) best = y;
-  }
-  return best;
-}
-
 const mbEscapeLucene = (s) => s.replace(/["\\]/g, ' ').trim();
-
-async function mbIsrcBatch(isrcs) {
-  const out = new Map();
-  if (isrcs.length === 0) return out;
-  const recMap = await mbIsrcRecordingBatch(isrcs);
-  for (const [key, rec] of recMap.entries()) {
-    const y = mbYearFromDate(rec && rec['first-release-date']);
-    if (y == null) continue;
-    const prev = out.get(key);
-    if (prev == null || y < prev) out.set(key, y);
-  }
-  return out;
-}
-
-async function mbResolveByTitleArtist(title, artist) {
-  try {
-    const q = `recording:"${mbEscapeLucene(title)}" AND artist:"${mbEscapeLucene(artist)}"`;
-    const data = await mbFetch(`${MB_BASE}/recording?query=${encodeURIComponent(q)}&fmt=json&limit=10`);
-    return mbEarliestYear(data && data.recordings);
-  } catch {
-    return null;
-  }
-}
-
-/** tracks: [{title, artist, isrc}] -> (number|null)[] (raw MusicBrainz year). */
-async function mbVerifyYears(tracks) {
-  const years = new Array(tracks.length).fill(null);
-  const withIsrc = [];
-  const withoutIsrc = [];
-  tracks.forEach((t, i) => (t.isrc ? withIsrc : withoutIsrc).push(i));
-
-  const batches = [];
-  for (let k = 0; k < withIsrc.length; k += MB_ISRC_BATCH) {
-    batches.push(withIsrc.slice(k, k + MB_ISRC_BATCH));
-  }
-  const isrcMissGroups = await mapWithConcurrency(batches, MB_MAX_IN_FLIGHT_REQUESTS, async (idxs) => {
-    const misses = [];
-    const map = await mbIsrcBatch(idxs.map((i) => tracks[i].isrc));
-    for (const i of idxs) {
-      const y = map.get(mbIsrcCacheKey(tracks[i].isrc));
-      if (y != null) years[i] = y;
-      else misses.push(i);
-    }
-    return misses;
-  });
-  const isrcMisses = isrcMissGroups.flat();
-
-  const fallback = [...withoutIsrc, ...isrcMisses];
-  await mapWithConcurrency(fallback, MB_MAX_IN_FLIGHT_REQUESTS, async (i) => {
-    years[i] = await mbResolveByTitleArtist(tracks[i].title, tracks[i].artist);
-  });
-  return years;
-}
 
 // ===========================================================================
 // High-level orchestration: Spotify search (sequential) + MusicBrainz years
@@ -1961,10 +1858,9 @@ async function verifySongs(inputs, opts = {}) {
   let needIdx = [];
   tracks.forEach((_, j) => {
     const mb = mbCands[j] || { status: 'mb_no_match' };
-    const dz = dzYears[j];
-    const reason = discogsPlanReason(tracks[j], mb, dz, { mode: discogsMode, deepOriginalSearch: !!opts.deepOriginalSearch });
+    const reason = discogsPlanReason(tracks[j], mb, { mode: discogsMode, deepOriginalSearch: !!opts.deepOriginalSearch });
     if (!reason) {
-      dcReason[j] = 'skipped_deezer_confirmed';
+      dcReason[j] = 'skipped_not_needed';
       return;
     }
     discogsStats.reasons[reason] = (discogsStats.reasons[reason] || 0) + 1;
@@ -2054,7 +1950,6 @@ async function verifySongs(inputs, opts = {}) {
 }
 
 module.exports = {
-  readInputCsv,
   resolveOne,
   searchWithFallbacks,
   getIsrcFromDeezer,
@@ -2063,7 +1958,6 @@ module.exports = {
   mbFetch,
   mbIsrcRecordingBatch,
   mbTextRecordings,
-  mbVerifyYears,
   verifySongs,
   computeRetryWaitS,
   fetchWithRetry,

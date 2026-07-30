@@ -7,6 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  DEFAULT_CACHE_FILE,
   lookupListenBrainzMetadata,
 } = require('../scripts/lib/sources/listenbrainz');
 
@@ -23,6 +24,13 @@ function response({ status = 200, body = {}, headers = {} } = {}) {
     json: async () => body,
   };
 }
+
+test('default ListenBrainz cache file lives under scripts/.cache', () => {
+  assert.equal(
+    DEFAULT_CACHE_FILE,
+    path.join(__dirname, '..', 'scripts', '.cache', 'listenbrainz-cache.json')
+  );
+});
 
 test('lookupListenBrainzMetadata returns skipped_no_token without fetching', async () => {
   let fetchCalls = 0;

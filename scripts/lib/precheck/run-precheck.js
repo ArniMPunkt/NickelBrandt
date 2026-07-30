@@ -222,8 +222,10 @@ async function runPrecheck(options, dependencyOverrides = {}) {
           log('Gruende:');
           log(`  - mb_no_match: ${reasons.mb_no_match || 0}`);
           log(`  - mb_uncertain: ${reasons.mb_uncertain || 0}`);
+          log(`  - mb_text_match_only: ${reasons.mb_text_match_only || 0}`);
+          log(`  - mb_year_suspicious_late: ${reasons.mb_year_suspicious_late || 0}`);
+          log(`  - existing_year_conflict: ${reasons.existing_year_conflict || 0}`);
           log(`  - catalog_suspected_with_late_mb: ${reasons.catalog_suspected_with_late_mb || 0}`);
-          log(`  - earlier_source_conflict: ${reasons.earlier_source_conflict || 0}`);
           log(`  - full_mode: ${reasons.full_mode || 0}`);
           if (info.warning) log(info.warning);
         } else if (event === 'discogs-start') {

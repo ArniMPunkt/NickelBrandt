@@ -11,12 +11,20 @@ const {
   normalizeText,
 } = require('../scripts/lib/precheck/listenbrainz-mb-analysis');
 const {
+  DEFAULT_CACHE_FILE,
   fetchMusicBrainzRecordingByMbid,
   fetchMusicBrainzReleaseByMbid,
 } = require('../scripts/lib/sources/musicbrainz-recording');
 
 const RECORDING_MBID = '11111111-1111-1111-1111-111111111111';
 const RELEASE_MBID = '22222222-2222-2222-2222-222222222222';
+
+test('default MusicBrainz recording cache file lives under scripts/.cache', () => {
+  assert.equal(
+    DEFAULT_CACHE_FILE,
+    path.join(__dirname, '..', 'scripts', '.cache', 'musicbrainz-recording-cache.json')
+  );
+});
 
 function tempCacheFile() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'musicbrainz-recording-cache-'));

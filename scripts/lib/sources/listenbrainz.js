@@ -9,7 +9,6 @@ const DEFAULT_CACHE_FILE = path.resolve(
   __dirname,
   '..',
   '..',
-  '..',
   '.cache',
   'listenbrainz-cache.json'
 );

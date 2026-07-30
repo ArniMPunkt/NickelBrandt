@@ -11,7 +11,6 @@ const DEFAULT_CACHE_FILE = path.resolve(
   __dirname,
   '..',
   '..',
-  '..',
   '.cache',
   'musicbrainz-recording-cache.json'
 );

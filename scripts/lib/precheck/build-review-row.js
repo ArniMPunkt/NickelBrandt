@@ -55,7 +55,10 @@ function buildReviewRow(result = {}) {
   const mbYear = decisionInput.mb_year || '';
   const existingYear = input.existingYear != null ? input.existingYear : input.existing_year;
   const discogsRejectedReason =
-    result.discogsReason && result.discogsReason !== 'skipped_deezer_confirmed' && result.discogsReason !== 'no_result'
+    result.discogsReason &&
+      result.discogsReason !== 'skipped_deezer_confirmed' &&
+      result.discogsReason !== 'skipped_not_needed' &&
+      result.discogsReason !== 'no_result'
       ? result.discogsReason
       : input.inputDiscogsRejectedReason || '';
 
