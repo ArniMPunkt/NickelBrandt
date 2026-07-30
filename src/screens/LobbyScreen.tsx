@@ -257,6 +257,14 @@ export default function LobbyScreen() {
   });
   const canStart = missing.length === 0;
 
+  // Version-Gate: NOT a start requirement (deliberately kept out of
+  // `missing`/`canStart` - it must never disable the button, only inform).
+  // null (row written before migration 011) is its own "unbekannt" bucket,
+  // never assumed equal to a known version - an un-instrumented old client is
+  // exactly the case this warns about. Live via the same lobby_players
+  // realtime subscription that already drives `players`, no new mechanism.
+  const versionMismatch = new Set(players.map((p) => p.app_version ?? 'unbekannt')).size > 1;
+
   const onStartPressed = async () => {
     setError(null);
     if (!canStart || !source) return; // defensive - the button is disabled then
@@ -518,6 +526,14 @@ export default function LobbyScreen() {
         ))
       )}
 
+      {versionMismatch && (
+        <View style={styles.versionWarningBox}>
+          <Text style={styles.versionWarningText}>
+            ⚠ Nicht alle Geräte haben denselben App-Stand — bitte aktualisieren, bevor ihr startet.
+          </Text>
+        </View>
+      )}
+
       {error && (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
@@ -711,6 +727,19 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   errorText: { color: COLORS.incorrect, fontSize: 14, fontWeight: '700' },
+
+  // Non-blocking version-mismatch hint: solid (not dashed) accent border +
+  // tinted fill, deliberately distinct from both the neutral dashed
+  // StartRequirementsHint checklist (blocking) and the red errorBox (hard
+  // failure) - this never disables the start button.
+  versionWarningBox: {
+    backgroundColor: 'rgba(255, 184, 0, 0.12)',
+    borderColor: COLORS.accent,
+    borderWidth: 2,
+    borderRadius: 14,
+    padding: 14,
+  },
+  versionWarningText: { color: COLORS.accent, fontSize: 14, fontWeight: '700' },
 
   startBtn: {
     marginTop: 20,

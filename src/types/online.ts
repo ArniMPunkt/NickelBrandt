@@ -459,4 +459,11 @@ export interface LobbyPlayer {
    * concurrent multi-client writes and therefore live in round_answers).
    */
   bingo_board?: BingoBoard | null;
+  /**
+   * App-Version (Constants.expoConfig?.version) at the moment this device
+   * created/joined the lobby (migration 011). null = row written before this
+   * migration existed (old client) - treated as its own "unbekannt" bucket
+   * when comparing, never assumed equal to any known version.
+   */
+  app_version?: string | null;
 }

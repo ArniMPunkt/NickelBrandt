@@ -12,6 +12,7 @@
  * required after this change.
  */
 import 'react-native-url-polyfill/auto';
+import Constants from 'expo-constants';
 import { createClient } from '@supabase/supabase-js';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
@@ -288,6 +289,15 @@ function generateCode(): string {
 
 // --- Lobby operations -------------------------------------------------------
 
+/**
+ * This device's app version, stamped onto its lobby_players row on
+ * create/join (migration 011) so the lobby screen can warn when two devices
+ * in the same Party run different builds - a known source of silent stats-
+ * event inconsistencies (an old build simply doesn't know newer logging/sync
+ * logic). Same source SettingsScreen already shows under APP-INFO.
+ */
+const APP_VERSION: string | null = Constants.expoConfig?.version ?? null;
+
 /** Create a new lobby (status 'waiting') and add the creator as host player. */
 export async function createLobby(playerName: string): Promise<Lobby> {
   const hostId = getPlayerId();
@@ -312,6 +322,7 @@ export async function createLobby(playerName: string): Promise<Lobby> {
       player_name: playerName.trim(),
       player_id: hostId,
       is_host: true,
+      app_version: APP_VERSION,
     });
     if (playerError) {
       throw new Error(`Beitritt als Host fehlgeschlagen: ${playerError.message}`);
@@ -357,6 +368,7 @@ export async function joinLobby(playerName: string, code: string): Promise<Lobby
       player_name: playerName.trim(),
       player_id: playerId,
       is_host: false,
+      app_version: APP_VERSION,
     });
     if (insertError) {
       throw new Error(`Beitritt fehlgeschlagen: ${insertError.message}`);
