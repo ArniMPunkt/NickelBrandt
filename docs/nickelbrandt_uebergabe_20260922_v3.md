@@ -12,7 +12,7 @@ Diese Fassung aktualisiert `nickelbrandt_uebergabe_20260922_v2.md` anhand des Re
 - Pass & Play hat einen lokalen Spielzustand, braucht aber Supabase zum Laden des Pools und Spotify zur Musikwiedergabe. Eine vollständig offline nutzbare App ist nicht implementiert.
 - Es gibt eine persistente Geräte-ID. Es gibt kein geräteübergreifendes Benutzerkonto.
 - Das sogenannte Protokoll-Versions-Gate ist eine **nicht blockierende Versionswarnung**.
-- Der Katalog enthält **30 Erfolge / 26 Galerie-Kacheln**. „Jahrzehnt-Straße“ und „Big Lobby Winner“ waren falsch beschrieben.
+- Der Katalog enthält **31 Erfolge / 27 Galerie-Kacheln**. „Jahrzehnt-Straße“ und „Big Lobby Winner“ waren falsch beschrieben.
 - Die Pipeline umfasst inzwischen ListenBrainz-Anreicherung, einen separaten Review-only-Modus und einen strengen Upload-Vertrag.
 - Eine kleinere Cover-Datei spart Bilddaten; allein dadurch sinkt die Zahl der Spotify-Metadaten-Requests nicht.
 
@@ -185,7 +185,7 @@ Hitster mit mehreren Menschen an einem gemeinsamen Gerät. Lokaler Reducer in `G
 - Spotify verbinden/trennen, Verbindungsstatus und Fehlertexte.
 - App-Version sowie auf iOS vorhandene native Crash-Diagnose.
 - Statistik-/Erfolge-Ansicht, Meilenstein als Profil-Titel.
-- Erfolge-Galerie in zwei Abschnitten: „Errungen“ (nach Erreichungsdatum, neueste zuerst) und „Offen“ (Katalogreihenfolge). Jede Kachel ist antippbar und öffnet eine Detailansicht mit Name, Icon, Modus-Zuordnung und vollständigem Kriterium — auch bei noch nicht erreichten Erfolgen. Die beiden zusammengefassten Gruppen zeigen dort alle drei Stufen einzeln mit eigenem Status. Wo ein dauerhaft gespeicherter Zähler existiert, kommt ein Fortschrittsbalken dazu (12 der 25 Erfolge); die übrigen sind entweder binär oder hängen an der gekappten `matchHistory` — siehe offene Punkte.
+- Erfolge-Galerie in zwei Abschnitten: „Errungen“ (nach Erreichungsdatum, neueste zuerst) und „Offen“ (Katalogreihenfolge). Jede Kachel ist antippbar und öffnet eine Detailansicht mit Name, Icon, Modus-Zuordnung und vollständigem Kriterium — auch bei noch nicht erreichten Erfolgen. Die beiden zusammengefassten Gruppen zeigen dort alle drei Stufen einzeln mit eigenem Status. Wo ein dauerhaft gespeicherter Zähler existiert, kommt ein Fortschrittsbalken dazu (13 der 31 Erfolge); die übrigen sind entweder binär oder hängen an der gekappten `matchHistory` — siehe offene Punkte.
 - Funktionsfähiger Reset für Statistiken **und** Erfolge mit Bestätigung.
 
 Kein Konto und kein geräteübergreifender Sync. Party verwendet eine in SecureStore persistierte zufällige `player_id` pro Installation; die Lobby-Mitgliedschaft ist eine eigene Zeile. Profil und Party greifen auf dieselbe Geräteidentität zurück.
@@ -194,7 +194,7 @@ Kein Konto und kein geräteübergreifender Sync. Party verwendet eine in SecureS
 
 ### Vollständiger Erfolgskatalog
 
-Quelle: `src/services/achievementDefinitions.ts`. **30 Definitionen**, durch Zusammenfassung der drei Nickel-Stufen und drei Partien-Meilensteine **26 Galerie-Kacheln**.
+Quelle: `src/services/achievementDefinitions.ts`. **31 Definitionen**, durch Zusammenfassung der drei Nickel-Stufen und drei Partien-Meilensteine **27 Galerie-Kacheln**.
 
 | Nr. | Erfolg | Implementierte Bedingung |
 | --- | --- | --- |
@@ -226,12 +226,15 @@ Quelle: `src/services/achievementDefinitions.ts`. **30 Definitionen**, durch Zus
 | 26 | Partyleiter | Mindestens 100 Partien |
 | 27 | Alle 4 Modi | Party-Hitster, Pass & Play, Bingo, Timeline-Quiz jeweils gespielt |
 | 28 | Big Lobby Winner | Sieg mit **mindestens 6** Teilnehmern |
-| 29 | Nachtschwärmer | Partie zwischen 0:00 und 4:59 **lokaler** Zeit beendet (`playedAt` ist UTC, `Date#getHours()` rechnet in die Gerätezone) |
-| 30 | Vielspieler-Abend | 5 Partien an einem lokalen Kalendertag |
+| 29 | Ehrenmann/-frau | **5 Songs von diesem Gerät gemeldet** (`stats.songsReported`). Bewusst geräteweit, nicht personenbezogen — `song_reports` kennt keine Spieler-ID, und das Profil ist ohnehin gerätegebunden. Der Beschreibungstext sagt das ausdrücklich |
+| 30 | Nachtschwärmer | Partie zwischen 0:00 und 4:59 **lokaler** Zeit beendet (`playedAt` ist UTC, `Date#getHours()` rechnet in die Gerätezone) |
+| 31 | Vielspieler-Abend | 5 Partien an einem lokalen Kalendertag |
 
 „Nickelbrandt Profi“ ist kein aktueller Definitionsname. „Warmgespielt“ ist die Zehn-Partien-Stufe. Big Lobby Winner nutzt die Teilnehmerzahl bei Match-Ende. Nickelgott ist mit aktivierter Obergrenze von maximal 10 nicht erreichbar. `chipsPeak` wird während der Partie mitgeführt, nicht aus dem Endstand geschätzt. Double/Triple Hitster beruhen auf der Reihenfolge der Runden-Ereignisse; eine dazwischenliegende Runde ohne erfolgreichen Klau setzt die Serie zurück.
 
-**Für die neuen Erfolge zusätzlich erfasst:** `HitsterMatchInput.chipsEnabled` (war das Nickel-System an?), `HitsterPlayerResult.receivedNickel` (aus den `nickel`-Ereignissen des vollen Match-Logs, die die schlanke Ereignisliste weiterhin verwirft) und `stats.poolsCleared`. Letzteres schreibt `markPoolCleared()` beim Spielstart, sobald `SetupScreen` einen erschöpften Pool zurücksetzt — das ist der Moment, den die App selbst „Pool durchgespielt" nennt. Freigeschaltet wird trotzdem erst beim nächsten `recordMatchResult()`, also am Ende genau der Partie, die gerade startet; es gibt weiterhin nur einen Ort, an dem Erfolge freigeschaltet werden. Alle drei Felder sind optional — Altbestände gelten als „nicht nachweisbar" und schalten nichts frei.
+**Besondere Erfolge (Vollbild-Einblendung):** `SPECIAL_ACHIEVEMENT_IDS` enthält jetzt zusätzlich `punktlandung-marathon`. Zu beachten: `pickSpecialAchievement()` nimmt den **ersten** Treffer in Katalogreihenfolge, und `perfect-timeline` steht davor — fallen beide in derselben Partie, zeigt die App Perfect Timeline. Das betrifft nur den ersten fehlerfreien 20-Runden-Lauf, danach ist Perfect Timeline längst freigeschaltet.
+
+**Für die neuen Erfolge zusätzlich erfasst:** `HitsterMatchInput.chipsEnabled` (war das Nickel-System an?), `HitsterPlayerResult.receivedNickel` (aus den `nickel`-Ereignissen des vollen Match-Logs, die die schlanke Ereignisliste weiterhin verwirft), `stats.poolsCleared` und `stats.songsReported`. Letzteren zählt `markSongReported()` hoch — aufgerufen in `ReportSongDialog`, der einzigen Stelle, durch die alle fünf Meldewege laufen, und erst nachdem der Insert erfolgreich war. `poolsCleared` schreibt `markPoolCleared()` beim Spielstart, sobald `SetupScreen` einen erschöpften Pool zurücksetzt — das ist der Moment, den die App selbst „Pool durchgespielt" nennt. Freigeschaltet wird trotzdem erst beim nächsten `recordMatchResult()`, also am Ende genau der Partie, die gerade startet; es gibt weiterhin nur einen Ort, an dem Erfolge freigeschaltet werden. Alle vier Felder sind optional — Altbestände gelten als „nicht nachweisbar" und schalten nichts frei.
 
 **Technische Feinheit für künftige Reviews:** Die Bedingungen von Total daneben/Perfect Hit/Insane Guess lesen alle gespeicherten Hitster-Ereignisse; Party übergibt das vollständige Match-Log. Diese drei Checks filtern aktuell nicht ausdrücklich auf den eigenen Spieler. Die Aussage „ausschließlich meine Leistung“ wäre deshalb für diese Erfolge nicht abgesichert. Hier dokumentiert, nicht stillschweigend als App-Fix mit umgesetzt.
 
@@ -559,9 +562,8 @@ Das separate Konzept liegt in [spotify-playlist-import-konzept.md](spotify-playl
 
 - **Dynamische Siegkartenzahl:** Der aktuelle Slider ist fest auf 5–20 begrenzt. Ableitung aus Poolinhalt/Spielerzahl ist bislang nur ein Wunsch.
 - **Siegfortschritt verständlich benennen:** Anzeige „score / cardsToWin richtig platziert“ mit Startkarte und tatsächlicher Siegschwelle abgleichen; Spielregel nicht versehentlich wieder um eins verschieben.
-- **Erfolg „Ehrenmann/-frau" (X Songs gemeldet) — zurückgestellt:** `song_reports` (Migration 009) hat keine Spielerzuordnung; die Tabelle speichert Song, Quelle, Grund, Modus und `lobby_id`, und `reportSong()` sendet keine Spieler-ID. Personenbezogen ist der Erfolg damit nicht baubar. Anmerkung zur Entscheidung: Das Erfolgsprofil ist ohnehin komplett gerätelokal, ein lokaler Zähler „von diesem Gerät gemeldet" wäre also genauso personenbezogen wie jeder andere Erfolg auch — das wurde bewusst nicht ungefragt eingebaut.
 - **Erfolg „Comeback-König" — zurückgestellt:** Ein Zwischenstand ließe sich im Prinzip aus dem Ereignis-Log rekonstruieren (Startkarte + korrekte `place`/`steal`-Ereignisse je Spieler), **aber**: `blindDraw()` legt eine Karte in die Zeitleiste und schreibt bewusst kein `MatchEvent` („eine gekaufte Karte ist weder richtig noch falsch platziert"). In jeder Partie mit aktiviertem Blind-Kauf wäre der rekonstruierte Kartenstand also falsch. Für einen belastbaren Erfolg bräuchte es entweder ein Ereignis für den Blindkauf oder einen mitgeführten Rankingverlauf — beides neue Tracking-Infrastruktur.
-- **Fortschrittsbalken für die übrigen Erfolge:** Ihre Rohdaten liegen nur in `matchHistory` (max. 200 Partien). Ein daraus abgeleiteter Bestwert kann sinken, sobald die Kappung greift, deshalb zeigt die Detailansicht dort bewusst keine Zahl. Sieben davon sind ohnehin binär (Perfect Hit, Insane Guess, Jahrzehnt-Straße, Perfect Bingo Easy/Hard, Sad Bingo, Perfect Timeline). Für die sechs abstufbaren (Total daneben, Kleine/Große Straße, Double/Triple Hitster, Total Verbrandt) bräuchte es je einen dauerhaften Bestwert in `LocalProfile.stats` — eigenständige Änderung an der Statistikerfassung, nicht Teil des Galerie-Auftrags.
+- **Fortschrittsbalken für die übrigen Erfolge:** Ihre Rohdaten liegen nur in `matchHistory` (max. 200 Partien). Ein daraus abgeleiteter Bestwert kann sinken, sobald die Kappung greift, deshalb zeigt die Detailansicht dort bewusst keine Zahl. Elf davon sind ohnehin binär (Perfect Hit, Insane Guess, Jahrzehnt-Straße, Perfect Bingo Easy/Hard, Sad Bingo, Perfect Timeline, Punktlandung Marathon, Diszipliniert, Nachtschwärmer, Poolversenker). Für die sieben abstufbaren (Total daneben, Kleine/Große Straße, Double/Triple Hitster, Total Verbrandt, Vielspieler-Abend) bräuchte es je einen dauerhaften Bestwert in `LocalProfile.stats` — eigenständige Änderung an der Statistikerfassung, nicht Teil des Galerie-Auftrags.
 - **Drei Hitster-Erfolge auf Spielerbezug prüfen:** Total daneben, Perfect Hit und Insane Guess lesen aktuell das vollständige Match-Log. Entscheiden, ob die Erfolge nur die eigene Party-Leistung berücksichtigen sollen.
 - **Onboarding-Texte und README nachziehen:** Alte Tabnamen/„rufen“-Formulierung sowie Spotify-Spike-Beschreibung passen nicht vollständig zur aktuellen App.
 - **Skript-Konfigurationsvorlage ergänzen:** `scripts/.env.example` fehlen unter anderem ListenBrainz, Discogs und der optionale Playlist-Callback.

@@ -78,6 +78,7 @@ function statsWith(source, value) {
     hitster: { maxStreakEver: 0, chipsPeakEver: 0, partyGamesWon: 0 },
     matchHistory: [],
     poolsCleared: [],
+    songsReported: 0,
   };
   switch (source) {
     case 'gamesPlayed':
@@ -94,6 +95,9 @@ function statsWith(source, value) {
       break;
     case 'modesPlayedCount':
       stats.modesPlayed = ALL_MODES.slice(0, Math.max(0, value));
+      break;
+    case 'songsReported':
+      stats.songsReported = value;
       break;
     default:
       throw new Error('unbekannte ProgressSource: ' + source);
@@ -157,7 +161,7 @@ test('every achievement carries a description, an icon and a known scope', () =>
 
 test('gallery collapses the two families to one tile but keeps all three tiers', () => {
   const tiles = buildGalleryTiles(new Set());
-  assert.equal(tiles.length, 26, 'Galerie soll 26 Kacheln zeigen (30 Erfolge, 2 Familien zu je 3)');
+  assert.equal(tiles.length, 27, 'Galerie soll 27 Kacheln zeigen (31 Erfolge, 2 Familien zu je 3)');
   assert.equal(
     tiles.reduce((n, t) => n + t.tiers.length, 0),
     ACHIEVEMENTS.length,
@@ -214,7 +218,7 @@ function gallery(unlockedAt) {
 test('nothing unlocked: everything sits under "Offen", nothing under "Errungen"', () => {
   const { earned, open } = gallery({});
   assert.equal(earned.length, 0);
-  assert.equal(open.length, 26);
+  assert.equal(open.length, 27);
 });
 
 test('"Errungen" is sorted by unlock date, newest first', () => {
@@ -229,7 +233,7 @@ test('"Errungen" is sorted by unlock date, newest first', () => {
     earned.map((t) => t.def.id),
     ['big-lobby-winner', 'perfect-hit', 'sad-bingo', 'erste-partie']
   );
-  assert.equal(earned.length + open.length, 26, 'keine Kachel darf verloren gehen');
+  assert.equal(earned.length + open.length, 27, 'keine Kachel darf verloren gehen');
   assert.ok(open.every((t) => unlockedAt[t.def.id] == null));
 });
 
@@ -545,8 +549,12 @@ function io_readLobbyMax() {
 // --- Regression -----------------------------------------------------------
 
 test('die neuen Erfolge lassen die bestehenden unberührt', () => {
-  // Ein Profil, das genau die fünf neuen Bedingungen erfüllt, darf keinen
-  // einzigen alten Erfolg mit auslösen (ausser den, der fachlich dazugehört).
+  // Ein Profil, das die neuen Bedingungen erfüllt, darf keinen alten Erfolg
+  // NEBENBEI mit auslösen. Genau eine Ausnahme ist fachlich zwingend:
+  // "Perfect Timeline" (fehlerfreie Partie) ist die schwächere Stufe von
+  // "Punktlandung Marathon" (fehlerfrei über >= 20 Runden) - wer das eine
+  // erfüllt, erfüllt das andere zwangsläufig mit. Die Liste unten ist
+  // deshalb 5 neue + 1 alter, und der alte ist namentlich genannt.
   const stats = emptyStats();
   stats.poolsCleared = ['pool-a'];
   stats.matchHistory = [
@@ -574,9 +582,88 @@ test('jeder neue Erfolg taucht genau einmal als eigene Kachel auf', () => {
     'diszipliniert',
     'poolversenker',
     'punktlandung-marathon',
+    'ehrenmann',
   ]) {
     const hits = tiles.filter((t) => t.tiers.some((d) => d.id === id));
     assert.equal(hits.length, 1, `${id} erscheint ${hits.length}x statt 1x`);
     assert.equal(hits[0].tiers.length, 1, `${id} darf nicht in eine Gruppe geraten`);
+  }
+});
+
+// --- Ehrenmann/-frau (geräteweiter Melde-Zähler) --------------------------
+
+test('Ehrenmann: Schwelle erreicht', () => {
+  const threshold = PROGRESS_TABLE['ehrenmann'].target;
+  const stats = emptyStats();
+  stats.songsReported = threshold;
+  assert.equal(fires('ehrenmann', stats), true);
+});
+
+test('Ehrenmann: eine Meldung unter der Schwelle reicht nicht', () => {
+  const threshold = PROGRESS_TABLE['ehrenmann'].target;
+  const stats = emptyStats();
+  stats.songsReported = threshold - 1;
+  assert.equal(fires('ehrenmann', stats), false);
+});
+
+test('Ehrenmann: mehr als die Schwelle bleibt erfüllt', () => {
+  const stats = emptyStats();
+  stats.songsReported = PROGRESS_TABLE['ehrenmann'].target + 40;
+  assert.equal(fires('ehrenmann', stats), true);
+});
+
+test('Ehrenmann: Altbestand ohne das Feld zählt als 0 und wirft nicht', () => {
+  const stats = emptyStats();
+  delete stats.songsReported;
+  assert.equal(fires('ehrenmann', stats), false);
+  assert.equal(achievementProgress('ehrenmann', stats).current, 0);
+});
+
+test('Ehrenmann: Fortschritt zeigt den echten Zählerstand', () => {
+  const stats = emptyStats();
+  stats.songsReported = 3;
+  const p = achievementProgress('ehrenmann', stats);
+  assert.equal(p.current, 3);
+  assert.equal(p.target, PROGRESS_TABLE['ehrenmann'].target);
+});
+
+test('Ehrenmann: Beschreibung nennt das Gerät, nicht die Person', () => {
+  const def = byId.get('ehrenmann');
+  assert.match(def.description, /diesem Gerät/, 'Text muss geräteweit formuliert sein');
+  assert.doesNotMatch(def.description, /\bdu\b|\bdeine\b/i, 'kein personenbezogenes "du"');
+});
+
+test('Ehrenmann hängt an keiner Partie - Spielstatistik bleibt unberührt', () => {
+  const stats = emptyStats();
+  stats.songsReported = 99;
+  const firing = ACHIEVEMENTS.filter((d) => d.condition(stats)).map((d) => d.id);
+  assert.deepEqual(firing, ['ehrenmann'], 'Melden allein darf sonst nichts freischalten');
+});
+
+// --- Vollbild-Einblendung -------------------------------------------------
+
+test('Punktlandung Marathon gehört zu den besonderen Erfolgen', () => {
+  assert.ok(
+    defs.SPECIAL_ACHIEVEMENT_IDS.has('punktlandung-marathon'),
+    'fehlt in SPECIAL_ACHIEVEMENT_IDS'
+  );
+});
+
+test('allein freigeschaltet bekommt Punktlandung Marathon das Vollbild', () => {
+  const marathon = byId.get('punktlandung-marathon');
+  assert.equal(defs.pickSpecialAchievement([marathon], 12).id, 'punktlandung-marathon');
+});
+
+test('zusammen mit Perfect Timeline gewinnt die Katalogreihenfolge', () => {
+  // Dokumentiert das tatsächliche Verhalten: pickSpecialAchievement nimmt den
+  // ERSTEN Treffer in Katalogreihenfolge, und Perfect Timeline steht davor.
+  // Betrifft nur den seltenen Fall, dass beide in DERSELBEN Partie fallen.
+  const both = ['perfect-timeline', 'punktlandung-marathon'].map((id) => byId.get(id));
+  assert.equal(defs.pickSpecialAchievement(both, 12).id, 'perfect-timeline');
+});
+
+test('jeder besondere Erfolg existiert auch wirklich im Katalog', () => {
+  for (const id of defs.SPECIAL_ACHIEVEMENT_IDS) {
+    assert.ok(byId.has(id), `SPECIAL_ACHIEVEMENT_IDS nennt unbekannte id "${id}"`);
   }
 });

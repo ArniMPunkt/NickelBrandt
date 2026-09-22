@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
 import type { SongReportReason } from '../services/supabase';
+import * as Achievements from '../services/achievements';
 import { PressableButton } from './PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -79,6 +80,11 @@ export function ReportSongDialog({
     setError(null);
     try {
       await onSubmit(reason);
+      // Counted HERE rather than in each of the five screens that open this
+      // dialog: this is the one place every report path passes through, and
+      // only after onSubmit resolved - a failed insert must not count. Fire
+      // and forget; the report itself already succeeded.
+      Achievements.markSongReported().catch(() => {});
       setDone(true);
       closeTimer.current = setTimeout(onClose, SUCCESS_CLOSE_MS);
     } catch {

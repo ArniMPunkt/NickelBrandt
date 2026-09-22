@@ -220,6 +220,18 @@ export interface LocalProfile {
      * to [] rather than migrating (additive fields never need a version bump).
      */
     poolsCleared?: string[];
+    /**
+     * How many song reports were sent FROM THIS DEVICE ("Ehrenmann/-frau").
+     *
+     * Deliberately device-wide, not per person: song_reports (migration 009)
+     * carries no player id, and this whole profile is device-bound anyway -
+     * every other achievement here counts "this install", so a separate
+     * identity for this one would be the odd case, not the consistent one.
+     * The wording in the catalog says so plainly.
+     *
+     * Absent on older profiles; readers default it to 0 rather than migrating.
+     */
+    songsReported?: number;
   };
   /** Every achievement ever unlocked, in unlock order, with an ISO timestamp. */
   unlocked: Array<{ id: string; unlockedAt: string }>;
@@ -237,6 +249,7 @@ function emptyProfile(deviceId: string): LocalProfile {
       hitster: { maxStreakEver: 0, chipsPeakEver: 0, partyGamesWon: 0 },
       matchHistory: [],
       poolsCleared: [],
+      songsReported: 0,
     },
     unlocked: [],
   };
@@ -280,6 +293,25 @@ export async function resetProfile(): Promise<void> {
 export interface RecordMatchOutcome {
   profile: LocalProfile;
   newlyUnlocked: AchievementDefinition[];
+}
+
+/**
+ * Counts one successfully submitted song report ("Ehrenmann/-frau").
+ *
+ * Same shape as markPoolCleared: writes the stat only, never evaluates
+ * unlocks - recordMatchResult stays the single place anything is unlocked, so
+ * the badge shows up at the end of the next finished match instead of
+ * appearing out of nowhere mid-game. Best-effort; a failure here must never
+ * make a successful report look failed.
+ */
+export async function markSongReported(): Promise<void> {
+  try {
+    const profile = await loadProfile();
+    profile.stats.songsReported = (profile.stats.songsReported ?? 0) + 1;
+    await saveProfile(profile);
+  } catch {
+    // best-effort
+  }
 }
 
 /**

@@ -210,6 +210,13 @@ const MANY_MATCHES_PER_DAY = 5;
  * an achievement nobody can reach would be worse than none.
  */
 const QUIZ_MARATHON_ROUNDS = 20;
+/**
+ * "Ehrenmann/-frau": reports sent from this device. No slider or rule in the
+ * app gives a natural reference here, so this is a judgement call: high enough
+ * that it marks a habit rather than a single annoyed tap, low enough to stay
+ * reachable for someone who actually curates the pools.
+ */
+const SONG_REPORTS_NEEDED = 5;
 
 // ---------------------------------------------------------------------------
 // Catalog
@@ -501,6 +508,16 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     condition: (stats) => stats.maxParticipantsWon >= 6,
   },
   {
+    id: 'ehrenmann',
+    name: 'Ehrenmann/-frau',
+    description: `Von diesem Gerät wurden ${SONG_REPORTS_NEEDED} fehlerhafte Songs gemeldet.`,
+    icon: '🚩',
+    scope: 'general',
+    // Device-wide by design, not per person - song_reports has no player id
+    // and the whole profile is device-bound (see stats.songsReported).
+    condition: (stats) => (stats.songsReported ?? 0) >= SONG_REPORTS_NEEDED,
+  },
+  {
     id: 'nachtschwaermer',
     name: 'Nachtschwärmer',
     description: 'Eine Partie zwischen 0 und 5 Uhr morgens beendet.',
@@ -534,6 +551,12 @@ export const SPECIAL_ACHIEVEMENT_IDS: ReadonlySet<string> = new Set([
   'nickelgott',
   'perfect-bingo-hard',
   'perfect-timeline',
+  // Note the pick order: pickSpecialAchievement takes the FIRST match in
+  // catalog order, and 'perfect-timeline' sits above this one. A match that
+  // unlocks both at once therefore shows Perfect Timeline - only relevant the
+  // very first time, since Perfect Timeline is almost always already earned
+  // by the time a 20-round flawless run happens.
+  'punktlandung-marathon',
 ]);
 
 /** All definitions whose condition is met now but weren't in `unlocked` yet, in catalog order. */
@@ -591,7 +614,8 @@ export type ProgressSource =
   | 'maxStreakEver'
   | 'chipsPeakEver'
   | 'maxParticipantsWon'
-  | 'modesPlayedCount';
+  | 'modesPlayedCount'
+  | 'songsReported';
 
 function readProgressSource(source: ProgressSource, stats: LocalProfile['stats']): number {
   switch (source) {
@@ -605,6 +629,8 @@ function readProgressSource(source: ProgressSource, stats: LocalProfile['stats']
       return stats.maxParticipantsWon;
     case 'modesPlayedCount':
       return stats.modesPlayed.length;
+    case 'songsReported':
+      return stats.songsReported ?? 0;
   }
 }
 
@@ -643,6 +669,11 @@ const PROGRESS: Record<string, { label: string; target: number; source: Progress
     source: 'maxParticipantsWon',
   },
   'alle-4-modi': { label: 'Modi gespielt', target: 4, source: 'modesPlayedCount' },
+  ehrenmann: {
+    label: 'Gemeldete Songs',
+    target: SONG_REPORTS_NEEDED,
+    source: 'songsReported',
+  },
 };
 
 /** Progress for one achievement, or null when it has no sensible number. */
