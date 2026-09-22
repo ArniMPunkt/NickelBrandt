@@ -373,6 +373,10 @@ export default function OnlineGameScreen() {
     Achievements.recordMatchResult({
       mode: 'hitster_party',
       participantCount: players.length,
+      // Same semantics the game itself uses for the rule (undefined = on, the
+      // default before it became configurable) - "Diszipliniert" only counts
+      // a win when the Nickel economy was actually in play.
+      chipsEnabled: gs.chipsEnabled !== false,
       events: Achievements.toHitsterStatsEvents(gs.statsHistory ?? []),
       players: [
         {
@@ -381,6 +385,9 @@ export default function OnlineGameScreen() {
           finalTimelineYears: (me?.timeline ?? []).map((c) => c.year),
           maxStreak: me?.max_brandt_streak ?? 0,
           chipsPeak: gs.chipsPeak?.[myId] ?? me?.chips ?? 0,
+          // 'nickel' entries are dropped from the slimmed event list, so the
+          // full log is read here while it is still at hand.
+          receivedNickel: Achievements.nickelReceivers(gs.statsHistory ?? []).has(myId),
         },
       ],
     })

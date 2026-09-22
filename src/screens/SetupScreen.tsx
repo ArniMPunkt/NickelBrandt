@@ -24,6 +24,7 @@ import { useSettings } from '../context/SettingsContext';
 import * as Spotify from '../services/spotify';
 import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 import * as PoolProgress from '../services/poolProgress';
+import * as Achievements from '../services/achievements';
 import { shuffle } from '../game/cards';
 import { PlaylistPicker } from './PlaylistPickerScreen';
 import { GameRulesSection } from '../components/GameRulesSection';
@@ -142,6 +143,11 @@ export default function SetupScreen() {
         } else if (played.size > 0) {
           await PoolProgress.resetPlayed(source.pool.id);
           poolWasReset = true;
+          // THIS is the app's "Pool durchgespielt" moment (the notice below
+          // says so) - note it for "Poolversenker" before the progress is
+          // wiped. Only the stat is written; the unlock falls out of the next
+          // recordMatchResult, i.e. at the end of the game starting right now.
+          Achievements.markPoolCleared(source.pool.id).catch(() => {});
         }
       }
 

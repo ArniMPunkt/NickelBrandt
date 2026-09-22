@@ -367,9 +367,11 @@ export default function GameScreen() {
   useEffect(() => {
     if (!state.winner || recordedRef.current) return;
     recordedRef.current = true;
+    const nickelled = Achievements.nickelReceivers(state.history);
     Achievements.recordMatchResult({
       mode: 'hitster_pnp',
       participantCount: state.players.length,
+      chipsEnabled: state.settings.chipsEnabled,
       events: Achievements.toHitsterStatsEvents(state.history),
       players: state.players.map((p) => ({
         playerId: p.id,
@@ -377,6 +379,7 @@ export default function GameScreen() {
         finalTimelineYears: p.timeline.map((c) => c.year),
         maxStreak: p.maxBrandtStreak,
         chipsPeak: p.chipsPeak,
+        receivedNickel: nickelled.has(p.id),
       })),
     })
       .then(({ profile, newlyUnlocked }) => {

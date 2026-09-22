@@ -163,7 +163,53 @@ function hasDecadeStreet(years: number[]): boolean {
   return false;
 }
 
+/**
+ * Local calendar day of a match ("YYYY-M-D"). playedAt is stored as a UTC ISO
+ * string, and Date's getFullYear/getMonth/getDate convert to the DEVICE's own
+ * time zone - which is the intent: "am selben Kalendertag" and "nachts um
+ * halb vier" mean what the player experienced, not what UTC says.
+ */
+function localDayKey(playedAtIso: string): string | null {
+  const d = new Date(playedAtIso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/** Most matches played on any single local calendar day. */
+function maxMatchesPerDay(stats: LocalProfile['stats']): number {
+  const perDay = new Map<string, number>();
+  let best = 0;
+  for (const m of stats.matchHistory) {
+    const key = localDayKey(m.playedAt);
+    if (key == null) continue;
+    const n = (perDay.get(key) ?? 0) + 1;
+    perDay.set(key, n);
+    if (n > best) best = n;
+  }
+  return best;
+}
+
+/** Local hour (0-23) a match ended in, or null for an unparseable stamp. */
+function localHourOf(playedAtIso: string): number | null {
+  const d = new Date(playedAtIso);
+  return Number.isNaN(d.getTime()) ? null : d.getHours();
+}
+
 const ALL_MODES: GameModeKey[] = ['hitster_party', 'hitster_pnp', 'bingo', 'timeline_quiz'];
+
+/** "Nachtschwärmer" counts matches finished from this hour (inclusive)... */
+const NIGHT_OWL_FROM_HOUR = 0;
+/** ...up to this hour (exclusive) in LOCAL time. */
+const NIGHT_OWL_TO_HOUR = 5;
+/** "Vielspieler-Abend": matches on one local calendar day. */
+const MANY_MATCHES_PER_DAY = 5;
+/**
+ * "Punktlandung Marathon": flawless rounds needed on top of Perfect Timeline.
+ * The Kartenzahl slider runs 5-30 with a default of 15, so 20 sits clearly
+ * above a default game yet well inside what the lobby can actually be set to -
+ * an achievement nobody can reach would be worse than none.
+ */
+const QUIZ_MARATHON_ROUNDS = 20;
 
 // ---------------------------------------------------------------------------
 // Catalog
@@ -323,6 +369,41 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     scope: 'hitster',
     condition: (stats) => stats.hitster.chipsPeakEver >= 12,
   },
+  {
+    id: 'diszipliniert',
+    name: 'Diszipliniert',
+    description:
+      'Eine Party-Hitster-Partie mit eingeschalteten Nickeln gewonnen, ohne selbst einen Nickel bekommen und ohne erfolgreich geklaut zu haben.',
+    icon: '🧘',
+    scope: 'hitster',
+    // Party only: Pass & Play records several people into one profile, so
+    // "ich habe ohne Nickel gewonnen" has no single owner there.
+    // receivedNickel/chipsEnabled are optional on older records - unknown must
+    // NOT count as proof, hence the explicit === comparisons.
+    condition: (stats) =>
+      hitsterMatches(stats).some(
+        (m) =>
+          m.mode === 'hitster_party' &&
+          m.chipsEnabled === true &&
+          m.players.some(
+            (p) =>
+              p.won &&
+              p.receivedNickel === false &&
+              !m.events.some(
+                (e) => e.type === 'steal' && e.playerId === p.playerId && e.correct
+              )
+          )
+      ),
+  },
+  {
+    id: 'poolversenker',
+    name: 'Poolversenker',
+    description:
+      'Einen Songpool bei Reihum auf einem Gerät einmal komplett durchgespielt.',
+    icon: '🏊',
+    scope: 'hitster',
+    condition: (stats) => (stats.poolsCleared ?? []).length >= 1,
+  },
 
   // --- Bingo ---
   {
@@ -366,6 +447,17 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     condition: (stats) =>
       quizMatches(stats).some((m) => m.correctCount + m.wrongCount > 0 && m.wrongCount === 0),
   },
+  {
+    id: 'punktlandung-marathon',
+    name: 'Punktlandung Marathon',
+    description: `Eine Partie über mindestens ${QUIZ_MARATHON_ROUNDS} Runden ohne einen einzigen Fehler gespielt.`,
+    icon: '🏁',
+    scope: 'timeline_quiz',
+    condition: (stats) =>
+      quizMatches(stats).some(
+        (m) => m.wrongCount === 0 && m.correctCount >= QUIZ_MARATHON_ROUNDS
+      ),
+  },
 
   // --- Allgemein/Meta (Erste Partie steht ganz vorn, siehe oben) ---
   {
@@ -407,6 +499,26 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     icon: '🎊',
     scope: 'general',
     condition: (stats) => stats.maxParticipantsWon >= 6,
+  },
+  {
+    id: 'nachtschwaermer',
+    name: 'Nachtschwärmer',
+    description: 'Eine Partie zwischen 0 und 5 Uhr morgens beendet.',
+    icon: '🦉',
+    scope: 'general',
+    condition: (stats) =>
+      stats.matchHistory.some((m) => {
+        const h = localHourOf(m.playedAt);
+        return h != null && h >= NIGHT_OWL_FROM_HOUR && h < NIGHT_OWL_TO_HOUR;
+      }),
+  },
+  {
+    id: 'vielspieler-abend',
+    name: 'Vielspieler-Abend',
+    description: `${MANY_MATCHES_PER_DAY} Partien an einem einzigen Tag gespielt.`,
+    icon: '🎪',
+    scope: 'general',
+    condition: (stats) => maxMatchesPerDay(stats) >= MANY_MATCHES_PER_DAY,
   },
 ];
 

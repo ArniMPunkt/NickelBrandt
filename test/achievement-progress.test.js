@@ -77,6 +77,7 @@ function statsWith(source, value) {
     maxParticipantsWon: 0,
     hitster: { maxStreakEver: 0, chipsPeakEver: 0, partyGamesWon: 0 },
     matchHistory: [],
+    poolsCleared: [],
   };
   switch (source) {
     case 'gamesPlayed':
@@ -156,7 +157,7 @@ test('every achievement carries a description, an icon and a known scope', () =>
 
 test('gallery collapses the two families to one tile but keeps all three tiers', () => {
   const tiles = buildGalleryTiles(new Set());
-  assert.equal(tiles.length, 21, 'Galerie soll 21 Kacheln zeigen (25 Erfolge, 2 Familien zu je 3)');
+  assert.equal(tiles.length, 26, 'Galerie soll 26 Kacheln zeigen (30 Erfolge, 2 Familien zu je 3)');
   assert.equal(
     tiles.reduce((n, t) => n + t.tiers.length, 0),
     ACHIEVEMENTS.length,
@@ -213,7 +214,7 @@ function gallery(unlockedAt) {
 test('nothing unlocked: everything sits under "Offen", nothing under "Errungen"', () => {
   const { earned, open } = gallery({});
   assert.equal(earned.length, 0);
-  assert.equal(open.length, 21);
+  assert.equal(open.length, 26);
 });
 
 test('"Errungen" is sorted by unlock date, newest first', () => {
@@ -228,7 +229,7 @@ test('"Errungen" is sorted by unlock date, newest first', () => {
     earned.map((t) => t.def.id),
     ['big-lobby-winner', 'perfect-hit', 'sad-bingo', 'erste-partie']
   );
-  assert.equal(earned.length + open.length, 21, 'keine Kachel darf verloren gehen');
+  assert.equal(earned.length + open.length, 26, 'keine Kachel darf verloren gehen');
   assert.ok(open.every((t) => unlockedAt[t.def.id] == null));
 });
 
@@ -280,4 +281,302 @@ test('the Meilenstein family stays under "Offen" until its first tier lands', ()
   assert.ok(milestone, 'Meilenstein-Gruppe muss offen sein');
   assert.equal(milestone.def.id, 'warmgespielt', 'Kachel zeigt die unterste Stufe');
   assert.ok(!earned.some((t) => t.tiers.some((d) => d.id === 'partyleiter')));
+});
+
+// --- Neue Erfolge ---------------------------------------------------------
+// Alle Bedingungen laufen hier gegen den echten Katalog (siehe oben). Die
+// Zeitstempel werden aus LOKALEN Date-Komponenten gebaut und per toISOString()
+// nach UTC gedreht - genau der Weg, den recordMatchResult geht -, damit die
+// Tests unabhängig von der Zeitzone der Maschine sind.
+
+const emptyStats = () => statsWith('gamesPlayed', 0);
+
+/** ISO-Stempel für einen lokalen Zeitpunkt. */
+function localIso(y, m, d, hour, minute = 0) {
+  return new Date(y, m - 1, d, hour, minute).toISOString();
+}
+
+function quizRecord({ playedAt, correctCount, wrongCount, won = true }) {
+  return {
+    mode: 'timeline_quiz',
+    playedAt,
+    won,
+    participantCount: 3,
+    correctCount,
+    wrongCount,
+  };
+}
+
+function partyRecord({
+  playedAt = localIso(2026, 5, 5, 20),
+  chipsEnabled = true,
+  won = true,
+  receivedNickel = false,
+  events = [],
+  playerId = 'me',
+} = {}) {
+  return {
+    mode: 'hitster_party',
+    playedAt,
+    participantCount: 4,
+    chipsEnabled,
+    events,
+    players: [
+      { playerId, won, finalTimelineYears: [1990], maxStreak: 1, chipsPeak: 2, receivedNickel },
+    ],
+  };
+}
+
+const fires = (id, stats) => byId.get(id).condition(stats);
+
+test('a brand-new profile unlocks nothing at all', () => {
+  const stats = emptyStats();
+  for (const def of ACHIEVEMENTS) {
+    assert.equal(def.condition(stats), false, `${def.id} feuert auf einem leeren Profil`);
+  }
+});
+
+// --- Nachtschwärmer -------------------------------------------------------
+
+test('Nachtschwärmer: Partie zwischen 0 und 5 Uhr lokaler Zeit', () => {
+  for (const hour of [0, 1, 3, 4]) {
+    const stats = emptyStats();
+    stats.matchHistory = [quizRecord({ playedAt: localIso(2026, 3, 7, hour, 30), correctCount: 1, wrongCount: 1 })];
+    assert.equal(fires('nachtschwaermer', stats), true, `${hour} Uhr müsste zählen`);
+  }
+});
+
+test('Nachtschwärmer: 5 Uhr und später zählt nicht mehr', () => {
+  for (const hour of [5, 6, 12, 19, 23]) {
+    const stats = emptyStats();
+    stats.matchHistory = [quizRecord({ playedAt: localIso(2026, 3, 7, hour, 0), correctCount: 1, wrongCount: 1 })];
+    assert.equal(fires('nachtschwaermer', stats), false, `${hour} Uhr darf nicht zählen`);
+  }
+});
+
+test('Nachtschwärmer: kaputter Zeitstempel wird ignoriert statt zu werfen', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [quizRecord({ playedAt: 'keine-zeit', correctCount: 1, wrongCount: 1 })];
+  assert.equal(fires('nachtschwaermer', stats), false);
+  assert.equal(fires('vielspieler-abend', stats), false);
+});
+
+// --- Vielspieler-Abend ----------------------------------------------------
+
+test('Vielspieler-Abend: 5 Partien am selben lokalen Tag', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [10, 12, 14, 16, 18].map((h) =>
+    quizRecord({ playedAt: localIso(2026, 6, 13, h), correctCount: 1, wrongCount: 1 })
+  );
+  assert.equal(fires('vielspieler-abend', stats), true);
+});
+
+test('Vielspieler-Abend: 4 an einem Tag reichen nicht', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [10, 12, 14, 16].map((h) =>
+    quizRecord({ playedAt: localIso(2026, 6, 13, h), correctCount: 1, wrongCount: 1 })
+  );
+  assert.equal(fires('vielspieler-abend', stats), false);
+});
+
+test('Vielspieler-Abend: über mehrere Tage verteilt zählt nicht', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [11, 12, 13, 14, 15].map((day) =>
+    quizRecord({ playedAt: localIso(2026, 6, day, 20), correctCount: 1, wrongCount: 1 })
+  );
+  assert.equal(fires('vielspieler-abend', stats), false);
+});
+
+test('Vielspieler-Abend: über Mitternacht hinweg sind es zwei Tage', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    ...[20, 21, 22].map((h) => quizRecord({ playedAt: localIso(2026, 6, 13, h), correctCount: 1, wrongCount: 1 })),
+    ...[0, 1].map((h) => quizRecord({ playedAt: localIso(2026, 6, 14, h), correctCount: 1, wrongCount: 1 })),
+  ];
+  assert.equal(fires('vielspieler-abend', stats), false, '3 + 2 an zwei Tagen sind keine 5 an einem');
+});
+
+// --- Diszipliniert --------------------------------------------------------
+
+test('Diszipliniert: Party-Sieg mit Nickeln an, ohne Nickel und ohne Klau', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [partyRecord()];
+  assert.equal(fires('diszipliniert', stats), true);
+});
+
+test('Diszipliniert: nicht, wenn das Nickel-System ausgeschaltet war', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [partyRecord({ chipsEnabled: false })];
+  assert.equal(fires('diszipliniert', stats), false);
+});
+
+test('Diszipliniert: nicht, wenn die Partie nicht gewonnen wurde', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [partyRecord({ won: false })];
+  assert.equal(fires('diszipliniert', stats), false);
+});
+
+test('Diszipliniert: nicht, wenn selbst ein Nickel kassiert wurde', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [partyRecord({ receivedNickel: true })];
+  assert.equal(fires('diszipliniert', stats), false);
+});
+
+test('Diszipliniert: nicht bei einem eigenen erfolgreichen Klau', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    partyRecord({
+      events: [
+        { type: 'steal', playerId: 'me', correct: true, year: 1990, leftYear: null, rightYear: null },
+      ],
+    }),
+  ];
+  assert.equal(fires('diszipliniert', stats), false);
+});
+
+test('Diszipliniert: ein GESCHEITERTER eigener Klau ist erlaubt', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    partyRecord({
+      events: [
+        { type: 'steal', playerId: 'me', correct: false, year: 1990, leftYear: null, rightYear: null },
+      ],
+    }),
+  ];
+  assert.equal(fires('diszipliniert', stats), true);
+});
+
+test('Diszipliniert: der Klau eines ANDEREN Spielers stört nicht', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    partyRecord({
+      events: [
+        { type: 'steal', playerId: 'jemand-anders', correct: true, year: 1990, leftYear: null, rightYear: null },
+      ],
+    }),
+  ];
+  assert.equal(fires('diszipliniert', stats), true);
+});
+
+test('Diszipliniert: Pass & Play zählt nicht (kein eindeutiges "ich")', () => {
+  const stats = emptyStats();
+  const rec = partyRecord();
+  rec.mode = 'hitster_pnp';
+  stats.matchHistory = [rec];
+  assert.equal(fires('diszipliniert', stats), false);
+});
+
+test('Diszipliniert: Altbestand ohne die neuen Felder zählt nicht als Beweis', () => {
+  const stats = emptyStats();
+  const rec = partyRecord();
+  delete rec.chipsEnabled;
+  delete rec.players[0].receivedNickel;
+  stats.matchHistory = [rec];
+  assert.equal(fires('diszipliniert', stats), false);
+});
+
+// --- Poolversenker --------------------------------------------------------
+
+test('Poolversenker: ein durchgespielter Pool genügt', () => {
+  const stats = emptyStats();
+  stats.poolsCleared = ['pool-a'];
+  assert.equal(fires('poolversenker', stats), true);
+});
+
+test('Poolversenker: Profil ohne das Feld (Altbestand) wirft nicht', () => {
+  const stats = emptyStats();
+  delete stats.poolsCleared;
+  assert.equal(fires('poolversenker', stats), false);
+});
+
+// --- Punktlandung Marathon ------------------------------------------------
+
+test('Punktlandung Marathon: fehlerfrei über die Schwelle', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    quizRecord({ playedAt: localIso(2026, 7, 1, 20), correctCount: 20, wrongCount: 0 }),
+  ];
+  assert.equal(fires('punktlandung-marathon', stats), true);
+  assert.equal(fires('perfect-timeline', stats), true, 'die leichtere Stufe muss mitgehen');
+});
+
+test('Punktlandung Marathon: eine Runde zu wenig reicht nicht', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    quizRecord({ playedAt: localIso(2026, 7, 1, 20), correctCount: 19, wrongCount: 0 }),
+  ];
+  assert.equal(fires('punktlandung-marathon', stats), false);
+  assert.equal(fires('perfect-timeline', stats), true, 'Perfect Timeline bleibt davon unberührt');
+});
+
+test('Punktlandung Marathon: ein einziger Fehler kippt es', () => {
+  const stats = emptyStats();
+  stats.matchHistory = [
+    quizRecord({ playedAt: localIso(2026, 7, 1, 20), correctCount: 25, wrongCount: 1 }),
+  ];
+  assert.equal(fires('punktlandung-marathon', stats), false);
+});
+
+test('Punktlandung Marathon bleibt innerhalb der Lobby-Grenzen erreichbar', () => {
+  // Der Kartenzahl-Slider der Lobby geht bis 30 - eine Schwelle darüber wäre
+  // in keiner einstellbaren Partie zu schaffen.
+  const lobby = io_readLobbyMax();
+  const threshold = Number(
+    require('node:fs')
+      .readFileSync(path.join(REPO_ROOT, 'src/services/achievementDefinitions.ts'), 'utf8')
+      .match(/QUIZ_MARATHON_ROUNDS = (\d+)/)[1]
+  );
+  assert.ok(threshold <= lobby, `Schwelle ${threshold} liegt über dem Maximum ${lobby} der Lobby`);
+  assert.ok(threshold > 15, `Schwelle ${threshold} liegt nicht über einer Standardpartie (15)`);
+});
+
+/** Das Maximum des Kartenzahl-Sliders, direkt aus dem Lobby-Screen gelesen. */
+function io_readLobbyMax() {
+  const src = require('node:fs').readFileSync(
+    path.join(REPO_ROOT, 'src/screens/LobbyScreen.tsx'),
+    'utf8'
+  );
+  // <StepSlider value={quizCards} min={5} max={30} .../>
+  const m = src.match(/value=\{quizCards\}[\s\S]*?max=\{(\d+)\}/);
+  assert.ok(m, 'Kartenzahl-Slider im LobbyScreen nicht gefunden');
+  return Number(m[1]);
+}
+
+// --- Regression -----------------------------------------------------------
+
+test('die neuen Erfolge lassen die bestehenden unberührt', () => {
+  // Ein Profil, das genau die fünf neuen Bedingungen erfüllt, darf keinen
+  // einzigen alten Erfolg mit auslösen (ausser den, der fachlich dazugehört).
+  const stats = emptyStats();
+  stats.poolsCleared = ['pool-a'];
+  stats.matchHistory = [
+    partyRecord({ playedAt: localIso(2026, 8, 2, 2) }),
+    ...[10, 12, 14, 16].map((h) =>
+      quizRecord({ playedAt: localIso(2026, 8, 2, h), correctCount: 20, wrongCount: 0 })
+    ),
+  ];
+  const firing = ACHIEVEMENTS.filter((d) => d.condition(stats)).map((d) => d.id).sort();
+  assert.deepEqual(firing, [
+    'diszipliniert',
+    'nachtschwaermer',
+    'perfect-timeline',
+    'poolversenker',
+    'punktlandung-marathon',
+    'vielspieler-abend',
+  ]);
+});
+
+test('jeder neue Erfolg taucht genau einmal als eigene Kachel auf', () => {
+  const tiles = buildGalleryTiles(new Set());
+  for (const id of [
+    'nachtschwaermer',
+    'vielspieler-abend',
+    'diszipliniert',
+    'poolversenker',
+    'punktlandung-marathon',
+  ]) {
+    const hits = tiles.filter((t) => t.tiers.some((d) => d.id === id));
+    assert.equal(hits.length, 1, `${id} erscheint ${hits.length}x statt 1x`);
+    assert.equal(hits[0].tiers.length, 1, `${id} darf nicht in eine Gruppe geraten`);
+  }
 });

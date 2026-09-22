@@ -74,6 +74,21 @@ export function toHitsterStatsEvents(history: MatchEvent[]): HitsterStatsEvent[]
   return out;
 }
 
+/**
+ * Who actually RECEIVED a Nickel in this match. The event log keeps those
+ * entries but toHitsterStatsEvents drops them (no achievement needed the
+ * round-by-round detail), so this reduces them to the one bit "Diszipliniert"
+ * cares about - deliberately a separate pass instead of widening
+ * HitsterStatsEvent, which several existing conditions iterate over.
+ */
+export function nickelReceivers(history: MatchEvent[]): Set<string> {
+  const out = new Set<string>();
+  for (const e of history) {
+    if (e.type === 'nickel') out.add(e.playerId);
+  }
+  return out;
+}
+
 export interface HitsterPlayerResult {
   playerId: string;
   won: boolean;
@@ -81,11 +96,24 @@ export interface HitsterPlayerResult {
   finalTimelineYears: number[];
   maxStreak: number;
   chipsPeak: number;
+  /**
+   * Did this player earn a Nickel during the match ("Diszipliniert" needs to
+   * know they won WITHOUT the economy)? Optional: records written before this
+   * field existed simply can't prove it either way, and the condition treats
+   * "unknown" as not qualifying rather than guessing.
+   */
+  receivedNickel?: boolean;
 }
 
 export interface HitsterMatchInput {
   mode: 'hitster_party' | 'hitster_pnp';
   participantCount: number;
+  /**
+   * Was "Nickel & Hitster-Rufe" switched on for this match? Winning without
+   * the economy only means something when the economy was actually available
+   * ("Diszipliniert"). Optional for records written before it was tracked.
+   */
+  chipsEnabled?: boolean;
   /** FULL match event log (every player) - Double/Triple Hitster needs the whole round sequence, not just one player's events. */
   events: HitsterStatsEvent[];
   /**
@@ -127,6 +155,8 @@ export type MatchRecord =
       mode: 'hitster_party' | 'hitster_pnp';
       playedAt: string;
       participantCount: number;
+      /** See HitsterMatchInput.chipsEnabled. */
+      chipsEnabled?: boolean;
       events: HitsterStatsEvent[];
       players: HitsterPlayerResult[];
     }
@@ -179,6 +209,17 @@ export interface LocalProfile {
      * Perfect Bingo/Timeline), not just a running maximum.
      */
     matchHistory: MatchRecord[];
+    /**
+     * Song pools this device has played all the way through in Pass & Play
+     * (pool ids). Written by markPoolCleared() at the moment SetupScreen finds
+     * too few unplayed songs left and resets the pool - that reset IS the
+     * app's own "Pool durchgespielt" event (it shows the matching notice), and
+     * it happens at game START, far away from a match record.
+     *
+     * Absent on profiles written before this existed; every reader defaults it
+     * to [] rather than migrating (additive fields never need a version bump).
+     */
+    poolsCleared?: string[];
   };
   /** Every achievement ever unlocked, in unlock order, with an ISO timestamp. */
   unlocked: Array<{ id: string; unlockedAt: string }>;
@@ -195,6 +236,7 @@ function emptyProfile(deviceId: string): LocalProfile {
       maxParticipantsWon: 0,
       hitster: { maxStreakEver: 0, chipsPeakEver: 0, partyGamesWon: 0 },
       matchHistory: [],
+      poolsCleared: [],
     },
     unlocked: [],
   };
@@ -241,6 +283,28 @@ export interface RecordMatchOutcome {
 }
 
 /**
+ * Notes that a song pool was played through in Pass & Play ("Poolversenker").
+ *
+ * Only writes the stat - it deliberately does NOT evaluate unlocks. This fires
+ * at game START (SetupScreen, when it resets an exhausted pool), and keeping
+ * recordMatchResult as the single place that unlocks anything means the badge
+ * still appears where the player expects it: in the result screen of the match
+ * they are about to play. Idempotent, and best-effort like every other pool
+ * progress write - a failure here must never block starting a game.
+ */
+export async function markPoolCleared(poolId: string): Promise<void> {
+  try {
+    const profile = await loadProfile();
+    const cleared = profile.stats.poolsCleared ?? [];
+    if (cleared.includes(poolId)) return;
+    profile.stats.poolsCleared = [...cleared, poolId];
+    await saveProfile(profile);
+  } catch {
+    // best-effort
+  }
+}
+
+/**
  * Records one finished match's raw performance into the local profile, then
  * re-evaluates the full achievement catalog against the updated stats in the
  * SAME pass. Called once per match end, from each of the four game screens
@@ -276,6 +340,7 @@ export async function recordMatchResult(input: MatchInput): Promise<RecordMatchO
         mode: input.mode,
         playedAt,
         participantCount: input.participantCount,
+        chipsEnabled: input.chipsEnabled,
         events: input.events,
         players: input.players,
       };
