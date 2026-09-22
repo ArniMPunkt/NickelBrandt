@@ -185,6 +185,7 @@ Hitster mit mehreren Menschen an einem gemeinsamen Gerät. Lokaler Reducer in `G
 - Spotify verbinden/trennen, Verbindungsstatus und Fehlertexte.
 - App-Version sowie auf iOS vorhandene native Crash-Diagnose.
 - Statistik-/Erfolge-Ansicht, Meilenstein als Profil-Titel.
+- Erfolge-Galerie in zwei Abschnitten: „Errungen“ (nach Erreichungsdatum, neueste zuerst) und „Offen“ (Katalogreihenfolge). Jede Kachel ist antippbar und öffnet eine Detailansicht mit Name, Icon, Modus-Zuordnung und vollständigem Kriterium — auch bei noch nicht erreichten Erfolgen. Die beiden zusammengefassten Gruppen zeigen dort alle drei Stufen einzeln mit eigenem Status. Wo ein dauerhaft gespeicherter Zähler existiert, kommt ein Fortschrittsbalken dazu (12 der 25 Erfolge); die übrigen sind entweder binär oder hängen an der gekappten `matchHistory` — siehe offene Punkte.
 - Funktionsfähiger Reset für Statistiken **und** Erfolge mit Bestätigung.
 
 Kein Konto und kein geräteübergreifender Sync. Party verwendet eine in SecureStore persistierte zufällige `player_id` pro Installation; die Lobby-Mitgliedschaft ist eine eigene Zeile. Profil und Party greifen auf dieselbe Geräteidentität zurück.
@@ -551,6 +552,7 @@ Das separate Konzept liegt in [spotify-playlist-import-konzept.md](spotify-playl
 
 - **Dynamische Siegkartenzahl:** Der aktuelle Slider ist fest auf 5–20 begrenzt. Ableitung aus Poolinhalt/Spielerzahl ist bislang nur ein Wunsch.
 - **Siegfortschritt verständlich benennen:** Anzeige „score / cardsToWin richtig platziert“ mit Startkarte und tatsächlicher Siegschwelle abgleichen; Spielregel nicht versehentlich wieder um eins verschieben.
+- **Fortschrittsbalken für die restlichen 13 Erfolge:** Ihre Rohdaten liegen nur in `matchHistory` (max. 200 Partien). Ein daraus abgeleiteter Bestwert kann sinken, sobald die Kappung greift, deshalb zeigt die Detailansicht dort bewusst keine Zahl. Sieben davon sind ohnehin binär (Perfect Hit, Insane Guess, Jahrzehnt-Straße, Perfect Bingo Easy/Hard, Sad Bingo, Perfect Timeline). Für die sechs abstufbaren (Total daneben, Kleine/Große Straße, Double/Triple Hitster, Total Verbrandt) bräuchte es je einen dauerhaften Bestwert in `LocalProfile.stats` — eigenständige Änderung an der Statistikerfassung, nicht Teil des Galerie-Auftrags.
 - **Drei Hitster-Erfolge auf Spielerbezug prüfen:** Total daneben, Perfect Hit und Insane Guess lesen aktuell das vollständige Match-Log. Entscheiden, ob die Erfolge nur die eigene Party-Leistung berücksichtigen sollen.
 - **Onboarding-Texte und README nachziehen:** Alte Tabnamen/„rufen“-Formulierung sowie Spotify-Spike-Beschreibung passen nicht vollständig zur aktuellen App.
 - **Skript-Konfigurationsvorlage ergänzen:** `scripts/.env.example` fehlen unter anderem ListenBrainz, Discogs und der optionale Playlist-Callback.

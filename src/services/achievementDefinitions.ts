@@ -12,12 +12,30 @@
  */
 import type { GameModeKey, HitsterStatsEvent, LocalProfile, MatchRecord } from './achievements';
 
+/**
+ * Which part of the game an achievement belongs to. Display metadata only -
+ * no condition reads it. It exists because several descriptions are only
+ * unambiguous WITH their mode ("Eine ganze Partie ohne einen einzigen Fehler"
+ * is Timeline-Quiz, "7 eigene Platzierungen in Folge" is Hitster), and the
+ * detail view has to answer "wofür steht dieser Erfolg" on its own.
+ */
+export type AchievementScope = 'hitster' | 'bingo' | 'timeline_quiz' | 'general';
+
+export const SCOPE_LABEL: Record<AchievementScope, string> = {
+  hitster: 'Hitster · Party & Pass & Play',
+  bingo: 'Bingo',
+  timeline_quiz: 'Timeline-Quiz',
+  general: 'Modusübergreifend',
+};
+
 export interface AchievementDefinition {
   id: string;
   name: string;
   description: string;
   /** Single emoji - badge icon now, gallery icon later. */
   icon: string;
+  /** Display grouping for the detail view; never read by `condition`. */
+  scope: AchievementScope;
   condition: (stats: LocalProfile['stats']) => boolean;
 }
 
@@ -157,6 +175,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Erste Partie',
     description: 'Die erste Partie gespielt.',
     icon: '🌱',
+    scope: 'general',
     condition: (stats) => stats.gamesPlayed >= 1,
   },
 
@@ -166,6 +185,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Total daneben',
     description: 'Eine Platzierung oder ein Klau lag ≥40 Jahre neben der Lücke.',
     icon: '🌀',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) => m.events.some((e) => (gapDistance(e) ?? -1) >= 40)),
   },
@@ -174,6 +194,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Perfect Hit',
     description: 'Exakt in eine Ein-Jahr-Lücke getroffen.',
     icon: '🎯',
+    scope: 'hitster',
     condition: (stats) => hitsterMatches(stats).some((m) => m.events.some(isPerfectHit)),
   },
   {
@@ -181,6 +202,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Insane Guess',
     description: 'Die Lücke zwischen zwei gleichen Jahren exakt getroffen.',
     icon: '🤯',
+    scope: 'hitster',
     condition: (stats) => hitsterMatches(stats).some((m) => m.events.some(isInsaneGuess)),
   },
   {
@@ -188,6 +210,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Hot Hot Streak',
     description: '7 eigene Platzierungen in Folge richtig.',
     icon: '🔥',
+    scope: 'hitster',
     condition: (stats) => stats.hitster.maxStreakEver >= 7,
   },
   {
@@ -195,6 +218,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Hot Hot Hot Streak',
     description: '8 eigene Platzierungen in Folge richtig.',
     icon: '🌶️',
+    scope: 'hitster',
     condition: (stats) => stats.hitster.maxStreakEver >= 8,
   },
   {
@@ -202,6 +226,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Perfect Game',
     description: '9 eigene Platzierungen in Folge richtig.',
     icon: '👑',
+    scope: 'hitster',
     condition: (stats) => stats.hitster.maxStreakEver >= 9,
   },
   {
@@ -209,6 +234,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Total Verbrandt',
     description: '3 eigene erfolglose Klauversuche in einer Partie.',
     icon: '🥵',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) =>
         m.players.some(
@@ -223,6 +249,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Double Hitster',
     description: '2 Runden direkt hintereinander erfolgreich gehitstert.',
     icon: '🥷',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) =>
         m.players.some((p) => longestConsecutiveSteals(m.events, p.playerId) >= 2)
@@ -233,6 +260,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Triple Hitster',
     description: '3 Runden direkt hintereinander erfolgreich gehitstert.',
     icon: '🏴‍☠️',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) =>
         m.players.some((p) => longestConsecutiveSteals(m.events, p.playerId) >= 3)
@@ -243,6 +271,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Kleine Straße',
     description: '4 lückenlos aufeinanderfolgende Jahre in der eigenen Zeitlinie.',
     icon: '🧩',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) =>
         m.players.some((p) => longestConsecutiveYearRun(p.finalTimelineYears) >= 4)
@@ -253,6 +282,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Große Straße',
     description: '5 lückenlos aufeinanderfolgende Jahre in der eigenen Zeitlinie.',
     icon: '🛤️',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) =>
         m.players.some((p) => longestConsecutiveYearRun(p.finalTimelineYears) >= 5)
@@ -263,6 +293,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Jahrzehnt-Straße',
     description: '4 Karten desselben Jahrzehnts direkt nebeneinander.',
     icon: '📅',
+    scope: 'hitster',
     condition: (stats) =>
       hitsterMatches(stats).some((m) =>
         m.players.some((p) => hasDecadeStreet(p.finalTimelineYears))
@@ -273,6 +304,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Nickelfarmer',
     description: '5 Nickel gleichzeitig gehalten.',
     icon: '🪙',
+    scope: 'hitster',
     condition: (stats) => stats.hitster.chipsPeakEver >= 5,
   },
   {
@@ -280,6 +312,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Nickelmeister',
     description: '8 Nickel gleichzeitig gehalten.',
     icon: '💰',
+    scope: 'hitster',
     condition: (stats) => stats.hitster.chipsPeakEver >= 8,
   },
   {
@@ -287,6 +320,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Nickelgott',
     description: '12 Nickel gleichzeitig gehalten.',
     icon: '💎',
+    scope: 'hitster',
     condition: (stats) => stats.hitster.chipsPeakEver >= 12,
   },
 
@@ -296,6 +330,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Perfect Bingo',
     description: 'Bingo in der minimal möglichen Rundenzahl gewonnen (Easy).',
     icon: '🟩',
+    scope: 'bingo',
     condition: (stats) =>
       bingoMatches(stats).some(
         (m) => m.won && m.difficulty === 'easy' && m.roundsPlayed === m.gridSize
@@ -306,6 +341,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Perfect Bingo (Hard Edition)',
     description: 'Bingo in der minimal möglichen Rundenzahl gewonnen (Hard).',
     icon: '🟥',
+    scope: 'bingo',
     condition: (stats) =>
       bingoMatches(stats).some(
         (m) => m.won && m.difficulty === 'hard' && m.roundsPlayed === m.gridSize
@@ -316,6 +352,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Sad Bingo',
     description: 'Richtig geraten, aber die Farbe war schon voll.',
     icon: '😅',
+    scope: 'bingo',
     condition: (stats) => bingoMatches(stats).some((m) => m.events.some((e) => e.overfull)),
   },
 
@@ -325,6 +362,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Perfect Timeline',
     description: 'Eine ganze Partie ohne einen einzigen Fehler gespielt.',
     icon: '🧵',
+    scope: 'timeline_quiz',
     condition: (stats) =>
       quizMatches(stats).some((m) => m.correctCount + m.wrongCount > 0 && m.wrongCount === 0),
   },
@@ -335,6 +373,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Warmgespielt',
     description: '10 Partien gespielt.',
     icon: '☕',
+    scope: 'general',
     condition: (stats) => stats.gamesPlayed >= 10,
   },
   {
@@ -342,6 +381,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Dauergast',
     description: '50 Partien gespielt.',
     icon: '🛋️',
+    scope: 'general',
     condition: (stats) => stats.gamesPlayed >= 50,
   },
   {
@@ -349,6 +389,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Partyleiter',
     description: '100 Partien gespielt.',
     icon: '🎈',
+    scope: 'general',
     condition: (stats) => stats.gamesPlayed >= 100,
   },
   {
@@ -356,6 +397,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Alle 4 Modi',
     description: 'Party-Hitster, Pass & Play, Bingo und Timeline-Quiz je mindestens einmal gespielt.',
     icon: '🧭',
+    scope: 'general',
     condition: (stats) => ALL_MODES.every((m) => stats.modesPlayed.includes(m)),
   },
   {
@@ -363,6 +405,7 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     name: 'Big Lobby Winner',
     description: 'Eine Lobby mit mindestens 6 Spielern gewonnen.',
     icon: '🎊',
+    scope: 'general',
     condition: (stats) => stats.maxParticipantsWon >= 6,
   },
 ];
@@ -415,6 +458,98 @@ export function pickSpecialAchievement(
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Progress (detail view only)
+// ---------------------------------------------------------------------------
+
+/**
+ * The stats fields a progress readout may be built on. DELIBERATELY limited to
+ * the monotonic, permanently rolled-up counters in `LocalProfile.stats`.
+ *
+ * Everything else an achievement checks lives in `matchHistory`, which is
+ * capped at MAX_MATCH_HISTORY and drops the oldest matches - a "best ever"
+ * derived from it would visibly go DOWN once the cap trims (e.g. "längste
+ * Straße bisher: 4" turning back into 3 after 200 further matches). A
+ * progress number that can regress is worse than none, so those achievements
+ * show their description alone until the underlying best-ever is persisted in
+ * `stats` (see the handover notes).
+ */
+export type ProgressSource =
+  | 'gamesPlayed'
+  | 'maxStreakEver'
+  | 'chipsPeakEver'
+  | 'maxParticipantsWon'
+  | 'modesPlayedCount';
+
+function readProgressSource(source: ProgressSource, stats: LocalProfile['stats']): number {
+  switch (source) {
+    case 'gamesPlayed':
+      return stats.gamesPlayed;
+    case 'maxStreakEver':
+      return stats.hitster.maxStreakEver;
+    case 'chipsPeakEver':
+      return stats.hitster.chipsPeakEver;
+    case 'maxParticipantsWon':
+      return stats.maxParticipantsWon;
+    case 'modesPlayedCount':
+      return stats.modesPlayed.length;
+  }
+}
+
+export interface AchievementProgress {
+  /** What the number means, e.g. "Höchster Nickel-Stand bisher". */
+  label: string;
+  current: number;
+  target: number;
+}
+
+/**
+ * Per-achievement progress readout for the detail view. `target` repeats the
+ * threshold its `condition` above uses - the conditions themselves stay
+ * untouched, and the two are kept honest by a check that runs every condition
+ * at target-1 and at target and asserts it flips exactly there (see
+ * test/achievement-progress.test.js).
+ *
+ * Achievements absent from this table have no meaningful number: either the
+ * criterion is binary ("Perfect Hit" - you hit the one-year gap or you didn't)
+ * or its raw data only lives in the capped matchHistory (see ProgressSource).
+ */
+const PROGRESS: Record<string, { label: string; target: number; source: ProgressSource }> = {
+  'erste-partie': { label: 'Partien gespielt', target: 1, source: 'gamesPlayed' },
+  warmgespielt: { label: 'Partien gespielt', target: 10, source: 'gamesPlayed' },
+  dauergast: { label: 'Partien gespielt', target: 50, source: 'gamesPlayed' },
+  partyleiter: { label: 'Partien gespielt', target: 100, source: 'gamesPlayed' },
+  'hot-hot-streak': { label: 'Längste Serie bisher', target: 7, source: 'maxStreakEver' },
+  'hot-hot-hot-streak': { label: 'Längste Serie bisher', target: 8, source: 'maxStreakEver' },
+  'perfect-game': { label: 'Längste Serie bisher', target: 9, source: 'maxStreakEver' },
+  nickelfarmer: { label: 'Höchster Nickel-Stand bisher', target: 5, source: 'chipsPeakEver' },
+  nickelmeister: { label: 'Höchster Nickel-Stand bisher', target: 8, source: 'chipsPeakEver' },
+  nickelgott: { label: 'Höchster Nickel-Stand bisher', target: 12, source: 'chipsPeakEver' },
+  'big-lobby-winner': {
+    label: 'Größte gewonnene Lobby',
+    target: 6,
+    source: 'maxParticipantsWon',
+  },
+  'alle-4-modi': { label: 'Modi gespielt', target: 4, source: 'modesPlayedCount' },
+};
+
+/** Progress for one achievement, or null when it has no sensible number. */
+export function achievementProgress(
+  id: string,
+  stats: LocalProfile['stats']
+): AchievementProgress | null {
+  const entry = PROGRESS[id];
+  if (!entry) return null;
+  return {
+    label: entry.label,
+    current: readProgressSource(entry.source, stats),
+    target: entry.target,
+  };
+}
+
+/** The progress table as raw data - for the consistency check against the conditions. */
+export const PROGRESS_TABLE: Readonly<typeof PROGRESS> = PROGRESS;
+
 /**
  * Multi-tier families, lowest tier first - `unlocked` legitimately contains
  * EVERY crossed tier at once (see recordMatchResult: reaching Nickelmeister
@@ -426,34 +561,88 @@ const NICKEL_FAMILY = ['nickelfarmer', 'nickelmeister', 'nickelgott'];
 const MILESTONE_FAMILY = ['warmgespielt', 'dauergast', 'partyleiter'];
 const ACHIEVEMENT_FAMILIES: string[][] = [NICKEL_FAMILY, MILESTONE_FAMILY];
 
+/** One tile in the gallery: what the grid shows, plus what the detail view opens. */
+export interface GalleryTile {
+  /**
+   * The definition the TILE itself shows (icon, name, unlock date): for a
+   * family the highest tier actually unlocked, otherwise the family's lowest
+   * tier - so a name is always visible per "kein Überraschungseffekt".
+   */
+  def: AchievementDefinition;
+  /**
+   * Everything behind this tile, LOWEST TIER FIRST. Exactly one entry for a
+   * standalone achievement, three for the Nickel/Meilenstein families - the
+   * detail view lists every tier with its own criterion and status, so a
+   * half-finished family can't collapse into one misleading state.
+   */
+  tiers: AchievementDefinition[];
+}
+
 /**
  * The full catalog collapsed for the "Erfolge" gallery: every standalone
  * achievement as-is, plus exactly ONE representative tile per multi-tier
  * family - the highest tier actually unlocked, or (nothing unlocked yet) the
  * family's lowest/first tier, so its name stays visible per "kein
- * Überraschungseffekt" even before it's reached.
+ * Überraschungseffekt" even before it's reached. Catalog order is preserved -
+ * that is exactly the order the gallery's "Offen" section keeps.
  */
-export function buildGalleryTiles(unlockedIds: ReadonlySet<string>): AchievementDefinition[] {
+export function buildGalleryTiles(unlockedIds: ReadonlySet<string>): GalleryTile[] {
   const familyOf = new Map<string, string[]>();
   for (const family of ACHIEVEMENT_FAMILIES) {
     for (const id of family) familyOf.set(id, family);
   }
   const seenFamilies = new Set<string[]>();
   const byId = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
-  const tiles: AchievementDefinition[] = [];
+  const tiles: GalleryTile[] = [];
 
   for (const def of ACHIEVEMENTS) {
     const family = familyOf.get(def.id);
     if (!family) {
-      tiles.push(def);
+      tiles.push({ def, tiers: [def] });
       continue;
     }
     if (seenFamilies.has(family)) continue; // already added this family's one tile
     seenFamilies.add(family);
     const highestUnlocked = [...family].reverse().find((id) => unlockedIds.has(id));
-    tiles.push(byId.get(highestUnlocked ?? family[0])!);
+    tiles.push({
+      def: byId.get(highestUnlocked ?? family[0])!,
+      tiers: family.map((id) => byId.get(id)!),
+    });
   }
   return tiles;
+}
+
+/**
+ * The gallery's two sections. "Errungen" first, newest unlock at the top;
+ * "Offen" after it in untouched catalog order.
+ *
+ * A FAMILY tile counts as earned through its representative, which
+ * buildGalleryTiles already resolved to the highest tier actually unlocked -
+ * so a half-finished family (Nickelfarmer yes, Nickelgott no) belongs under
+ * "Errungen" and sorts by its most recent tier, not by its lowest.
+ *
+ * Several achievements routinely share ONE timestamp (recordMatchResult stamps
+ * everything a single match unlocked with the same instant). The sort is
+ * stable, so those keep catalog order among themselves instead of shuffling
+ * from render to render.
+ */
+export function splitGalleryTiles(
+  tiles: GalleryTile[],
+  unlockedAt: Readonly<Record<string, string>>
+): { earned: GalleryTile[]; open: GalleryTile[] } {
+  const earned = tiles
+    .filter((t) => unlockedAt[t.def.id] != null)
+    .sort((a, b) => {
+      // Plain string order is chronological here: every timestamp is a
+      // fixed-width ISO string from toISOString(). Returning 0 on a tie is
+      // what preserves catalog order for a shared unlock instant.
+      const da = unlockedAt[a.def.id];
+      const db = unlockedAt[b.def.id];
+      if (da === db) return 0;
+      return da < db ? 1 : -1; // newest first
+    });
+  const open = tiles.filter((t) => unlockedAt[t.def.id] == null);
+  return { earned, open };
 }
 
 /**

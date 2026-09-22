@@ -16,7 +16,7 @@
  * profile reloads on focus too, so returning from a just-finished match shows
  * fresh numbers immediately.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -41,9 +41,14 @@ import {
 import {
   buildGalleryTiles,
   currentMilestone,
-  type AchievementDefinition,
+  splitGalleryTiles,
+  type GalleryTile,
 } from '../services/achievementDefinitions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import {
+  AchievementDetailDialog,
+  formatUnlockDate,
+} from '../components/AchievementDetailDialog';
 import { PressableButton } from '../components/PressableButton';
 import { COLORS } from '../theme/colors';
 import { glow } from '../theme/glow';
@@ -77,14 +82,6 @@ const MODE_ICON: Record<Achievements.GameModeKey, string> = {
   bingo: '🟩',
   timeline_quiz: '🧵',
 };
-
-function formatUnlockDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('de-DE');
-  } catch {
-    return '';
-  }
-}
 
 /** One number tile in the "Spielstatistiken" grid (icon + value + label). */
 function StatTile({ icon, label, value }: { icon: string; label: string; value: string | number }) {
@@ -130,27 +127,38 @@ function ModeBreakdownRow({
  * Überraschungseffekt") - no status subtitle, the 30% icon opacity already
  * makes the locked state unambiguous, and the extra line only got truncated
  * at this tile width anyway.
+ *
+ * Tapping opens the detail view (AchievementDetailDialog) - the criterion
+ * itself never fits at this width, so the tile stays a pure at-a-glance badge
+ * and the "wofür steht das" lives one tap away.
  */
 function AchievementTile({
-  achievement,
+  tile,
   unlockedAt,
+  onPress,
 }: {
-  achievement: AchievementDefinition;
+  tile: GalleryTile;
   unlockedAt: string | null;
+  onPress: () => void;
 }) {
   const unlocked = unlockedAt != null;
   return (
-    <View style={[styles.achTile, !unlocked && styles.achTileLocked]}>
-      <Text style={[styles.achIcon, !unlocked && styles.achIconLocked]}>{achievement.icon}</Text>
+    <PressableButton
+      style={[styles.achTile, !unlocked && styles.achTileLocked]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${tile.def.name} - Details anzeigen`}
+    >
+      <Text style={[styles.achIcon, !unlocked && styles.achIconLocked]}>{tile.def.icon}</Text>
       <Text style={styles.achName} numberOfLines={2}>
-        {achievement.name}
+        {tile.def.name}
       </Text>
       {unlocked && (
         <Text style={styles.achStatusUnlocked} numberOfLines={1}>
           {formatUnlockDate(unlockedAt)}
         </Text>
       )}
-    </View>
+    </PressableButton>
   );
 }
 
@@ -180,6 +188,8 @@ export default function SettingsScreen() {
   const [profile, setProfile] = useState<Achievements.LocalProfile | null>(null);
   const [profileTab, setProfileTab] = useState<'stats' | 'achievements'>('stats');
   const [resetConfirmVisible, setResetConfirmVisible] = useState(false);
+  // The tapped gallery tile, or null while the detail dialog is closed.
+  const [detailTile, setDetailTile] = useState<GalleryTile | null>(null);
 
   const refreshProfile = useCallback(() => {
     Achievements.loadProfile().then(setProfile).catch(() => {});
@@ -311,6 +321,22 @@ export default function SettingsScreen() {
     partyGamesPlayed > 0
       ? `${Math.round(((profile?.stats.hitster.partyGamesWon ?? 0) / partyGamesPlayed) * 100)}%`
       : '–';
+
+  // ---- Erfolge-Galerie: "Errungen" / "Offen" ----
+  // id -> unlock timestamp, built once instead of a find() per tile (and the
+  // detail dialog needs the same lookup for every tier of a family).
+  const unlockedById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const u of profile?.unlocked ?? []) map[u.id] = u.unlockedAt;
+    return map;
+  }, [profile]);
+
+  // Grouping + sorting live in achievementDefinitions.ts next to the catalog
+  // they describe, so they can be tested without a renderer.
+  const { earned: earnedTiles, open: openTiles } = useMemo(
+    () => splitGalleryTiles(buildGalleryTiles(new Set(Object.keys(unlockedById))), unlockedById),
+    [unlockedById]
+  );
 
   return (
     <ScrollView
@@ -488,16 +514,49 @@ export default function SettingsScreen() {
           </View>
         </>
       ) : (
-        <View style={styles.achGrid}>
-          {buildGalleryTiles(new Set((profile?.unlocked ?? []).map((u) => u.id))).map((def) => (
-            <AchievementTile
-              key={def.id}
-              achievement={def}
-              unlockedAt={profile?.unlocked.find((u) => u.id === def.id)?.unlockedAt ?? null}
-            />
-          ))}
-        </View>
+        <>
+          {earnedTiles.length > 0 && (
+            <>
+              <Text style={styles.achSection}>ERRUNGEN ({earnedTiles.length})</Text>
+              <View style={styles.achGrid}>
+                {earnedTiles.map((tile) => (
+                  <AchievementTile
+                    key={tile.def.id}
+                    tile={tile}
+                    unlockedAt={unlockedById[tile.def.id] ?? null}
+                    onPress={() => setDetailTile(tile)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+          {openTiles.length > 0 && (
+            <>
+              <Text style={styles.achSection}>OFFEN ({openTiles.length})</Text>
+              <View style={styles.achGrid}>
+                {openTiles.map((tile) => (
+                  <AchievementTile
+                    key={tile.def.id}
+                    tile={tile}
+                    unlockedAt={null}
+                    onPress={() => setDetailTile(tile)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+          <Text style={styles.achHint}>
+            Tippe einen Erfolg an, um zu sehen, wofür es ihn gibt.
+          </Text>
+        </>
       )}
+
+      <AchievementDetailDialog
+        tile={detailTile}
+        unlockedAt={unlockedById}
+        stats={profile?.stats ?? null}
+        onClose={() => setDetailTile(null)}
+      />
 
       <ConfirmDialog
         visible={resetConfirmVisible}
@@ -624,6 +683,20 @@ const styles = StyleSheet.create({
   titleSubline: { color: COLORS.textMuted, fontSize: 13, fontWeight: '700', marginTop: 2 },
 
   // ---- Erfolge-Galerie ----
+  achSection: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginTop: 6,
+  },
+  achHint: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    marginTop: 6,
+  },
   achGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   achTile: {
     flexBasis: '31%',
