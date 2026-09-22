@@ -382,7 +382,7 @@ export default function BingoGameScreen() {
   }, [lobby?.status, lobby?.code, lobbyId, navigation]);
 
   // Host-only audio. The round's song starts only AFTER the wheel lands AND the
-  // 3-2-1 countdown ends (spinStartedAt + spin + countdown), so the PREVIOUS song
+  // get-ready countdown ends (spinStartedAt + spin + countdown), so the PREVIOUS song
   // keeps playing through the draw and the new song never changes before the
   // category is revealed. Scheduled off the shared spinStartedAt, so a host who
   // (re)joins mid-round starts it at the right moment (or immediately if already
@@ -452,7 +452,7 @@ export default function BingoGameScreen() {
 
   // ---- Spin stage (before the answer window) ----
   const [spinFinished, setSpinFinished] = useState(false);
-  // The 3-2-1 countdown (after the wheel) has run out on this client.
+  // The get-ready countdown (after the wheel) has run out on this client.
   const [countdownFinished, setCountdownFinished] = useState(false);
   const [spinOpenForAll, setSpinOpenForAll] = useState(false);
 
@@ -493,7 +493,7 @@ export default function BingoGameScreen() {
     gs?.spinStartedAt != null &&
     !spinFinished &&
     Online.serverNow() - gs.spinStartedAt < BINGO_SPIN_MS;
-  // After the wheel and before the song: the 3-2-1 countdown (also shared-clock
+  // After the wheel and before the song: the get-ready countdown (also shared-clock
   // driven, so late joiners land on the right beat and skip it if already past).
   const countdownRunning =
     roundPhase === 'collecting' &&
@@ -505,6 +505,24 @@ export default function BingoGameScreen() {
     Online.triggerBingoSpin(lobbyId)
       .then(() => refresh())
       .catch((e: any) => setError(e?.message ?? String(e)));
+
+  // Gesture trigger: same server call, but the rejection is handed BACK to the
+  // wheel (not only into `error`) so it can re-arm the disc - a failed write
+  // must never leave the spinner with a wheel that no longer reacts.
+  const onFlingSpin = () =>
+    Online.triggerBingoSpin(lobbyId).then(
+      () => refresh(),
+      (e: any) => {
+        setError(e?.message ?? String(e));
+        throw e;
+      }
+    );
+
+  // The draw stage stays on screen while we wait for the spin AND while the
+  // wheel is still turning - both share ONE CategoryWheel instance, so the
+  // flinging player's disc survives the phase flip mid-throw.
+  const wheelStageVisible =
+    roundPhase === 'spinning' || (roundPhase === 'collecting' && !!round && spinRunning);
 
   // Entering the review: seed the host's local verdicts from the synced state
   // (relevant when the host re-opens the app mid-review).
@@ -574,6 +592,11 @@ export default function BingoGameScreen() {
   const submit = (answer: BingoAnswer) => {
     setError(null);
     Online.submitRoundAnswer(lobbyId, myId, answer)
+      // Schnellschluss (optional, off by default): only an ACCEPTED answer may
+      // cut the round short - a rejected duplicate means someone else's answer
+      // already did. Guarded and exactly-once on the server, so every client
+      // can simply try after its own answer landed.
+      .then((accepted) => (accepted ? Online.armBingoRush(lobbyId) : undefined))
       .then(() => refresh())
       .catch((e: any) => setError(e?.message ?? String(e)));
   };
@@ -776,43 +799,51 @@ export default function BingoGameScreen() {
         />
       </View>
 
-      {/* ---- spinning: idle wheel + round-robin trigger button ---- */}
-      {roundPhase === 'spinning' && (
-        <View style={styles.spinBox}>
-          <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
-          <CategoryWheel startedAt={null} />
-          {canSpin ? (
-            <PressableButton style={[styles.spinBtn, styles.spinBtnActive]} onPress={onSpin}>
-              <Text style={styles.spinBtnText}>🪩 DREHEN!</Text>
-            </PressableButton>
-          ) : (
-            <View style={[styles.spinBtn, styles.spinBtnLocked]}>
-              <Text style={styles.spinBtnTextLocked}>🪩 DREHEN!</Text>
-            </View>
-          )}
-          <Text style={styles.spinHint}>
-            {canSpin
-              ? spinnerId === myId
-                ? 'Du bist dran — dreh die Scheibe!'
-                : `${spinnerName} reagiert nicht — jeder darf jetzt drehen!`
-              : `${spinnerName} ist mit Drehen dran…`}
-          </Text>
-        </View>
-      )}
-
-      {/* ---- collecting, wheel still turning: everyone watches the draw ---- */}
-      {roundPhase === 'collecting' && round && spinRunning && (
+      {/* ---- the draw stage: ONE wheel across both phases ----
+              'spinning'  -> idle disc, flingable by the eligible player
+              'collecting' while the wheel still turns -> everyone watches it land
+              Deliberately a single JSX slot (not two conditional blocks): the
+              CategoryWheel must keep its instance across the phase flip, or the
+              flinging player's disc would unmount mid-throw and snap back to 0
+              the moment the shared timestamp arrives. */}
+      {wheelStageVisible && (
         <View style={styles.spinBox}>
           <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
           <CategoryWheel
-            startedAt={gs.spinStartedAt ?? null}
-            category={round.type}
+            // Only the collecting phase reveals the result - during 'spinning'
+            // the category must stay hidden even though it is already drawn.
+            startedAt={roundPhase === 'collecting' ? (gs.spinStartedAt ?? null) : null}
+            category={roundPhase === 'collecting' ? round?.type : undefined}
             onDone={() => setSpinFinished(true)}
+            interactive={canSpin}
+            onFling={onFlingSpin}
           />
+          {roundPhase === 'spinning' && (
+            <>
+              {/* Fallback: the gesture is the intended trigger, but nobody may
+                  be stuck if it doesn't take on their device. */}
+              {canSpin ? (
+                <PressableButton style={[styles.spinBtn, styles.spinBtnFallback]} onPress={onSpin}>
+                  <Text style={styles.spinBtnTextFallback}>Geht nicht? Tippen zum Drehen</Text>
+                </PressableButton>
+              ) : (
+                <View style={[styles.spinBtn, styles.spinBtnLocked]}>
+                  <Text style={styles.spinBtnTextLocked}>🪩 DREHEN!</Text>
+                </View>
+              )}
+              <Text style={styles.spinHint}>
+                {canSpin
+                  ? spinnerId === myId
+                    ? 'Du bist dran — wisch die Scheibe mit dem Finger an!'
+                    : `${spinnerName} reagiert nicht — jeder darf jetzt drehen!`
+                  : `${spinnerName} ist mit Drehen dran…`}
+              </Text>
+            </>
+          )}
         </View>
       )}
 
-      {/* ---- wheel landed, 3-2-1 before the song (old song still playing) ---- */}
+      {/* ---- wheel landed, get-ready beat before the song (old song still playing) ---- */}
       {roundPhase === 'collecting' && round && countdownRunning && gs.spinStartedAt != null && (
         <View style={styles.spinBox}>
           <BingoCountdown
@@ -831,6 +862,11 @@ export default function BingoGameScreen() {
             <Text style={styles.mysteryGlyph}>💿</Text>
             <Text style={styles.mysteryText}>Song läuft… hör genau hin!</Text>
             {gs.roundDeadline != null && <RoundCountdown deadlineMs={gs.roundDeadline} />}
+            {/* Without this the timer visibly jumping from 50s to 10s reads as
+                a glitch rather than as the rule doing its job. */}
+            {gs.bingoRushArmedAt != null && (
+              <Text style={styles.rushHint}>⚡ Erste Antwort ist da — Restzeit gekürzt!</Text>
+            )}
           </View>
 
           <View style={[styles.categoryBox, { borderColor: categoryColor }]}>
@@ -1268,6 +1304,12 @@ const styles = StyleSheet.create({
   mysteryText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700' },
   countdown: { color: COLORS.secondary, fontSize: 22, fontWeight: '900' },
   countdownUrgent: { color: COLORS.incorrect },
+  rushHint: {
+    color: COLORS.accent,
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
 
   spinBox: {
     backgroundColor: COLORS.backgroundAlt,
@@ -1286,9 +1328,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  spinBtnActive: {
-    backgroundColor: COLORS.primary,
-    ...glow(COLORS.primary, { radius: 18, opacity: 0.9 }),
+  // Secondary on purpose: the finger flick on the disc is the intended
+  // trigger, this is only the escape hatch when the gesture won't take.
+  spinBtnFallback: {
+    minHeight: 44,
+    backgroundColor: COLORS.background,
+    borderWidth: 2,
+    borderColor: COLORS.border,
   },
   spinBtnLocked: {
     backgroundColor: COLORS.background,
@@ -1296,7 +1342,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     opacity: 0.6,
   },
-  spinBtnText: { color: COLORS.text, fontSize: 21, fontWeight: '900', letterSpacing: 1.5 },
+  spinBtnTextFallback: {
+    color: COLORS.textMuted,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   spinBtnTextLocked: {
     color: COLORS.textMuted,
     fontSize: 21,

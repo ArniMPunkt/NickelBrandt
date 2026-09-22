@@ -19,6 +19,13 @@ export interface ModeConfig {
   bingoDifficulty?: BingoDifficulty;
   /** Bingo: song/answer window seconds (absent = BINGO_ROUND_SECONDS). */
   bingoSongSeconds?: number;
+  /**
+   * Bingo "Schnellschluss": after the first submitted answer, cap everyone
+   * else's remaining time at BINGO_RUSH_SECONDS. Absent/false = off (the
+   * default, and what every config written before this existed means).
+   * Only selectable from BINGO_RUSH_MIN_SONG_SECONDS upwards.
+   */
+  bingoRushAfterFirst?: boolean;
   /** Timeline-Quiz: number of cards to play. */
   timelineCardCount?: number;
   /**
@@ -393,6 +400,14 @@ export interface OnlineGameState {
   spinnerId?: string | null;
   spinArmedAt?: number | null;
   spinStartedAt?: number | null;
+  /**
+   * Bingo "Schnellschluss" (modeConfig.bingoRushAfterFirst): when the first
+   * answer of the round shortened roundDeadline. Doubles as the exactly-once
+   * guard - the shortening write only matches while this is still null, so a
+   * burst of near-simultaneous answers can't re-cut the deadline. Reset to
+   * null for every new round (see nextBingoRound).
+   */
+  bingoRushArmedAt?: number | null;
   /** Timeline-Quiz: the shared timeline everyone places into (grows each round). */
   quizTimeline?: QuizTimelineEntry[] | null;
   /** Timeline-Quiz: fixed number of rounds (from mode_config, clamped to deck). */

@@ -1,13 +1,15 @@
 /**
- * BingoCountdown - the 3-2-1 "get ready" beat between the category wheel landing
- * and the round's song starting. Shows the just-revealed category, then a big
- * pulsing 3 -> 2 -> 1.
+ * BingoCountdown - the "get ready" beat between the category wheel landing and
+ * the round's song starting. Shows the just-revealed category, then a big
+ * pulsing number ticking down to the song. How many numbers you see follows
+ * BINGO_COUNTDOWN_MS (currently 2000 -> "2, 1"); the clamp below keeps the
+ * display sane for any value up to 3 seconds.
  *
  * Deterministic + cosmetic: driven off the shared start time (spinStartedAt +
  * BINGO_SPIN_MS) so every client counts together and a late joiner lands on the
  * right number. It does NOT control audio - the host starts the song when the
  * countdown ends (that trigger lives in BingoGameScreen). onDone lets the screen
- * advance to the answer UI. Same 3-2-1 UI/timing runs on round 1 too (just over
+ * advance to the answer UI. The same UI/timing runs on round 1 too (just over
  * silence, since there is no previous song).
  *
  * Built with the built-in Animated API + useNativeDriver (project standard, no

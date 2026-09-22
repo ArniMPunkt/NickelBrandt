@@ -141,11 +141,13 @@ Eigenes Board pro Spieler, 4×4 oder 5×5. Vollständige Reihe, Spalte oder Diag
 | Grün: Interpret/Titel | Interpret | Interpret und Titel |
 | Violett: Gruppe oder Solo | Host legt gemeinsame Wahrheit fest | Ebenso |
 
-Das Rad wird vom vorgesehenen Spieler ausgelöst; nach 20 Sekunden dürfen auch andere drücken. Auf die synchronisierte Animation folgt der Countdown. Song-/Antwortzeit: 30–75 Sekunden, Default 30. Die Schwierigkeit ist Easy/Hard; ein zusätzliches „Expert Mode“-Feature existiert nicht.
+Das Rad wird vom vorgesehenen Spieler ausgelöst, indem er die Scheibe mit dem Finger anwischt/anschnippt; ein Tipp-Button bleibt als Fallback daneben stehen. Nach 20 Sekunden dürfen auch andere auslösen. Stärke und Richtung der Geste beeinflussen nur die Animation (Richtung, Umdrehungen, Auslaufen) — das Ergebnis steht vorher fest und ist auf allen Geräten identisch. Auf die synchronisierte Animation (4,5 s) folgt der Countdown (2 s). Song-/Antwortzeit: 30–75 Sekunden, Default 30. Die Schwierigkeit ist Easy/Hard; ein zusätzliches „Expert Mode“-Feature existiert nicht.
 
-Titel-/Interpretenantworten bewertet der Host je Spieler. Gruppe/Solo braucht eine gemeinsame Host-Entscheidung, optional unterstützt durch einen MusicBrainz-Vorschlag. Die Review-Phase hat 45 Sekunden; bei fehlendem Host-Urteil gelten implementierte Vertrauens-Fallbacks: nichtleerer Titel-/Interpretentext beziehungsweise eine abgegebene Gruppe-/Solo-Antwort werden als richtig gewertet.
+Optional, per Lobby-Schalter und standardmäßig aus: „Schnellschluss“. Sobald der erste Spieler geantwortet hat, bleiben allen anderen höchstens 10 Sekunden; waren ohnehin weniger übrig, ändert sich nichts. Nur ab 45 Sekunden Song-Zeit wählbar — fällt die Song-Zeit darunter, schaltet sich die Option mit ab. Technisch wird die geteilte `roundDeadline` einmalig gekappt (Guard `bingoRushArmedAt`), die Auswertungslogik bleibt unberührt.
 
-Nach richtiger Antwort wählt der Spieler ein freies Feld der gezogenen Farbe. Dafür gibt es 15 Sekunden, danach automatische Auswahl durch den eigenen Client. Ist die Farbe schon voll, bleibt die Antwort richtig, bringt aber keine Markierung. Die Statistik zeigt das finale Board jedes Spielers. Kein Nickel, kein Klauen. Sieganimation mit 1,3 Sekunden Ruhephase laut bisherigem Projektstand.
+Titel-/Interpretenantworten bewertet der Host je Spieler. Gruppe/Solo braucht eine gemeinsame Host-Entscheidung, optional unterstützt durch einen MusicBrainz-Vorschlag. Die Review-Phase hat 30 Sekunden; bei fehlendem Host-Urteil gelten implementierte Vertrauens-Fallbacks: nichtleerer Titel-/Interpretentext beziehungsweise eine abgegebene Gruppe-/Solo-Antwort werden als richtig gewertet.
+
+Nach richtiger Antwort wählt der Spieler ein freies Feld der gezogenen Farbe. Dafür gibt es 10 Sekunden, danach automatische Auswahl durch den eigenen Client. Ist die Farbe schon voll, bleibt die Antwort richtig, bringt aber keine Markierung. Die Statistik zeigt das finale Board jedes Spielers. Kein Nickel, kein Klauen. Sieganimation mit 1,3 Sekunden Ruhephase laut bisherigem Projektstand.
 
 ## Timeline-Quiz (Party)
 

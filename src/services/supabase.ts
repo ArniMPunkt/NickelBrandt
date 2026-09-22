@@ -23,6 +23,8 @@ import {
   BINGO_PICK_SECONDS,
   BINGO_COUNTDOWN_MS,
   BINGO_REVIEW_SECONDS,
+  BINGO_RUSH_MIN_SONG_SECONDS,
+  BINGO_RUSH_SECONDS,
   BINGO_ROUND_SECONDS,
   BINGO_SPIN_MS,
   BINGO_SPIN_OPEN_ALL_MS,
@@ -1852,6 +1854,7 @@ export async function startBingoGame(
     bingoGridSize: 4 | 5;
     bingoDifficulty: BingoDifficulty;
     bingoSongSeconds: number;
+    bingoRushAfterFirst?: boolean;
     sourceId?: string;
     sourceName?: string;
   }
@@ -1897,6 +1900,12 @@ export async function startBingoGame(
       bingoGridSize: config.bingoGridSize,
       bingoDifficulty: config.bingoDifficulty,
       bingoSongSeconds: config.bingoSongSeconds,
+      // Re-checked against the song time here, not just in the lobby UI: the
+      // host may have enabled it at 60s and then pulled the slider back down,
+      // and what gets frozen into game_state is what the rules run on.
+      bingoRushAfterFirst:
+        config.bingoRushAfterFirst === true &&
+        config.bingoSongSeconds >= BINGO_RUSH_MIN_SONG_SECONDS,
     },
     sourceId: config.sourceId ?? null,
     sourceName: config.sourceName ?? null,
@@ -1918,6 +1927,7 @@ export async function startBingoGame(
     spinnerId: players[0].player_id,
     spinArmedAt: serverNow(),
     spinStartedAt: null,
+    bingoRushArmedAt: null,
   };
   // Leftover answers of a previous game in this lobby would collide with the
   // (lobby, round, player) unique key (startSimulRound did this before).
@@ -1962,7 +1972,7 @@ export async function triggerBingoSpin(lobbyId: string): Promise<void> {
         ...gs,
         roundPhase: 'collecting',
         spinStartedAt: now,
-        // Answer window begins only after the wheel AND the 3-2-1 countdown, so
+        // Answer window begins only after the wheel AND the get-ready countdown, so
         // the new song (which starts at the end of the countdown) plays for the
         // full configured Song-Zeit (fallback: BINGO_ROUND_SECONDS for games
         // started before the setting existed).
@@ -1976,6 +1986,58 @@ export async function triggerBingoSpin(lobbyId: string): Promise<void> {
     .eq('id', lobbyId)
     .filter('game_state->>roundPhase', 'eq', 'spinning')
     .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber));
+}
+
+/**
+ * "Schnellschluss" (optional, modeConfig.bingoRushAfterFirst): the FIRST answer
+ * of a round caps everyone else's remaining time at BINGO_RUSH_SECONDS. Called
+ * by the submitting client right after its answer was accepted; safe to call
+ * from every client and on every answer, because:
+ *
+ *   - EXACTLY ONCE per round: the update only matches while bingoRushArmedAt is
+ *     still null, so of several near-simultaneous answers only one write lands
+ *     and later answers can never re-cut an already shortened deadline. Which
+ *     one wins doesn't matter - they compute the same cap within milliseconds.
+ *   - NEVER an extension: the new deadline is min(current, now + cap), so a
+ *     round with less than the cap left is untouched.
+ *   - phase/round guarded like every other bingo write, so an answer that
+ *     lands just as the round resolves can't reopen or move a closed window.
+ *
+ * Deliberately moves roundDeadline ITSELF rather than adding a second clock:
+ * the clients' deadline timers re-arm on it, the countdown re-renders from it,
+ * and resolveSimulRound's server-side "deadline passed?" gate keeps working -
+ * a separate rush field would have left that gate refusing the early resolve.
+ */
+export async function armBingoRush(lobbyId: string): Promise<void> {
+  const { game_state: gs } = await getLobby(lobbyId);
+  if (
+    !gs ||
+    gs.gameMode !== 'bingo' ||
+    gs.modeConfig?.bingoRushAfterFirst !== true ||
+    gs.roundPhase !== 'collecting' ||
+    gs.roundNumber == null ||
+    gs.roundDeadline == null ||
+    gs.bingoRushArmedAt != null
+  ) {
+    return;
+  }
+  const now = serverNow();
+  const capped = Math.min(gs.roundDeadline, now + BINGO_RUSH_SECONDS * 1000);
+  await supabase
+    .from('lobbies')
+    .update({
+      game_state: {
+        ...gs,
+        roundDeadline: capped,
+        bingoRushArmedAt: now,
+      } as OnlineGameState,
+    })
+    .eq('id', lobbyId)
+    .filter('game_state->>roundPhase', 'eq', 'collecting')
+    .filter('game_state->>roundNumber', 'eq', String(gs.roundNumber))
+    // Missing key and explicit null both read as SQL NULL through ->>, so this
+    // matches a fresh round as well as a game started before the field existed.
+    .filter('game_state->>bingoRushArmedAt', 'is', null);
 }
 
 /**
@@ -2351,6 +2413,8 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
         spinnerId: spinner?.player_id ?? null,
         spinArmedAt: serverNow(),
         spinStartedAt: null,
+        // Re-open the Schnellschluss guard for the new round.
+        bingoRushArmedAt: null,
       } as OnlineGameState,
     })
     .eq('id', lobbyId)

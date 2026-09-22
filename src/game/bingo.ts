@@ -37,12 +37,36 @@ export const BINGO_SONG_SECONDS_MIN = 30;
 export const BINGO_SONG_SECONDS_MAX = 75;
 
 /**
+ * "Schnellschluss" (optional, off by default): once the FIRST answer of a round
+ * is in, the remaining answer time is capped at this - the GeoGuessr-duel idea
+ * of not making everyone wait out a long timer for one slow player.
+ *
+ * Purely a CAP, never an extension: if less than this was left anyway, the
+ * deadline stays where it is (see armBingoRush in supabase.ts). It moves the
+ * shared roundDeadline itself, so every device - and the server-side resolve
+ * gate - agree on the new end without a second time source.
+ */
+export const BINGO_RUSH_SECONDS = 10;
+
+/**
+ * The option is only offered from this base Song-Zeit upwards: cutting a 30s
+ * round down to 10s would gut the round rather than tighten it, and the gap
+ * between base time and cap is what makes the rule worth having at all.
+ */
+export const BINGO_RUSH_MIN_SONG_SECONDS = 45;
+
+/**
  * Window after resolution in which correct players PICK the cell to mark
  * (strategic choice instead of the old random mark). Long enough to read the
  * reveal + tap a cell, short enough that one idle player can't stall the
  * round; on timeout the player's own client auto-picks a random free cell.
+ *
+ * 15s -> 10s (round-tempo pass): the choice is "tap one of the glowing cells
+ * on a board you have been staring at all round", and it only ever costs the
+ * full window when somebody idles - a single free cell auto-picks instantly,
+ * and the round advances as soon as everyone HAS picked (see nextBingoRound).
  */
-export const BINGO_PICK_SECONDS = 15;
+export const BINGO_PICK_SECONDS = 10;
 
 /** Layout cap for decade multiple-choice buttons (2 rows of 4). */
 export const BINGO_DECADE_OPTIONS_MAX = 8;
@@ -123,24 +147,37 @@ export type BingoAnswer =
  * wheel decelerates for most of it and holds on the landed color at the end.
  * The answer deadline is set to spin start + this + BINGO_ROUND_SECONDS, so
  * the full answer window only begins once the wheel has stopped.
+ *
+ * 6200 -> 4500 (round-tempo pass). The result is fixed before the first frame,
+ * so everything past "the disc visibly slows and settles" is dead time, and
+ * the flinging player now sees motion from the instant their finger lifts
+ * instead of after the server round trip. Keep a floor here: the landing has
+ * to stay readable, and the window must outlast a slow write (CategoryWheel
+ * snaps to the result if the shared timestamp arrives after the animation
+ * would already be over).
  */
-export const BINGO_SPIN_MS = 6200;
+export const BINGO_SPIN_MS = 4500;
 
 /**
- * The 3-2-1 "get ready" beat between the wheel landing on the category and the
- * new song starting. The previous song keeps playing through the wheel AND this
+ * The "get ready" beat between the wheel landing on the category and the new
+ * song starting. The previous song keeps playing through the wheel AND this
  * countdown, then is replaced by the round's song exactly when it ends - so the
  * song only ever changes AFTER the category is revealed. The answer deadline
  * includes this (spin + countdown + BINGO_ROUND_SECONDS), so it costs no answer
  * time. Shared by the screen (UI + host playback trigger) and the server-side
  * deadline in triggerBingoSpin, so both agree on the timing.
+ *
+ * 3000 -> 2000 (round-tempo pass), so it counts 2-1 instead of 3-2-1: the
+ * category has already been legible during the wheel's result hold, this beat
+ * only has to cover the song swap.
  */
-export const BINGO_COUNTDOWN_MS = 3000;
+export const BINGO_COUNTDOWN_MS = 2000;
 
 /**
- * If the designated spinner hasn't pressed within this window, the button
- * opens for EVERYONE (an absent player must never stall the game - same
- * philosophy as the review/pick timeouts).
+ * If the designated spinner hasn't spun within this window, the wheel opens for
+ * EVERYONE (an absent player must never stall the game - same philosophy as the
+ * review/pick timeouts). Unchanged by the gesture rework: it gates WHO may
+ * trigger, not HOW, so the flick and the fallback tap are both covered.
  */
 export const BINGO_SPIN_OPEN_ALL_MS = 20000;
 
@@ -149,8 +186,14 @@ export const BINGO_SPIN_OPEN_ALL_MS = 20000;
  * group discussion of edge cases (typos, half-right answers), short enough
  * that an absent host can't stall the game: after the deadline ANY client
  * resolves, unjudged answers fall back to the honor rule (see supabase.ts).
+ *
+ * 45s -> 30s (round-tempo pass). This is a CEILING, not a cost: a present host
+ * resolves the round the moment the last verdict is tapped (band_or_solo is a
+ * single tap), so the window is only ever paid in full when the host is away -
+ * and then it is pure waiting. The trade-off to watch on device: with a host
+ * who grades slowly, more rounds fall through to the honor rule.
  */
-export const BINGO_REVIEW_SECONDS = 45;
+export const BINGO_REVIEW_SECONDS = 30;
 
 /** Defensive text extraction from a title_artist answer payload (jsonb). */
 export function titleAnswerText(answer: unknown): string {

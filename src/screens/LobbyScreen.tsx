@@ -33,6 +33,8 @@ import type { OnlineStackParamList } from '../types/navigation';
 import type { GameMode, Lobby, LobbyPlayer, ModeConfig } from '../types/online';
 import {
   BINGO_ROUND_SECONDS,
+  BINGO_RUSH_MIN_SONG_SECONDS,
+  BINGO_RUSH_SECONDS,
   BINGO_SONG_SECONDS_MAX,
   BINGO_SONG_SECONDS_MIN,
 } from '../game/bingo';
@@ -197,6 +199,11 @@ export default function LobbyScreen() {
 
   const gameMode: GameMode = lobby?.game_mode ?? 'hitster';
   const modeConfig: ModeConfig = lobby?.mode_config ?? {};
+  // Schnellschluss only makes sense with enough base time to actually cut.
+  // Keyed off the SYNCED value, not the local slider, so it matches what a
+  // start right now would freeze into game_state.
+  const rushAvailable =
+    (modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS) >= BINGO_RUSH_MIN_SONG_SECONDS;
 
   // Keep the local sliders in sync with the synced config (keyed on the synced
   // value, so they never fight an ongoing local drag).
@@ -297,6 +304,7 @@ export default function LobbyScreen() {
           bingoGridSize: modeConfig.bingoGridSize ?? 4,
           bingoDifficulty: modeConfig.bingoDifficulty ?? 'easy',
           bingoSongSeconds: modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS,
+          bingoRushAfterFirst: modeConfig.bingoRushAfterFirst ?? false,
           ...src,
         });
       } else if (gameMode === 'timeline_quiz') {
@@ -434,10 +442,41 @@ export default function LobbyScreen() {
                 value={songSeconds}
                 min={BINGO_SONG_SECONDS_MIN}
                 max={BINGO_SONG_SECONDS_MAX}
-                milestones={[BINGO_SONG_SECONDS_MIN, 45, 60, BINGO_SONG_SECONDS_MAX]}
+                milestones={[BINGO_SONG_SECONDS_MIN, BINGO_RUSH_MIN_SONG_SECONDS, 60, BINGO_SONG_SECONDS_MAX]}
                 onChange={setSongSeconds}
-                onRelease={(v) => writeMode('bingo', { ...modeConfig, bingoSongSeconds: v })}
+                // Dropping below the Schnellschluss threshold switches the
+                // option off in the SAME write - a flag that is set but cannot
+                // apply would be a lie on every other player's screen.
+                onRelease={(v) =>
+                  writeMode('bingo', {
+                    ...modeConfig,
+                    bingoSongSeconds: v,
+                    bingoRushAfterFirst:
+                      v >= BINGO_RUSH_MIN_SONG_SECONDS &&
+                      (modeConfig.bingoRushAfterFirst ?? false),
+                  })
+                }
               />
+              <View style={styles.modeConfigHeader}>
+                <Text style={[styles.modeConfigLabel, !rushAvailable && styles.modeConfigLabelOff]}>
+                  Schnellschluss
+                </Text>
+                <Switch
+                  value={rushAvailable && (modeConfig.bingoRushAfterFirst ?? false)}
+                  disabled={!rushAvailable}
+                  onValueChange={(v) =>
+                    writeMode('bingo', { ...modeConfig, bingoRushAfterFirst: v })
+                  }
+                  trackColor={{ false: COLORS.border, true: COLORS.primary }}
+                  thumbColor={COLORS.text}
+                  ios_backgroundColor={COLORS.border}
+                />
+              </View>
+              <Text style={styles.modeConfigHint}>
+                {rushAvailable
+                  ? `Sobald der Erste geantwortet hat, bleiben allen anderen höchstens ${BINGO_RUSH_SECONDS} Sekunden.`
+                  : `Erst ab ${BINGO_RUSH_MIN_SONG_SECONDS}s Song-Zeit — darunter bringt eine Kürzung auf ${BINGO_RUSH_SECONDS}s nichts.`}
+              </Text>
             </View>
           )}
           {gameMode === 'timeline_quiz' && (
@@ -464,7 +503,8 @@ export default function LobbyScreen() {
             {gameMode === 'bingo'
               ? ` · ${modeConfig.bingoGridSize ?? 4}×${modeConfig.bingoGridSize ?? 4}` +
                 ` · ${(modeConfig.bingoDifficulty ?? 'easy') === 'hard' ? 'Hard' : 'Easy'}` +
-                ` · ${modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS}s`
+                ` · ${modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS}s` +
+                (modeConfig.bingoRushAfterFirst ? ' · Schnellschluss' : '')
               : ''}
             {/* chipsEnabled lebt nur in der lokalen, geräteeigenen SettingsContext
                 des Hosts (nie synchronisiert) - ein Mitspieler-Gerät hat keinen
@@ -687,6 +727,8 @@ const styles = StyleSheet.create({
   },
   modeConfigHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   modeConfigLabel: { color: COLORS.text, fontSize: 14, fontWeight: '800' },
+  // Greyed out while the option can't apply at the current Song-Zeit.
+  modeConfigLabelOff: { color: COLORS.textMuted },
   modeConfigValue: { color: COLORS.accent, fontSize: 18, fontWeight: '900' },
   modeConfigHint: { color: COLORS.textMuted, fontSize: 12, fontWeight: '600' },
   modeBadgeRow: {
