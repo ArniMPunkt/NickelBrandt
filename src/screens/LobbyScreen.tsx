@@ -370,32 +370,26 @@ export default function LobbyScreen() {
           {gameMode === 'hitster' && (
             <>
               <Text style={styles.label}>SPIELREGELN</Text>
-              <GameRulesSection />
               {/* Funktionslos ohne die Nickel-Ökonomie (kein Klau-Fenster ohne
                   Nickel) - ausgeblendet statt nur deaktiviert, analog dazu, wie
                   GameRulesSection abhängige Detail-Configs (Kosten-Slider etc.)
                   komplett verbirgt statt nur zu sperren, wenn ihr eigener
-                  Schalter aus ist. */}
-              {settings.chipsEnabled && (
-                <View style={styles.modeConfigBox}>
-                  <View style={styles.modeConfigHeader}>
-                    <Text style={styles.modeConfigLabel}>Mehrfaches Hitstern</Text>
-                    <Switch
-                      value={modeConfig.hitsterMultiSteal ?? false}
-                      onValueChange={(v) =>
-                        writeMode('hitster', { ...modeConfig, hitsterMultiSteal: v })
+                  Schalter aus ist. Der Wert lebt hier in mode_config (synchron
+                  für alle), nicht im lokalen SettingsContext - deshalb wird der
+                  Schalter hineingereicht statt in der Komponente gebunden. */}
+              <GameRulesSection
+                multiSteal={
+                  settings.chipsEnabled
+                    ? {
+                        value: modeConfig.hitsterMultiSteal ?? false,
+                        onChange: (v) =>
+                          writeMode('hitster', { ...modeConfig, hitsterMultiSteal: v }),
+                        hint:
+                          'Alle dürfen „Hitster!" drücken — Reihenfolge nach Drückzeitpunkt entscheidet, wer zuerst raten darf.',
                       }
-                      trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                      thumbColor={COLORS.text}
-                      ios_backgroundColor={COLORS.border}
-                    />
-                  </View>
-                  <Text style={styles.modeConfigHint}>
-                    Alle dürfen „Hitster!" drücken — Reihenfolge nach Drückzeitpunkt
-                    entscheidet, wer zuerst raten darf.
-                  </Text>
-                </View>
-              )}
+                    : undefined
+                }
+              />
             </>
           )}
           {gameMode === 'bingo' && (

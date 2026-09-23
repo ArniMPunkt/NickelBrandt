@@ -7,13 +7,30 @@
  * hitster mode) and the Pass & Play setup. Reads/writes the shared
  * SettingsContext, so values persist across screens/session exactly as
  * before - only the editing surface moved.
+ *
+ * "Mehrfaches Hitstern" is the one rule this component does NOT own: Party
+ * stores it in the lobby's mode_config (synced to every device, host-writable)
+ * while Pass & Play keeps it in the local SettingsContext. Binding it here
+ * would silently write to the wrong store on one of the two screens. It comes
+ * in as `multiSteal` instead - each screen passes its own value, setter and
+ * wording, and the toggle still renders as the eighth row inside this card
+ * rather than in a bolted-on box below it. A screen that omits the prop simply
+ * shows seven rules (that is how Party hides it while Nickel are switched off).
  */
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useSettings } from '../context/SettingsContext';
 import { StepSlider } from './StepSlider';
 import { COLORS } from '../theme/colors';
 
-export function GameRulesSection() {
+/** The externally owned "Mehrfaches Hitstern" toggle (see the note above). */
+export interface MultiStealToggle {
+  value: boolean;
+  onChange: (value: boolean) => void;
+  /** World-specific explanation - Party queues callers over the network, Pass & Play resolves them one after another on the shared device. */
+  hint: string;
+}
+
+export function GameRulesSection({ multiSteal }: { multiSteal?: MultiStealToggle }) {
   const { settings, update } = useSettings();
 
   return (
@@ -59,6 +76,24 @@ export function GameRulesSection() {
           ios_backgroundColor={COLORS.border}
         />
       </View>
+
+      {/* Directly below the Nickel rule it belongs to - same row style as
+          every other toggle, so it reads as the eighth rule, not an add-on. */}
+      {multiSteal && (
+        <View style={styles.ruleToggleRow}>
+          <View style={styles.toggleTextWrap}>
+            <Text style={styles.toggleTitle}>Mehrfaches Hitstern</Text>
+            <Text style={styles.toggleHint}>{multiSteal.hint}</Text>
+          </View>
+          <Switch
+            value={multiSteal.value}
+            onValueChange={multiSteal.onChange}
+            trackColor={{ false: COLORS.border, true: COLORS.primary }}
+            thumbColor={COLORS.text}
+            ios_backgroundColor={COLORS.border}
+          />
+        </View>
+      )}
 
       <View style={styles.ruleToggleRow}>
         <View style={styles.toggleTextWrap}>

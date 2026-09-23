@@ -11,7 +11,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   AppState,
+  Easing,
   Image,
   InteractionManager,
   Linking,
@@ -25,6 +27,7 @@ import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/nativ
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import * as Online from '../services/supabase';
 import * as Spotify from '../services/spotify';
 import * as Achievements from '../services/achievements';
@@ -78,8 +81,23 @@ const RESOLVE_GRACE_MS = 1000;
 /** Cell/category colors: shared with the win-line reveal (see colors.ts). */
 const CATEGORY_COLOR = BINGO_CATEGORY_COLOR;
 
-/** Local per-second countdown from the synced round deadline (cosmetic). */
-function RoundCountdown({ deadlineMs }: { deadlineMs: number }) {
+/**
+ * Resting opacity of the Schnellschluss ring once it has finished pulsing -
+ * present, but clearly a time-pressure cue rather than an error state.
+ */
+const RUSH_RING_RESTING_OPACITY = 0.45;
+
+/**
+ * Local per-second countdown from the synced round deadline (cosmetic).
+ *
+ * `alert` marks the Schnellschluss moment: one short haptic tap plus a red ring
+ * around the timer that pulses twice over about a second and then stays on at
+ * RUSH_RING_RESTING_OPACITY for the shortened remainder. The ring is its own
+ * absolutely positioned layer, so only IT fades - animating the row's opacity
+ * would dim the number along with it, and borderColor cannot run on the
+ * native driver at all.
+ */
+function RoundCountdown({ deadlineMs, alert = false }: { deadlineMs: number; alert?: boolean }) {
   const [remaining, setRemaining] = useState(() =>
     Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000))
   );
@@ -93,11 +111,48 @@ function RoundCountdown({ deadlineMs }: { deadlineMs: number }) {
     return () => clearInterval(iv);
   }, [deadlineMs]);
 
+  // Two pulses, then hold. Runs once when `alert` flips on (it only does so
+  // when the round's Schnellschluss fires, and resets with the next round).
+  const ring = useRef(new Animated.Value(RUSH_RING_RESTING_OPACITY)).current;
+  useEffect(() => {
+    if (!alert) return;
+    // ONE short tap, fired from the same effect as the ring so the two can
+    // never drift apart. Every device runs this off its own bingoRushArmedAt
+    // update, so it reaches the whole table - not just whoever answered first.
+    // Rejects on a device without a haptic motor or with system haptics off;
+    // a missing buzz must never take the round down with it.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    ring.setValue(RUSH_RING_RESTING_OPACITY);
+    const beat = (toValue: number, duration: number) =>
+      Animated.timing(ring, {
+        toValue,
+        duration,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      });
+    const anim = Animated.sequence([
+      beat(1, 160),
+      beat(RUSH_RING_RESTING_OPACITY, 260),
+      beat(1, 160),
+      beat(RUSH_RING_RESTING_OPACITY, 420),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [alert, ring]);
+
   const urgent = remaining <= 5;
   return (
-    <Text style={[styles.countdown, urgent && styles.countdownUrgent]}>
-      ⏱ {remaining}s
-    </Text>
+    <View style={styles.countdownWrap}>
+      <Text style={[styles.countdown, urgent && styles.countdownUrgent]}>
+        ⏱ {remaining}s
+      </Text>
+      {alert && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.countdownRushRing, { opacity: ring }]}
+        />
+      )}
+    </View>
   );
 }
 
@@ -861,7 +916,15 @@ export default function BingoGameScreen() {
           <View style={styles.mysteryBox}>
             <Text style={styles.mysteryGlyph}>💿</Text>
             <Text style={styles.mysteryText}>Song läuft… hör genau hin!</Text>
-            {gs.roundDeadline != null && <RoundCountdown deadlineMs={gs.roundDeadline} />}
+            {/* The ring marks the SAME moment as the hint below, and only
+                here: review and cell-pick have their own countdowns that the
+                Schnellschluss never touches. */}
+            {gs.roundDeadline != null && (
+              <RoundCountdown
+                deadlineMs={gs.roundDeadline}
+                alert={gs.bingoRushArmedAt != null}
+              />
+            )}
             {/* Without this the timer visibly jumping from 50s to 10s reads as
                 a glitch rather than as the rule doing its job. */}
             {gs.bingoRushArmedAt != null && (
@@ -1302,8 +1365,24 @@ const styles = StyleSheet.create({
   },
   mysteryGlyph: { fontSize: 44, color: COLORS.border },
   mysteryText: { color: COLORS.textMuted, fontSize: 14, fontWeight: '700' },
+  // Deliberately layout-NEUTRAL: no padding, no alignSelf. It only exists to
+  // give the ring a positioned parent, so the three countdowns that never show
+  // a ring (review, cell pick) keep the exact placement they had before.
+  countdownWrap: { position: 'relative' },
   countdown: { color: COLORS.secondary, fontSize: 22, fontWeight: '900' },
   countdownUrgent: { color: COLORS.incorrect },
+  // Negative insets: the ring sits AROUND the digits without reserving space,
+  // so nothing shifts at the moment it appears mid-round.
+  countdownRushRing: {
+    position: 'absolute',
+    top: -5,
+    bottom: -5,
+    left: -13,
+    right: -13,
+    borderWidth: 2,
+    borderColor: COLORS.incorrect,
+    borderRadius: 12,
+  },
   rushHint: {
     color: COLORS.accent,
     fontSize: 13,
