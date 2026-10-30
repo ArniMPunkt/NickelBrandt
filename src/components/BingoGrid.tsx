@@ -8,6 +8,7 @@
  * scales the cells (default = in-game size; the accordions use a smaller one
  * so a 5x5 board fits inside the padded card).
  */
+import type { Ref } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PressableButton } from './PressableButton';
 import { BINGO_CATEGORY_COLOR, COLORS } from '../theme/colors';
@@ -22,6 +23,7 @@ export function BingoGrid({
   cellSize = DEFAULT_CELL,
   selectable,
   onPickCell,
+  rootRef,
 }: {
   board: BingoBoard;
   size: number;
@@ -30,6 +32,8 @@ export function BingoGrid({
   /** Indices the owner may tap during the pick window (glowing "+" cells). */
   selectable?: number[];
   onPickCell?: (index: number) => void;
+  /** Root view, for callers that need to measure the board on screen. */
+  rootRef?: Ref<View>;
 }) {
   const cellDims = { width: cellSize, height: cellSize };
   const glyphSize = { fontSize: Math.round(cellSize * 0.46) };
@@ -37,7 +41,7 @@ export function BingoGrid({
     board.slice(r * size, (r + 1) * size)
   );
   return (
-    <View style={styles.grid}>
+    <View ref={rootRef} collapsable={false} style={styles.grid}>
       {rows.map((cells, r) => (
         <View key={`row-${r}`} style={styles.gridRow}>
           {cells.map((cell, c) => {

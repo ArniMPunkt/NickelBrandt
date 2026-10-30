@@ -19,6 +19,8 @@ export interface ModeConfig {
   bingoDifficulty?: BingoDifficulty;
   /** Bingo: song/answer window seconds (absent = BINGO_ROUND_SECONDS). */
   bingoSongSeconds?: number;
+  /** Bingo: cell-pick window seconds (absent = BINGO_PICK_SECONDS). */
+  bingoPickSeconds?: number;
   /**
    * Bingo "Schnellschluss": after the first submitted answer, cap everyone
    * else's remaining time at BINGO_RUSH_SECONDS. Absent/false = off (the

@@ -13,6 +13,7 @@ import type {
   BingoCategoryType,
   BingoDifficulty,
   BingoRoundSpec,
+  ModeConfig,
 } from '../types/online';
 
 /** Active category rotation = the five cell colors. */
@@ -65,8 +66,39 @@ export const BINGO_RUSH_MIN_SONG_SECONDS = 45;
  * on a board you have been staring at all round", and it only ever costs the
  * full window when somebody idles - a single free cell auto-picks instantly,
  * and the round advances as soon as everyone HAS picked (see nextBingoRound).
+ *
+ * Default of the lobby's Feldwahl-Zeit slider (mode_config.bingoPickSeconds);
+ * doubles as the fallback for configs and game_state rows without the setting.
  */
 export const BINGO_PICK_SECONDS = 10;
+
+/** Feldwahl-Zeit slider bounds + snap increment (lobby config). */
+export const BINGO_PICK_SECONDS_MIN = 10;
+export const BINGO_PICK_SECONDS_MAX = 20;
+export const BINGO_PICK_SECONDS_STEP = 5;
+
+/** The configured pick window in seconds (absent = BINGO_PICK_SECONDS). */
+export function bingoPickSeconds(config?: ModeConfig | null): number {
+  return config?.bingoPickSeconds ?? BINGO_PICK_SECONDS;
+}
+
+/**
+ * Absolute end of a pick window opening at `now`. Written ONCE by the resolve
+ * winner; every device and the gate below read that shared timestamp, so this
+ * is the only place the configured seconds turn into time.
+ */
+export function bingoPickDeadline(now: number, config?: ModeConfig | null): number {
+  return now + bingoPickSeconds(config) * 1000;
+}
+
+/** Pick gate of nextBingoRound: true while a slow picker may still choose. */
+export function bingoPickWindowHoldsRound(
+  allPicked: boolean,
+  pickDeadline: number | null | undefined,
+  now: number
+): boolean {
+  return !allPicked && pickDeadline != null && now < pickDeadline;
+}
 
 /** Layout cap for decade multiple-choice buttons (2 rows of 4). */
 export const BINGO_DECADE_OPTIONS_MAX = 8;

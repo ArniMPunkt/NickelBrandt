@@ -20,7 +20,6 @@ import { isCorrectPlacement } from '../context/GameContext';
 import { insertAt, neighborYears, sortedInsertIndex, shuffle } from '../game/cards';
 import * as Spotify from './spotify';
 import {
-  BINGO_PICK_SECONDS,
   BINGO_COUNTDOWN_MS,
   BINGO_REVIEW_SECONDS,
   BINGO_RUSH_MIN_SONG_SECONDS,
@@ -29,6 +28,8 @@ import {
   BINGO_SPIN_MS,
   BINGO_SPIN_OPEN_ALL_MS,
   bandAnswerGroup,
+  bingoPickDeadline,
+  bingoPickWindowHoldsRound,
   countMarked,
   decadeRange,
   yearBounds,
@@ -1854,6 +1855,7 @@ export async function startBingoGame(
     bingoGridSize: 4 | 5;
     bingoDifficulty: BingoDifficulty;
     bingoSongSeconds: number;
+    bingoPickSeconds: number;
     bingoRushAfterFirst?: boolean;
     sourceId?: string;
     sourceName?: string;
@@ -1894,12 +1896,13 @@ export async function startBingoGame(
     hideCoverUntilRevealed: true,
     winnerId: null,
     gameMode: 'bingo',
-    // Difficulty + Song-Zeit ride along in modeConfig (synced to every client
-    // via game_state, same as the grid size).
+    // Difficulty + Song-Zeit + Feldwahl-Zeit ride along in modeConfig (synced to
+    // every client via game_state, same as the grid size).
     modeConfig: {
       bingoGridSize: config.bingoGridSize,
       bingoDifficulty: config.bingoDifficulty,
       bingoSongSeconds: config.bingoSongSeconds,
+      bingoPickSeconds: config.bingoPickSeconds,
       // Re-checked against the song time here, not just in the lobby UI: the
       // host may have enabled it at 60s and then pulled the slider back down,
       // and what gets frozen into game_state is what the rules run on.
@@ -2174,7 +2177,7 @@ export async function resolveBingoRound(lobbyId: string): Promise<void> {
       return {
         results,
         patch: {
-          pickDeadline: serverNow() + BINGO_PICK_SECONDS * 1000,
+          pickDeadline: bingoPickDeadline(serverNow(), gs.modeConfig),
           expectedMarks,
           reviewDeadline: null,
           reviewVerdicts: null,
@@ -2339,7 +2342,7 @@ export async function nextBingoRound(lobbyId: string): Promise<void> {
   const allPicked = players.every(
     (p) => countMarked(p.bingo_board) >= (gs.expectedMarks?.[p.player_id] ?? 0)
   );
-  if (!allPicked && gs.pickDeadline != null && serverNow() < gs.pickDeadline) return;
+  if (bingoPickWindowHoldsRound(allPicked, gs.pickDeadline, serverNow())) return;
 
   const size = gs.modeConfig?.bingoGridSize ?? 4;
   const winnerIds = players

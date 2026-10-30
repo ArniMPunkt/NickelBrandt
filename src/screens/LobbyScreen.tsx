@@ -32,11 +32,16 @@ import { glow } from '../theme/glow';
 import type { OnlineStackParamList } from '../types/navigation';
 import type { GameMode, Lobby, LobbyPlayer, ModeConfig } from '../types/online';
 import {
+  BINGO_PICK_SECONDS,
+  BINGO_PICK_SECONDS_MAX,
+  BINGO_PICK_SECONDS_MIN,
+  BINGO_PICK_SECONDS_STEP,
   BINGO_ROUND_SECONDS,
   BINGO_RUSH_MIN_SONG_SECONDS,
   BINGO_RUSH_SECONDS,
   BINGO_SONG_SECONDS_MAX,
   BINGO_SONG_SECONDS_MIN,
+  bingoPickSeconds,
 } from '../game/bingo';
 import { loadDeckSource, sourceId, sourceName, type DeckSource } from '../services/deck';
 
@@ -61,6 +66,7 @@ function defaultConfigFor(mode: GameMode): ModeConfig {
       bingoGridSize: 4,
       bingoDifficulty: 'easy',
       bingoSongSeconds: BINGO_ROUND_SECONDS,
+      bingoPickSeconds: BINGO_PICK_SECONDS,
     };
   }
   if (mode === 'timeline_quiz') return { timelineCardCount: DEFAULT_QUIZ_CARDS };
@@ -91,6 +97,8 @@ export default function LobbyScreen() {
   const [quizCards, setQuizCards] = useState(DEFAULT_QUIZ_CARDS);
   // Same pattern for the bingo Song-Zeit slider.
   const [songSeconds, setSongSeconds] = useState(BINGO_ROUND_SECONDS);
+  // ...and the bingo Feldwahl-Zeit slider.
+  const [pickSeconds, setPickSeconds] = useState(BINGO_PICK_SECONDS);
 
   const myId = Online.getPlayerId();
   const me = players.find((p) => p.player_id === myId);
@@ -215,6 +223,9 @@ export default function LobbyScreen() {
     const synced = lobby?.mode_config?.bingoSongSeconds;
     if (synced != null) setSongSeconds(synced);
   }, [lobby?.mode_config?.bingoSongSeconds]);
+  useEffect(() => {
+    setPickSeconds(lobby?.mode_config?.bingoPickSeconds ?? BINGO_PICK_SECONDS);
+  }, [lobby?.mode_config?.bingoPickSeconds]);
 
   // --- Host: mode selection (visible to everyone via the lobbies row) ---
   const writeMode = (mode: GameMode, config: ModeConfig) => {
@@ -304,6 +315,7 @@ export default function LobbyScreen() {
           bingoGridSize: modeConfig.bingoGridSize ?? 4,
           bingoDifficulty: modeConfig.bingoDifficulty ?? 'easy',
           bingoSongSeconds: modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS,
+          bingoPickSeconds: bingoPickSeconds(modeConfig),
           bingoRushAfterFirst: modeConfig.bingoRushAfterFirst ?? false,
           ...src,
         });
@@ -452,6 +464,19 @@ export default function LobbyScreen() {
                 }
               />
               <View style={styles.modeConfigHeader}>
+                <Text style={styles.modeConfigLabel}>Feldwahl-Zeit</Text>
+                <Text style={styles.modeConfigValue}>{pickSeconds}s</Text>
+              </View>
+              <StepSlider
+                value={pickSeconds}
+                min={BINGO_PICK_SECONDS_MIN}
+                max={BINGO_PICK_SECONDS_MAX}
+                step={BINGO_PICK_SECONDS_STEP}
+                milestones={[BINGO_PICK_SECONDS_MIN, 15, BINGO_PICK_SECONDS_MAX]}
+                onChange={setPickSeconds}
+                onRelease={(v) => writeMode('bingo', { ...modeConfig, bingoPickSeconds: v })}
+              />
+              <View style={styles.modeConfigHeader}>
                 <Text style={[styles.modeConfigLabel, !rushAvailable && styles.modeConfigLabelOff]}>
                   Schnellschluss
                 </Text>
@@ -498,6 +523,9 @@ export default function LobbyScreen() {
               ? ` · ${modeConfig.bingoGridSize ?? 4}×${modeConfig.bingoGridSize ?? 4}` +
                 ` · ${(modeConfig.bingoDifficulty ?? 'easy') === 'hard' ? 'Hard' : 'Easy'}` +
                 ` · ${modeConfig.bingoSongSeconds ?? BINGO_ROUND_SECONDS}s` +
+                (bingoPickSeconds(modeConfig) !== BINGO_PICK_SECONDS
+                  ? ` · Feldwahl ${bingoPickSeconds(modeConfig)}s`
+                  : '') +
                 (modeConfig.bingoRushAfterFirst ? ' · Schnellschluss' : '')
               : ''}
             {/* chipsEnabled lebt nur in der lokalen, geräteeigenen SettingsContext

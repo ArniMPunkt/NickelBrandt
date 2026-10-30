@@ -8,7 +8,7 @@
  * Correct answers mark a random free cell of the category's color; a full
  * row/column/diagonal wins (phase 'finished' + winnerId, like hitster).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import {
   Alert,
   Animated,
@@ -16,6 +16,7 @@ import {
   Easing,
   Image,
   InteractionManager,
+  Keyboard,
   Linking,
   ScrollView,
   StyleSheet,
@@ -48,6 +49,7 @@ import {
 } from '../game/bingo';
 import * as MusicBrainz from '../services/musicbrainz';
 import { buildPlayerBingoStats } from '../game/stats';
+import { revealScrollTarget } from '../game/scrollReveal';
 import { BingoCountdown } from '../components/BingoCountdown';
 import { BingoGrid } from '../components/BingoGrid';
 import { CategoryWheel } from '../components/CategoryWheel';
@@ -97,7 +99,15 @@ const RUSH_RING_RESTING_OPACITY = 0.45;
  * would dim the number along with it, and borderColor cannot run on the
  * native driver at all.
  */
-function RoundCountdown({ deadlineMs, alert = false }: { deadlineMs: number; alert?: boolean }) {
+function RoundCountdown({
+  deadlineMs,
+  alert = false,
+  rootRef,
+}: {
+  deadlineMs: number;
+  alert?: boolean;
+  rootRef?: Ref<View>;
+}) {
   const [remaining, setRemaining] = useState(() =>
     Math.max(0, Math.ceil((deadlineMs - Online.serverNow()) / 1000))
   );
@@ -142,7 +152,7 @@ function RoundCountdown({ deadlineMs, alert = false }: { deadlineMs: number; ale
 
   const urgent = remaining <= 5;
   return (
-    <View style={styles.countdownWrap}>
+    <View ref={rootRef} collapsable={false} style={styles.countdownWrap}>
       <Text style={[styles.countdown, urgent && styles.countdownUrgent]}>
         ⏱ {remaining}s
       </Text>
@@ -154,6 +164,51 @@ function RoundCountdown({ deadlineMs, alert = false }: { deadlineMs: number; ale
       )}
     </View>
   );
+}
+
+const measureBox = (node: Pick<View, 'measureInWindow'>) =>
+  new Promise<{ y: number; height: number }>((resolve) =>
+    node.measureInWindow((_x, y, _width, height) => resolve({ y, height }))
+  );
+
+/**
+ * Autoscroll decision on the CURRENT native layout. Measured instead of cached
+ * from onLayout: the effects calling this run in the commit that just moved
+ * everything, and these measurements queue up behind that layout pass. Window
+ * coordinates throughout, so the content's own position also yields the scroll
+ * offset and its height the scrollable range.
+ */
+async function measureRevealScroll(
+  scroll: ScrollView | null,
+  target: View | null,
+  keepVisible: View | null,
+  topInset: number
+): Promise<number | null> {
+  const scrollNode = scroll?.getNativeScrollRef();
+  // getInnerViewRef is public API, the .d.ts just doesn't declare it.
+  const contentNode = (scroll as (ScrollView & { getInnerViewRef(): View | null }) | null)?.getInnerViewRef();
+  if (!scrollNode || !contentNode || !target) return null;
+  const [frame, content, targetBox, keepBox] = await Promise.all([
+    measureBox(scrollNode),
+    measureBox(contentNode),
+    measureBox(target),
+    keepVisible ? measureBox(keepVisible) : null,
+  ]);
+  if (frame.height <= 0 || targetBox.height <= 0) return null;
+  // Overlap instead of the keyboard's height: where the window resizes for the
+  // keyboard, the ScrollView already ended above it and nothing is covered.
+  const keyboard = Keyboard.isVisible() ? Keyboard.metrics() : undefined;
+  return revealScrollTarget({
+    target: { y: targetBox.y - content.y, height: targetBox.height },
+    keepVisible: keepBox && { y: keepBox.y - content.y, height: keepBox.height },
+    viewport: {
+      scrollY: frame.y - content.y,
+      height: frame.height,
+      contentHeight: content.height,
+      topInset,
+      bottomInset: keyboard ? Math.max(0, frame.y + frame.height - keyboard.screenY) : 0,
+    },
+  });
 }
 
 export default function BingoGameScreen() {
@@ -416,6 +471,58 @@ export default function BingoGameScreen() {
   const someoneHasBingo = players.some(
     (p) => p.bingo_board && hasBingo(p.bingo_board, size)
   );
+
+  // ---- Autoscroll to the board (only where it doesn't fit on screen) ----
+  const scrollRef = useRef<ScrollView>(null);
+  const gridRef = useRef<View>(null);
+  const pickCountdownRef = useRef<View>(null);
+  const answerAreaRef = useRef<View>(null);
+  const userDraggingRef = useRef(false);
+  // Refs, not state: they survive refreshes and reconnects, so a round scrolls
+  // at most once. A fresh mount (app killed mid-pick) may scroll once again.
+  const pickScrollRoundRef = useRef<number | null>(null);
+  const autoScrolledRoundRef = useRef<number | null>(null);
+  const roundNumber = gs?.roundNumber ?? null;
+  // Same condition the pick box and the tappable cells render on. A single free
+  // cell auto-picks at once (see above), so there is nothing to scroll to.
+  const pickChoiceOpen = pickPending && pickableCells.length > 1;
+
+  const revealInScrollView = (
+    target: View | null,
+    keepVisible: View | null,
+    onScrolled?: () => void
+  ) => {
+    let cancelled = false;
+    measureRevealScroll(scrollRef.current, target, keepVisible, insets.top).then((y) => {
+      // A finger on the screen means the player is choosing the position.
+      if (cancelled || y == null || userDraggingRef.current) return;
+      onScrolled?.();
+      scrollRef.current?.scrollTo({ y, animated: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  };
+
+  useEffect(() => {
+    if (!pickChoiceOpen || roundNumber == null || pickScrollRoundRef.current === roundNumber) return;
+    pickScrollRoundRef.current = roundNumber;
+    return revealInScrollView(gridRef.current, pickCountdownRef.current, () => {
+      autoScrolledRoundRef.current = roundNumber;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickChoiceOpen, roundNumber]);
+
+  // Back to the next round's stage, but only after a scroll of our own: nothing
+  // else resets the position between rounds, and a player who never got moved
+  // keeps theirs.
+  useEffect(() => {
+    const scrolledRound = autoScrolledRoundRef.current;
+    if (scrolledRound == null || roundNumber == null || roundNumber === scrolledRound) return;
+    autoScrolledRoundRef.current = null;
+    return revealInScrollView(answerAreaRef.current, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundNumber]);
 
   // Host ended the lobby -> everyone returns home (once).
   useEffect(() => {
@@ -819,10 +926,17 @@ export default function BingoGameScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       // The title_artist text input: submitting must work with the keyboard open.
       keyboardShouldPersistTaps="handled"
+      onScrollBeginDrag={() => {
+        userDraggingRef.current = true;
+      }}
+      onScrollEndDrag={() => {
+        userDraggingRef.current = false;
+      }}
     >
       {/* Header */}
       <View style={styles.headerRow}>
@@ -862,7 +976,7 @@ export default function BingoGameScreen() {
               flinging player's disc would unmount mid-throw and snap back to 0
               the moment the shared timestamp arrives. */}
       {wheelStageVisible && (
-        <View style={styles.spinBox}>
+        <View ref={answerAreaRef} collapsable={false} style={styles.spinBox}>
           <Text style={styles.categoryLabel}>KATEGORIE-ZIEHUNG</Text>
           <CategoryWheel
             // Only the collecting phase reveals the result - during 'spinning'
@@ -900,7 +1014,7 @@ export default function BingoGameScreen() {
 
       {/* ---- wheel landed, get-ready beat before the song (old song still playing) ---- */}
       {roundPhase === 'collecting' && round && countdownRunning && gs.spinStartedAt != null && (
-        <View style={styles.spinBox}>
+        <View ref={answerAreaRef} collapsable={false} style={styles.spinBox}>
           <BingoCountdown
             startAt={gs.spinStartedAt + BINGO_SPIN_MS}
             category={round.type}
@@ -913,7 +1027,7 @@ export default function BingoGameScreen() {
       {/* ---- collecting: mystery song + category + input ---- */}
       {roundPhase === 'collecting' && round && !spinRunning && !countdownRunning && (
         <>
-          <View style={styles.mysteryBox}>
+          <View ref={answerAreaRef} collapsable={false} style={styles.mysteryBox}>
             <Text style={styles.mysteryGlyph}>💿</Text>
             <Text style={styles.mysteryText}>Song läuft… hör genau hin!</Text>
             {/* The ring marks the SAME moment as the hint below, and only
@@ -1252,7 +1366,9 @@ export default function BingoGameScreen() {
               <Text style={styles.hint}>
                 Tippe unten auf deinem Board ein leuchtendes „+"-Feld an.
               </Text>
-              {gs.pickDeadline != null && <RoundCountdown deadlineMs={gs.pickDeadline} />}
+              {gs.pickDeadline != null && (
+                <RoundCountdown deadlineMs={gs.pickDeadline} rootRef={pickCountdownRef} />
+              )}
             </View>
           )}
           {colorFull && (
@@ -1286,6 +1402,7 @@ export default function BingoGameScreen() {
       <Text style={styles.sectionLabel}>DEIN BOARD</Text>
       {me?.bingo_board ? (
         <BingoGrid
+          rootRef={gridRef}
           board={me.bingo_board}
           size={size}
           selectable={pickPending && pickableCells.length > 1 ? pickableCells : undefined}
