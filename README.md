@@ -107,6 +107,52 @@ with these patches on Expo SDK 54 / RN 0.81.
 - If the legacy module ever fails to build on a newer SDK, pin back to Expo
   SDK 53 (last resort).
 
+## Release
+
+One command for both platforms; the machine decides what gets built
+(`scripts/release.js`, fixed values in `scripts/release.config.json`):
+
+| Command / switch | Effect |
+| --- | --- |
+| `npm run release` | Windows: Android AAB + APK · Mac: iOS build + TestFlight upload |
+| `npm run release:check` | preflight checks only, no build |
+| `--aab-only` | Windows: AAB only (`npm run android:aab`) |
+| `--skip-prebuild` | Windows: reuse `android/` (aborts if its versions differ from `app.config.ts`) |
+| `--no-submit` | Mac: build only, no upload |
+| `--force` | git problems only warn instead of aborting |
+
+Pass switches after `--`, e.g. `npm run release -- --no-submit`. Artifacts land in
+`release/NickelBrandt-<version>-<build>.{aab,apk,ipa}` (gitignored). Version numbers
+are never bumped by the script: raise `version`, `ios.buildNumber` and
+`android.versionCode` in `app.config.ts` yourself, then commit and push - the
+preflight requires a clean `main` equal to `origin/main`.
+
+### Setup per machine
+
+Every machine: Node ≥ 20.19.4, `git clone`, `npm install`, and the project's
+`.env` (see `.env.example`).
+
+**Main PC (Windows) - Android**
+- JDK 17+ via `JAVA_HOME` (or Android Studio's bundled `jbr`), Android SDK via
+  `ANDROID_HOME` (or the default location under `%LOCALAPPDATA%\Android\Sdk`)
+  with build-tools installed.
+- `nickelbrandt.keystore` in the project folder and `.env.signing.local` filled
+  from `.env.signing.local.example` (both gitignored, never commit).
+- Gradle runs with 4 GB heap; the machine needs enough free RAM.
+
+**Second Windows laptop - Android**
+- Same as the main PC. Copy `nickelbrandt.keystore` and `.env.signing.local`
+  over a private channel (USB stick, password manager) - never via git, chat or
+  e-mail. The preflight checks the signature fingerprint of every build, so a
+  wrong keystore is caught before an upload.
+
+**MacBook - iOS**
+- Xcode, CocoaPods, fastlane and `eas-cli` (`npm install -g eas-cli`), then
+  `eas login`.
+- `credentials.json` and the `credentials/` folder (certificate + provisioning
+  profile) in the project folder, both gitignored.
+- No local prebuild needed: `eas build --local` creates `ios/` itself.
+
 ## Songpool Scripts
 
 Precheck:

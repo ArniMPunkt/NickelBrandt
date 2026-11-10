@@ -55,4 +55,10 @@ credentials.json
 # generated native folders
 /ios
 /android
+
+# release artifacts (scripts/release.js) + Play upload credentials
+/release/
+*.aab
+*.apk
 *.ipa
+google-service-account.json

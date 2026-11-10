@@ -34,9 +34,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "android:aab": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1 -Type aab",
-    "android:apk": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1 -Type apk",
-    "release:ios": "node scripts/release-ios.js",
+    "release": "node scripts/release.js",
+    "release:check": "node scripts/release.js --check",
+    "android:aab": "node scripts/release.js --aab-only",
+    "android:apk": "node scripts/release.js",
+    "release:ios": "node scripts/release.js",
     "postinstall": "patch-package && node scripts/copy-spotify-xcframework.js"
   },
   "private": true

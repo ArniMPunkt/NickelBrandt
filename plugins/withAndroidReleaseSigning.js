@@ -29,10 +29,12 @@
  *   NICKELBRANDT_KEY_ALIAS          - the key alias inside the keystore
  *   NICKELBRANDT_KEY_PASSWORD       - the key password
  *
- * If these are unset, only RELEASE signing fails (with a clear Gradle error);
- * debug builds and Gradle configuration are unaffected, because System.getenv()
- * simply returns null at configuration time and is only validated when the
- * release signing task actually runs.
+ * RELEASE builds refuse to start without them: a guard appended to the same
+ * build.gradle aborts as soon as the task graph contains a release task of
+ * :app and a value (or the keystore) is missing - before anything compiles,
+ * instead of relying on AGP's late signing validation. Prebuild itself checks
+ * nothing (it also serves debug builds), and debug builds never reach the
+ * guard: their task graph has no release task.
  */
 const { withAppBuildGradle } = require('@expo/config-plugins');
 
@@ -49,6 +51,25 @@ const RELEASE_SIGNING_BLOCK = [
   "            keyPassword System.getenv('NICKELBRANDT_KEY_PASSWORD')",
   '        }',
   `        ${END_MARKER}`,
+].join('\n');
+
+const SIGNING_ENV_VARS = ['NICKELBRANDT_KEYSTORE_PASSWORD', 'NICKELBRANDT_KEY_ALIAS', 'NICKELBRANDT_KEY_PASSWORD'];
+
+// Appended at the end of app/build.gradle. Names only in the message, never values.
+const RELEASE_GUARD_BLOCK = [
+  `${MARKER} guard (release builds only)`,
+  'gradle.taskGraph.whenReady { graph ->',
+  "    if (!graph.allTasks.any { it.project == project && it.name.contains('Release') }) return",
+  `    def missing = [${SIGNING_ENV_VARS.map((v) => `'${v}'`).join(', ')}].findAll { !System.getenv(it) }`,
+  "    if (!file('../../nickelbrandt.keystore').exists()) missing << 'nickelbrandt.keystore'",
+  '    if (missing) {',
+  '        throw new GradleException(',
+  `            "Release-Build ohne Signing-Werte abgebrochen, es fehlt: \${missing.join(', ')}. " +`,
+  '            "Siehe plugins/withAndroidReleaseSigning.js (Debug-Builds sind nicht betroffen)."',
+  '        )',
+  '    }',
+  '}',
+  END_MARKER,
 ].join('\n');
 
 /**
@@ -80,6 +101,9 @@ function applyReleaseSigning(contents) {
     );
   }
   contents = contents.replace(signingConfigsRe, (m) => `${m}${RELEASE_SIGNING_BLOCK}\n`);
+
+  // 3) Refuse release builds without signing values (see header).
+  contents = `${contents.trimEnd()}\n\n${RELEASE_GUARD_BLOCK}\n`;
 
   return contents;
 }

@@ -1,0 +1,33 @@
+{
+  "appName": "NickelBrandt",
+  "releaseBranch": "main",
+  "remote": "origin",
+  "nodeMin": "20.19.4",
+  "releaseDir": "release",
+  "appId": {
+    "android": "com.nickelbrandt.app",
+    "ios": "com.nickelbrandt.app"
+  },
+  "requiredEnv": [
+    "EXPO_PUBLIC_SPOTIFY_CLIENT_ID",
+    "EXPO_PUBLIC_SPOTIFY_REDIRECT_URI",
+    "EXPO_PUBLIC_SUPABASE_URL",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY"
+  ],
+  "android": {
+    "keystore": "nickelbrandt.keystore",
+    "signingEnvFile": ".env.signing.local",
+    "signingVars": [
+      "NICKELBRANDT_KEYSTORE_PASSWORD",
+      "NICKELBRANDT_KEY_ALIAS",
+      "NICKELBRANDT_KEY_PASSWORD"
+    ],
+    "expectedUploadCertSha256": "70:3C:D0:C1:F1:B5:CE:43:AA:CE:F1:A6:EC:73:53:27:F7:64:57:15:6C:43:54:04:83:76:95:3E:3A:7F:B7:3B",
+    "minJavaMajor": 17,
+    "gradleJvmArgs": "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
+  },
+  "ios": {
+    "easProfile": "production",
+    "credentialsFile": "credentials.json"
+  }
+}
